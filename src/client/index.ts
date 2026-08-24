@@ -163,7 +163,7 @@ function buildStudio(): HTMLElement {
           <div class="gas-row" style="margin-top:8px">
             <div style="flex:1"><label class="gas-label">风格</label><select class="gas-select" id="c-style"><option value="pixel32">像素 32px</option><option value="pixel16">像素 16px</option><option value="chibi">Q版 Chibi</option><option value="anime">二次元立绘</option><option value="real">写实</option></select></div>
             <div style="flex:1"><label class="gas-label">视图</label><select class="gas-select" id="c-view"><option value="single">单视图</option><option value="tri">三视图 (前/侧/后)</option><option value="dir8">八方向</option></select></div>
-            <div style="flex:1"><label class="gas-label">提供商</label><select class="gas-select" id="c-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select></div>
+            <div style="flex:1"><label class="gas-label">提供商</label><select class="gas-select" id="c-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select><select class="gas-select" id="c-model-sel" style="display:none;margin-top:6px"></select></div>
           </div>
           <div class="gas-row" style="margin-top:8px;align-items:center">
             <label class="gas-label" style="margin:0">背景色</label>
@@ -220,7 +220,7 @@ function buildStudio(): HTMLElement {
               <button class="gas-btn ghost" id="s-save">📥 入库</button>
           </div>
           <label class="gas-label">AI 生成序列（BYOK）</label>
-          <div class="gas-row"><input class="gas-input" id="s-prompt" placeholder="例：像素小骑士 奔跑 8帧 横向序列，透明背景"><select class="gas-select" id="s-provider" style="flex:0 0 128px"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><button class="gas-btn" id="s-gen">生成</button></div>
+          <div class="gas-row"><input class="gas-input" id="s-prompt" placeholder="例：像素小骑士 奔跑 8帧 横向序列，透明背景"><div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="s-provider"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="s-model-sel" style="display:none;margin-top:4px"></select></div><button class="gas-btn" id="s-gen">生成</button></div>
           <div class="gas-note" id="s-status"></div>
         </div>
         <div style="width:260px">
@@ -253,7 +253,7 @@ function buildStudio(): HTMLElement {
       </div>
       <div class="gas-row" style="margin-top:8px">
         <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option></select>
-        <select class="gas-select" id="f-provider" style="flex:1"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select>
+        <div style="flex:1;display:flex;flex-direction:column"><select class="gas-select" id="f-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select><select class="gas-select" id="f-model-sel" style="display:none;margin-top:4px"></select></div>
         <button class="gas-btn" id="f-batch">⚡ 批量生成</button>
       </div>
       <div class="gas-row" style="margin-top:8px;align-items:center">
@@ -322,7 +322,7 @@ function buildStudio(): HTMLElement {
             <div class="gas-note" id="map-mode-tip" style="margin-top:4px">🌍 完整大地图：AI 直接生成一张可用的无缝大地图，适合做场景背景/整图导入；也可以后续切成 TileSet。</div>
             <div class="gas-row" style="margin-top:8px">
               <input class="gas-input" id="map-prompt" placeholder="例：俯视像素草原村庄大地图，有道路/河流/树木，暗色风格，无缝平铺，无UI">
-              <select class="gas-select" id="map-provider" style="flex:0 0 128px"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select>
+              <select class="gas-select" id="map-provider" style="flex:0 0 128px"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="map-model-sel" style="display:none;margin-top:4px;flex:0 0 128px"></select>
               <button class="gas-btn" id="map-gen">✨ AI 生成</button>
               <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="map-file" accept="image/*" hidden>📁 上传</label>
             </div>
@@ -445,10 +445,19 @@ function buildStudio(): HTMLElement {
           <div class="gas-row">
             <div style="flex:1"><label class="gas-label">协议类型</label><select class="gas-select" id="p-type"><option value="openai">OpenAI 兼容</option><option value="stability">Stability 风格</option><option value="siliconflow">SiliconFlow 风格</option></select></div>
             <div style="flex:1">
-              <label class="gas-label">模型 ID（可自动获取）</label>
-              <input class="gas-input" id="p-model" list="p-model-list" placeholder="点「获取默认模型」自动拉取，或手动输入">
+              <label class="gas-label">模型（可自动获取后勾选多个）</label>
+              <input class="gas-input" id="p-model" list="p-model-list" placeholder="默认模型：先「获取默认模型」勾选，或手动输入">
               <datalist id="p-model-list"></datalist>
               <button class="gas-btn ghost" id="p-fetch-models" style="width:100%;margin-top:4px">🔍 获取默认模型</button>
+              <div id="p-models-picker" style="display:none;margin-top:8px;border:1px dashed var(--border);border-radius:10px;padding:8px;max-height:200px;overflow:auto">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+                  <span style="font-size:11px;color:var(--muted)">已选 <b id="p-models-count" style="color:var(--accent2)">0</b> 个模型</span>
+                  <button class="gas-btn ghost" id="p-models-all" type="button" style="padding:2px 8px;font-size:10px">全选</button>
+                  <button class="gas-btn ghost" id="p-models-none" type="button" style="padding:2px 8px;font-size:10px">全不选</button>
+                  <button class="gas-btn ghost" id="p-models-ok" type="button" style="padding:2px 8px;font-size:10px;margin-left:auto;color:var(--ok)">✅ 确定</button>
+                </div>
+                <div id="p-models-list" style="display:flex;flex-direction:column;gap:3px"></div>
+              </div>
             </div>
           </div>
           <label class="gas-label">Base URL（可只填到 /v1，系统自动补全 /images/generations）</label><input class="gas-input" id="p-base" placeholder="https://tbtk.asia/v1 或 https://api.example.com/v1/images/generations">
@@ -626,6 +635,8 @@ const pPost=mkPanel('post', `
   const LS_PRESETS='dsh-game-art-studio:customProviders'
   const getCustomProviders=(): any[]=>{ try{ const a=JSON.parse(localStorage.getItem(LS_PRESETS)||'[]'); return Array.isArray(a)?a:[] }catch{ return [] } }
   const saveCustomProviders=(list:any[])=>{ localStorage.setItem(LS_PRESETS, JSON.stringify(list)) }
+  let pickedModels:string[]=[] // 勾选要使用的模型（保存为预设的 models 字段）
+  const modelSelSyncs: (()=>void)[] = []
 
   function providerOptionHtml(): string {
     const built='<option value="mock">本地演示(无Key)</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option>'
@@ -644,13 +655,37 @@ const pPost=mkPanel('post', `
       if([...sel.options].some(o=>o.value===old)) sel.value=old
       else sel.value='mock'
     }
+    modelSelSyncs.forEach(f=>f())
+  }
+
+  // 自定义供应商选中后，显示其勾选过的模型列表供生成时自由选用
+  function bindModelSelect(panel:HTMLElement, provId:string, selId:string){
+    const prov=panel.querySelector('#'+provId) as HTMLSelectElement | null
+    const sel=panel.querySelector('#'+selId) as HTMLSelectElement | null
+    if(!prov||!sel) return
+    const update=()=>{
+      const val=prov.value||''
+      const p= val.startsWith('custom:') ? getCustomProviders().find(x=>x.id===val.slice(7)) : null
+      const models= p ? (Array.isArray(p.models)&&p.models.length ? p.models : (p.model?[p.model]:[])) : []
+      if(p && models.length){
+        sel.innerHTML=models.map((m:string)=>'<option value="'+m.replace(/[<>"']/g,'')+'">'+m.replace(/[<>"']/g,'')+'</option>').join('')
+        sel.style.display='block'
+        if(p.model && models.includes(p.model)) sel.value=p.model
+      }else{
+        sel.innerHTML=''
+        sel.style.display='none'
+      }
+    }
+    prov.addEventListener('change', update)
+    modelSelSyncs.push(update)
+    update()
   }
 
   function renderPresetList(){
     const list=pPreset.querySelector('#p-list') as HTMLElement
     if(!list) return
     const presets=getCustomProviders()
-    if(!presets.length){ list.innerHTML='<span style="color:#9aa0a6">暂无自定义预设 — 在右侧表单中添加第一个</span>'; return }
+    if(!presets.length){ list.innerHTML='<span style="color:#9aa0a6">暂无自定义预设 — 在下方表单中添加第一个</span>'; return }
     list.innerHTML=presets.map(p=>{
       const typeLabel={ openai:'OpenAI 兼容', stability:'Stability', siliconflow:'SiliconFlow' }[p.type]||p.type||'?'
       return `<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px dashed #3a3f47">
@@ -658,7 +693,7 @@ const pPost=mkPanel('post', `
         <div style="flex:1;min-width:0">
           <div style="font-weight:600;font-size:12px;color:#e6e6e6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(p.name||'未命名').replace(/[<>"']/g,'')}</div>
           <div style="font-size:10px;color:#9aa0a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${typeLabel} · ${(p.baseUrl||'').replace(/[<>"']/g,'')}</div>
-          <div style="font-size:10px;color:#6ea6d1">${(p.model||'默认模型')}</div>
+          <div style="font-size:10px;color:#6ea6d1">${(p.models&&p.models.length)? ('已选 '+p.models.length+' 个模型 · '+(p.models[0]||'')) : (p.model||'默认模型')}</div>
         </div>
         <button class="gas-btn ghost" data-preset-edit="${p.id}" style="padding:3px 7px;font-size:10px">编辑</button>
         <button class="gas-btn ghost" data-preset-test="${p.id}" style="padding:3px 7px;font-size:10px">试生成</button>
@@ -675,6 +710,8 @@ const pPost=mkPanel('post', `
     const fk=pPreset.querySelector('#p-key') as HTMLInputElement; if(fk) fk.value=''
     const st=pPreset.querySelector('#p-status') as HTMLElement; if(st) st.textContent=''
     const dl=pPreset.querySelector('#p-model-list') as HTMLDataListElement; if(dl) dl.innerHTML=''
+    pickedModels=[]
+    closeModelPicker()
   }
 
   function editPreset(id:string){
@@ -687,6 +724,8 @@ const pPost=mkPanel('post', `
     ;(pPreset.querySelector('#p-id-hidden') as HTMLInputElement)?.remove?.()
     const hid=document.createElement('input'); hid.type='hidden'; hid.id='p-id-hidden'; hid.value=p.id
     pPreset.querySelector('#p-name')!.insertAdjacentElement('afterend', hid)
+    pickedModels = Array.isArray(p.models)? p.models.slice() : []
+    if(pickedModels.length) openModelPicker(pickedModels); else closeModelPicker()
     const st=pPreset.querySelector('#p-status') as HTMLElement; if(st){ st.textContent='正在编辑：'+p.name; st.style.color='#f1c40f' }
   }
 
@@ -713,7 +752,7 @@ const pPost=mkPanel('post', `
     if(!baseUrl) { st.textContent='请填写 Base URL 接口地址'; st.style.color='#e74c3c'; return }
     const existingId=(pPreset.querySelector('#p-id-hidden') as HTMLInputElement)?.value
     const list=getCustomProviders()
-    const newItem={ id: existingId || ('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)), name, type, model: model||'', baseUrl, apiKey }
+    const newItem={ id: existingId || ('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)), name, type, model: model||(pickedModels[0]||''), baseUrl, apiKey, models: pickedModels.slice() }
     if(existingId){
       const idx=list.findIndex(x=>x.id===existingId)
       if(idx>=0) list[idx]=newItem; else list.push(newItem)
@@ -730,6 +769,16 @@ const pPost=mkPanel('post', `
   // 预设面板事件
   pPreset.querySelector('#p-add')!.addEventListener('click', addPresetFromForm)
   pPreset.querySelector('#p-fetch-models')!.addEventListener('click', ()=>{ void fetchPresetModels() })
+  pPreset.querySelector('#p-models-all')!.addEventListener('click', ()=>{ const listEl=pPreset.querySelector('#p-models-list') as HTMLElement; listEl.querySelectorAll('input[data-model]').forEach((cb:any)=> cb.checked=true); updatePickerCount() })
+  pPreset.querySelector('#p-models-none')!.addEventListener('click', ()=>{ const listEl=pPreset.querySelector('#p-models-list') as HTMLElement; listEl.querySelectorAll('input[data-model]').forEach((cb:any)=> cb.checked=false); updatePickerCount() })
+  pPreset.querySelector('#p-models-ok')!.addEventListener('click', ()=>{
+    const listEl=pPreset.querySelector('#p-models-list') as HTMLElement
+    pickedModels=[...listEl.querySelectorAll('input[data-model]:checked')].map((cb:any)=> cb.dataset.model as string)
+    if(pickedModels.length){ const fm=pPreset.querySelector('#p-model') as HTMLInputElement; fm.value=pickedModels[0] }
+    closeModelPicker()
+    const st=pPreset.querySelector('#p-status') as HTMLElement
+    if(st){ st.textContent='✓ 已选用 '+pickedModels.length+' 个模型，保存预设后即可在各生成面板按供应商选用'; st.style.color='#2ecc71' }
+  })
   pPreset.querySelector('#p-cancel')!.addEventListener('click', ()=>{ resetPresetForm(); ;(pPreset.querySelector('#p-id-hidden') as HTMLInputElement)?.remove?.() })
   pPreset.querySelector('#p-list')!.addEventListener('click', (e:any)=>{
     const btn=(e.target as HTMLElement).closest?.('button') as HTMLElement | null
@@ -748,6 +797,10 @@ const pPost=mkPanel('post', `
   // 初始化：预载自定义预设并同步到所有下拉框
   renderPresetList()
   populateProviderSelects()
+  bindModelSelect(pChar,'c-provider','c-model-sel')
+  bindModelSelect(pSheet,'s-provider','s-model-sel')
+  bindModelSelect(pForge,'f-provider','f-model-sel')
+  bindModelSelect(pMap,'map-provider','map-model-sel')
 
   function resolveCustomEndpoint(base:string, type:string): string {
     const b=base.replace(/\/+$/,'')
@@ -791,17 +844,39 @@ const pPost=mkPanel('post', `
       // 图像类模型排前面，便于默认选中
       const img=ids.filter((id:string)=>/image|dall|flux|sdxl|sd-|stable|t2i|pix|turbo|omni|gpt-image|kandinsky|sana|wan/i.test(id))
       const ordered=Array.from(new Set([...img, ...ids]))
-      const dl=pPreset.querySelector('#p-model-list') as HTMLDataListElement
-      if(dl) dl.innerHTML=ordered.map((id:string)=>'<option value="'+id.replace(/[<>"']/g,'')+'"></option>').join('')
       const def=ordered[0]||''
       ;(pPreset.querySelector('#p-model') as HTMLInputElement).value=def
-      st.textContent='✓ 获取到 '+ids.length+' 个模型，默认：'+def+'（点模型框下拉可切换全部模型）'
+      openModelPicker(ordered)
+      st.textContent='✓ 检测到 '+ids.length+' 个模型，默认已全选（默认模型：'+def+'）— 取消不需要的勾选后点「✅ 确定」'
       st.style.color='#2ecc71'
     }catch(e:any){
       st.textContent='获取模型失败：'+String(e.message||e).slice(0,160); st.style.color='#e74c3c'
     }finally{
       btn.disabled=false; btn.textContent=oldLabel
     }
+  }
+
+  // ---- 模型勾选面板 ----
+  function openModelPicker(models:string[]){
+    const picker=pPreset.querySelector('#p-models-picker') as HTMLElement
+    const listEl=pPreset.querySelector('#p-models-list') as HTMLElement
+    if(!picker||!listEl) return
+    pickedModels=models.slice()
+    const checked=new Set(pickedModels)
+    listEl.innerHTML=models.map((m:string)=>'<label style="display:flex;gap:6px;align-items:center;font-size:11px;color:var(--text);cursor:pointer;padding:2px 0"><input type="checkbox" data-model="'+m.replace(/[<>"']/g,'')+'" '+(checked.has(m)?'checked':'')+' style="accent-color:var(--accent)"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.replace(/[<>"']/g,'')+'</span></label>').join('')
+    listEl.querySelectorAll('input[data-model]').forEach((cb:any)=>{ cb.addEventListener('change', updatePickerCount) })
+    picker.style.display='block'
+    updatePickerCount()
+  }
+  function updatePickerCount(){
+    const countEl=pPreset.querySelector('#p-models-count') as HTMLElement
+    const listEl=pPreset.querySelector('#p-models-list') as HTMLElement
+    if(!countEl||!listEl) return
+    countEl.textContent=String([...listEl.querySelectorAll('input[data-model]:checked')].length)
+  }
+  function closeModelPicker(){
+    const picker=pPreset.querySelector('#p-models-picker') as HTMLElement
+    if(picker) picker.style.display='none'
   }
 
   async function toLocalBlobUrl(url:string): Promise<string> {
@@ -875,10 +950,10 @@ const pPost=mkPanel('post', `
       }
       // OpenAI 兼容 / SiliconFlow 风格
       if(ref){
-        return await callImageEdits(prompt, resolveEditsEndpoint(endpoint), preset.apiKey, { ...opts, model: preset.model || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3') })
+        return await callImageEdits(prompt, resolveEditsEndpoint(endpoint), preset.apiKey, { ...opts, model: opts.model || preset.model || (preset.models?.[0]||'') || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3') })
       }
       const body:any={ prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024' }
-      body.model=preset.model || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3')
+      body.model=opts.model || preset.model || (preset.models?.[0]||'') || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3')
       if(preset.type==='siliconflow') body.image_size=opts.size||'1024x1024'
       // 优先要 base64：图片直接本地化，file:// 直开也能切片/下载，摆脱跨域图片 URL 限制
       body.response_format='b64_json'
@@ -972,7 +1047,7 @@ function mockImage(prompt:string, opts:any): string {
       const fullPrompt = view==='tri' ? prompt+' , three views front side back, character sheet'+bgSuffix : view==='dir8' ? prompt+' , 8 directional sprites'+bgSuffix : prompt + (style.startsWith('pixel')?' , pixel art, '+style:' , '+style) + bgSuffix
       setProg(20); status.textContent='生成中… ('+prov+')'; (pChar.querySelector('#c-gen') as HTMLButtonElement).disabled=true
       try{
-        const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024', bg, bgTrans, reference: refUrl || undefined })
+        const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024', bg, bgTrans, model: (pChar.querySelector('#c-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl || undefined })
         lastUrl=url; setProg(100)
         preview.innerHTML=''; const img=document.createElement('img'); img.src=url; img.style.maxWidth='100%'; img.style.maxHeight='180px'; img.style.imageRendering='pixelated'; preview.appendChild(img)
         const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+style+'</span><span>'+view+'</span></div>'
@@ -1087,7 +1162,7 @@ function mockImage(prompt:string, opts:any): string {
       pSheet.querySelector('#s-gen')!.addEventListener('click', async()=>{
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'输入序列描述',false)
       const prov=(pSheet.querySelector('#s-provider') as HTMLSelectElement)?.value || 'mock'
-      try{ const url=await callImageGen(prompt+' , sprite sheet, transparent background', prov as any, { size:'1024x512' }); const img=await loadImage(url); const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0); c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) }) }catch(e:any){ toast(status,String(e.message),false) }
+      try{ const url=await callImageGen(prompt+' , sprite sheet, transparent background', prov as any, { size:'1024x512', model: (pSheet.querySelector('#s-model-sel') as HTMLSelectElement)?.value||undefined }); const img=await loadImage(url); const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0); c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) }) }catch(e:any){ toast(status,String(e.message),false) }
     })
   })()
 
@@ -1115,7 +1190,7 @@ function mockImage(prompt:string, opts:any): string {
       grid.innerHTML=''; let done=0
       for(const line of lines){
         try{
-          const url=await callImageGen(line + ' , game asset, centered'+bgSuffix, prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value, bg, bgTrans, reference: refUrl || undefined })
+          const url=await callImageGen(line + ' , game asset, centered'+bgSuffix, prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value, bg, bgTrans, model: (pForge.querySelector('#f-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl || undefined })
           const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
           pushHistory({ kind:'asset', prompt:line, url })
         }catch(e:any){ const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+String(e.message).slice(0,30); grid.appendChild(err) }
@@ -1350,14 +1425,14 @@ function mockImage(prompt:string, opts:any): string {
         if(mode==='fullmap'){
           const targetSize=parseInt((pMap.querySelector('#map-big-size') as HTMLSelectElement).value)||2048
           const size=targetSize+'x'+targetSize
-          const url=await callImageGen(prompt+' , full seamless game map, top-down, high detail, tileable, no UI, no watermark', prov, { size, reference: mapRefUrl || undefined })
+          const url=await callImageGen(prompt+' , full seamless game map, top-down, high detail, tileable, no UI, no watermark', prov, { size, model: (pMap.querySelector('#map-model-sel') as HTMLSelectElement)?.value||undefined, reference: mapRefUrl || undefined })
           const img=await loadImg(url)
           showPreview(img, corsSafe)
           if(corsSafe){ setBigMap(img.src, img.naturalWidth||targetSize, img.naturalHeight||targetSize); toast(status,'完整大地图已生成：'+(img.naturalWidth||targetSize)+'×'+(img.naturalHeight||targetSize), true) }
           else toast(status,'完整大地图已生成（远程直链）', false)
         } else {
           const ts=parseInt((pMap.querySelector('#map-size') as HTMLSelectElement).value)||32
-          const url=await callImageGen(prompt+' , seamless tileable texture, '+ts+'px', prov, { reference: mapRefUrl || undefined })
+          const url=await callImageGen(prompt+' , seamless tileable texture, '+ts+'px', prov, { model: (pMap.querySelector('#map-model-sel') as HTMLSelectElement)?.value||undefined, reference: mapRefUrl || undefined })
           const img=await loadImg(url)
           showPreview(img, corsSafe)
           setBigMap(img.src, img.naturalWidth||256, img.naturalHeight||256)
