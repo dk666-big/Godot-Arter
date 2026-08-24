@@ -103,6 +103,7 @@ function buildStudio(): HTMLElement {
     { id:'forge', label:'素材锻造', icon:'🧱' },
     { id:'matting', label:'智能抠图', icon:'✂️' },
     { id:'map', label:'无缝大地图', icon:'🗺️' },
+    { id:'asset', label:'素材总管', icon:'📚' },
     { id:'post', label:'后处理', icon:'✨' },
     { id:'preset', label:'API 预设', icon:'🔌' },
     { id:'export', label:'设置/导出', icon:'⚙️' },
@@ -203,7 +204,8 @@ function buildStudio(): HTMLElement {
           <div class="gas-preview" id="c-preview"><span class="gas-note">等待生成…</span></div>
           <div class="gas-row" style="margin-top:8px">
             <button class="gas-btn ghost" id="c-dl" style="flex:1">⬇ PNG</button>
-            <button class="gas-btn ghost" id="c-to-sheet">→ 送至序列帧</button>
+            <button class="gas-btn ghost" id="c-save">📥 入库</button>
+              <button class="gas-btn ghost" id="c-to-sheet">→ 序列帧</button>
           </div>
         </div>
       </div>
@@ -234,6 +236,7 @@ function buildStudio(): HTMLElement {
             <button class="gas-btn ghost" id="s-pack">📦 打包成表</button>
             <button class="gas-btn ghost" id="s-animate">▶ 播放</button>
             <button class="gas-btn orange" id="s-export">⬇ 导出 Godot</button>
+              <button class="gas-btn ghost" id="s-save">📥 入库</button>
           </div>
           <label class="gas-label">AI 生成序列（BYOK）</label>
           <div class="gas-row"><input class="gas-input" id="s-prompt" placeholder="例：像素小骑士 奔跑 8帧 横向序列，透明背景"><select class="gas-select" id="s-provider" style="flex:0 0 128px"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><button class="gas-btn" id="s-gen">生成</button></div>
@@ -277,6 +280,7 @@ function buildStudio(): HTMLElement {
       <div class="gas-grid" id="f-grid"></div>
       <div class="gas-row" style="margin-top:8px">
         <button class="gas-btn ghost" id="f-dl-all">⬇ 打包 ZIP (PNG)</button>
+          <button class="gas-btn ghost" id="f-save-all">📥 全部入库</button>
         <button class="gas-btn ghost" id="f-clear">清空</button>
       </div>
     </div>
@@ -305,6 +309,7 @@ function buildStudio(): HTMLElement {
             <button class="gas-btn" id="m-cut">✂️ 一键抠图</button>
             <button class="gas-btn ghost" id="m-reset">↺ 重置</button>
             <button class="gas-btn orange" id="m-dl" disabled>⬇ 下载 PNG</button>
+              <button class="gas-btn ghost" id="m-save" disabled>📥 入库</button>
           </div>
           <div class="gas-note" id="m-status"></div>
         </div>
@@ -369,6 +374,7 @@ function buildStudio(): HTMLElement {
               <button class="gas-btn ghost" id="map-zoom-fit">适应</button>
               <button class="gas-btn ghost" id="map-zoom-reset">1:1</button>
               <button class="gas-btn orange" id="map-big-dl">⬇ 高清 PNG</button>
+              <button class="gas-btn ghost" id="map-save">📥 入库</button>
             </div>
             <div class="gas-note" style="margin-top:6px">💡 示例：完整大地图模式输入「俯视草原村庄无缝大地图」→ 得到整张地图 → 点「整图无缝化」→ 可「切成 TileSet」后在 Godot TileMap 使用。</div>
           </div>
@@ -450,7 +456,30 @@ function buildStudio(): HTMLElement {
   `)
 
   // 后处理工坊
-  const pPost=mkPanel('post', `
+    // 素材总管
+  const pAsset=mkPanel('asset', `
+      <div class="gas-card">
+        <h4>📚 素材总管 — 全管线素材库</h4>
+        <div class="gas-row">
+          <div style="width:220px">
+            <label class="gas-label">管线素材库</label>
+            <div id="al-libs" style="display:flex;flex-direction:column;gap:6px"></div>
+            <div class="gas-note" style="margin-top:8px">入库后素材会按管线自动分类、编号、按时间排序。</div>
+          </div>
+          <div style="flex:1">
+            <div class="gas-row">
+              <input class="gas-input" id="al-search" placeholder="🔍 搜索编号/名称">
+              <button class="gas-btn ghost" id="al-export">⬇ 导出备份</button>
+              <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="al-import" accept=".json,application/json" hidden>⬆ 导入备份</label>
+              <button class="gas-btn ghost" id="al-clear">🗑 清空当前库</button>
+            </div>
+            <div class="gas-grid" id="al-grid"></div>
+            <div class="gas-note" id="al-status"></div>
+          </div>
+        </div>
+      </div>
+    `)
+const pPost=mkPanel('post', `
     <div class="gas-card">
       <h4>✨ Godot 后处理工坊 — 调色板 / 精灵描边 / 尺寸调整</h4>
       <div class="gas-row">
@@ -470,6 +499,7 @@ function buildStudio(): HTMLElement {
           <div class="gas-row" style="margin-top:8px">
             <button class="gas-btn" id="post-run">✨ 执行</button>
             <button class="gas-btn orange" id="post-dl" disabled>⬇ 下载 PNG</button>
+            <button class="gas-btn ghost" id="post-save" disabled>📥 入库</button>
           </div>
           <div class="gas-note" id="post-status"></div>
           <div class="gas-note" style="margin-top:6px">💡 示例：角色立绘上传后 → 调色板量化选 16 色 → 得到像素风角色；输出 PNG 可直接拖入 Godot。</div>
@@ -482,15 +512,15 @@ function buildStudio(): HTMLElement {
     </div>
   `)
 
-  ;[pChar,pSheet,pForge,pMat,pMap,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
-  panels['character']=pChar; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
+  ;[pChar,pSheet,pForge,pMat,pMap,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
+  panels['character']=pChar; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
 
   function switchTab(id:string){
     active=id
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
-    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 预设：自定义路由会同步到所有生成面板，Base URL 可只填 /v1，自动补全 images/generations', export:'导出：manifest.json 记录 Godot 目录结构' }
+    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 预设：自定义路由会同步到所有生成面板，Base URL 可只填 /v1，自动补全 images/generations', export:'导出：manifest.json 记录 Godot 目录结构' }
     if(tip) tip.textContent=tips[id]||''
   }
 
@@ -500,6 +530,46 @@ function buildStudio(): HTMLElement {
   const pushHistory=(item:any)=>{ const h=getHistory(); h.unshift({ ...item, at:new Date().toISOString() }); localStorage.setItem(LS_HISTORY, JSON.stringify(h.slice(0,100))); refreshExportList() }
   const getKeys=():any=>{ try{ return JSON.parse(localStorage.getItem(LS)||'{}')}catch{return{}} }
   function toast(el:HTMLElement, msg:string, ok=true){ el.textContent=msg; el.style.color=ok?'#2ecc71':'#e74c3c'; setTimeout(()=>el.textContent='',3000) }
+
+  // ---- 素材总管：本地 IndexedDB 素材库 ----
+  const DB_NAME='godot-arter-assets'
+  const DB_STORE='assets'
+  function openAssetDB(): Promise<IDBDatabase>{
+    return new Promise((resolve,reject)=>{
+      const req=indexedDB.open(DB_NAME,1)
+      req.onupgradeneeded=()=>{ const db=req.result; if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE,{keyPath:'id'}) }
+      req.onsuccess=()=>resolve(req.result)
+      req.onerror=()=>reject(req.error)
+    })
+  }
+  async function idbPut(item:any){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(item); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
+  async function idbGetAll():Promise<any[]>{ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readonly'); const req=tx.objectStore(DB_STORE).getAll(); req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error) }) }
+  async function idbDelete(id:string){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).delete(id); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
+  async function idbClearByKind(kind:string){ const all=await idbGetAll(); for(const a of all){ if(a.kind===kind) await idbDelete(a.id) } }
+  async function idbClearAll(){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).clear(); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
+  function downloadDataUrl(dataUrl:string, filename:string){ const a=document.createElement('a'); a.href=dataUrl; a.download=filename; a.click() }
+
+  const LIB_DEFS:Record<string,{label:string;prefix:string}> = {
+    character:{label:'角色库',prefix:'CHAR'},
+    spritesheet:{label:'序列帧库',prefix:'SPRITE'},
+    asset:{label:'素材库',prefix:'ASSET'},
+    matting:{label:'抠图库',prefix:'MATTING'},
+    tile:{label:'瓦片库',prefix:'TILE'},
+    map:{label:'大地图库',prefix:'MAP'},
+    post:{label:'后处理库',prefix:'POST'},
+  }
+  let refreshAssetManagerGlobal: (()=>void)|null = null
+  async function addToLibrary(kind:string, name:string, url:string): Promise<string>{
+    const def=LIB_DEFS[kind]||LIB_DEFS.asset
+    const all=await idbGetAll()
+    const count=all.filter(a=>a.kind===kind).length+1
+    const id=def.prefix+'-'+String(count).padStart(4,'0')
+    const item={ id, kind, name:name||def.label+' #'+count, url, createdAt:Date.now() }
+    await idbPut(item)
+    try{ refreshAssetManagerGlobal?.() }catch{}
+    return id
+  }
+
 
   // ---- 第三方 API 预设（自定义路由） ----
   const LS_PRESETS='dsh-game-art-studio:customProviders'
@@ -807,6 +877,7 @@ function mockImage(prompt:string, opts:any): string {
       reader.readAsDataURL(f)
     })
     pChar.querySelector('#c-dl')!.addEventListener('click', ()=>{ if(!lastUrl) return toast(status,'无图片',false); const a=document.createElement('a'); a.href=lastUrl; a.download='character_'+Date.now()+'.png'; a.click() })
+    pChar.querySelector('#c-save')!.addEventListener('click', async()=>{ if(!lastUrl) return toast(status,'请先生成角色',false); const id=await addToLibrary('character','角色 '+new Date().toLocaleTimeString(),lastUrl); toast(status,'已入库 '+id) })
     pChar.querySelector('#c-to-sheet')!.addEventListener('click', async ()=>{
       if(!lastUrl) return toast(status,'先生成角色',false)
       switchTab('sheet')
@@ -893,7 +964,12 @@ function mockImage(prompt:string, opts:any): string {
       pushHistory({ kind:'export', what:'spritesheet', at:Date.now() })
       toast(status,'已导出 PNG + SpriteFrames.json (Godot 可直接创建 SpriteFrames 资源后导入)')
     })
-    pSheet.querySelector('#s-gen')!.addEventListener('click', async()=>{
+    pSheet.querySelector('#s-save')!.addEventListener('click', async()=>{
+        if(!packCanvas) return toast(status,'请先打包成表',false)
+        const id=await addToLibrary('spritesheet','序列帧 '+new Date().toLocaleTimeString(),packCanvas.toDataURL())
+        toast(status,'已入库 '+id)
+      })
+      pSheet.querySelector('#s-gen')!.addEventListener('click', async()=>{
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'输入序列描述',false)
       const prov=(pSheet.querySelector('#s-provider') as HTMLSelectElement)?.value || 'mock'
       try{ const url=await callImageGen(prompt+' , sprite sheet, transparent background', prov as any, { size:'1024x512' }); const img=await loadImage(url); const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0); c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) }) }catch(e:any){ toast(status,String(e.message),false) }
@@ -930,6 +1006,12 @@ function mockImage(prompt:string, opts:any): string {
       setTimeout(()=>prog.style.width='0%',1000)
     })
     pForge.querySelector('#f-clear')!.addEventListener('click', ()=> grid.innerHTML='')
+      pForge.querySelector('#f-save-all')!.addEventListener('click', async()=>{
+        const imgs=[...grid.querySelectorAll('img')] as HTMLImageElement[]; if(!imgs.length) return toast(status,'无素材可入库',false)
+        let saved=0
+        for(const img of imgs){ await addToLibrary('asset','素材 '+new Date().toLocaleTimeString(),img.src); saved++ }
+        toast(status,'已入库 '+saved+' 个素材到「素材库」')
+      })
     pForge.querySelector('#f-dl-all')!.addEventListener('click', async()=>{
       const imgs=[...grid.querySelectorAll('img')] as HTMLImageElement[]; if(!imgs.length) return toast(status,'无素材',false)
       // 简易打包：依次下载
@@ -984,6 +1066,7 @@ function mockImage(prompt:string, opts:any): string {
     function renderResult(){
       result.innerHTML=''; const out=document.createElement('img'); out.src=canvas.toDataURL('image/png'); out.style.maxWidth='100%'; out.style.maxHeight='180px'; result.appendChild(out)
       ;(pMat.querySelector('#m-dl') as HTMLButtonElement).disabled=false
+      ;(pMat.querySelector('#m-save') as HTMLButtonElement).disabled=false
       pushHistory({ kind:'matting', url: canvas.toDataURL() })
     }
 
@@ -1094,6 +1177,7 @@ function mockImage(prompt:string, opts:any): string {
       result.innerHTML='<span class="gas-note">已重置</span>'; (pMat.querySelector('#m-dl') as HTMLButtonElement).disabled=true
     })
     pMat.querySelector('#m-dl')!.addEventListener('click', ()=>{ const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download='matting_'+Date.now()+'.png'; a.click() })
+      pMat.querySelector('#m-save')!.addEventListener('click', async()=>{ const id=await addToLibrary('matting','抠图 '+new Date().toLocaleTimeString(),canvas.toDataURL('image/png')); toast(status,'已入库 '+id) })
   })()
 
   // ---- Map ----
@@ -1266,6 +1350,7 @@ function mockImage(prompt:string, opts:any): string {
     pMap.querySelector('#map-zoom-fit')!.addEventListener('click', fitBigMap)
     pMap.querySelector('#map-zoom-reset')!.addEventListener('click', ()=>{ bigZoom=1; applyBigZoom() })
     pMap.querySelector('#map-big-dl')!.addEventListener('click', ()=>{ if(!bigMapUrl) return toast(status,'请先生成大地图',false); downloadDataUrl(bigMapUrl,'bigmap_'+Date.now()+'.png'); toast(status,'高清 PNG 已下载',true) })
+    pMap.querySelector('#map-save')!.addEventListener('click', async()=>{ if(!bigMapUrl) return toast(status,'请先生成大地图',false); const kind=modeTypeEl.value==='fullmap'?'map':'tile'; const id=await addToLibrary(kind,kind==='map'?'大地图 ':'瓦片 '+new Date().toLocaleTimeString(),bigMapUrl); toast(status,'已入库 '+id) })
     bigViewport.addEventListener('wheel', (e:any)=>{ e.preventDefault(); bigZoom*= e.deltaY<0 ? 1.2 : 0.8; applyBigZoom() }, { passive:false } as any)
     let mapDrag=false, mapDragX=0, mapDragY=0, mapScrollL=0, mapScrollT=0
     bigImg.addEventListener('mousedown', (e:any)=>{ mapDrag=true; mapDragX=e.clientX; mapDragY=e.clientY; mapScrollL=bigViewport.scrollLeft; mapScrollT=bigViewport.scrollTop; bigImg.style.cursor='grabbing' })
@@ -1282,6 +1367,7 @@ function mockImage(prompt:string, opts:any): string {
     const canvas= pPost.querySelector('#post-canvas') as HTMLCanvasElement
     const status= pPost.querySelector('#post-status') as HTMLElement
     const dlBtn= pPost.querySelector('#post-dl') as HTMLButtonElement
+    const saveBtn= pPost.querySelector('#post-save') as HTMLButtonElement
     let loadedImg: HTMLImageElement|null=null
     let resultUrl=''
 
@@ -1346,11 +1432,89 @@ function mockImage(prompt:string, opts:any): string {
         }
         resultUrl=canvas.toDataURL('image/png')
         preview.innerHTML=''; const im=document.createElement('img'); im.src=resultUrl; im.style.maxWidth='100%'; im.style.maxHeight='180px'; im.style.imageRendering='pixelated'; preview.appendChild(im)
-        dlBtn.disabled=false
+        dlBtn.disabled=false; saveBtn.disabled=false
       }catch(e:any){ toast(status,'处理失败：'+String(e.message||e).slice(0,60),false) }
     })
 
     dlBtn.addEventListener('click', ()=>{ if(!resultUrl) return; const a=document.createElement('a'); a.href=resultUrl; a.download='post_'+Date.now()+'.png'; a.click() })
+    saveBtn.addEventListener('click', async()=>{ if(!resultUrl) return; const id=await addToLibrary('post','后处理 '+new Date().toLocaleTimeString(),resultUrl); toast(status,'已入库 '+id) })
+  })()
+
+  // ---- Asset Manager ----
+  ;(()=>{
+    const libsEl= pAsset.querySelector('#al-libs') as HTMLElement
+    const gridEl= pAsset.querySelector('#al-grid') as HTMLElement
+    const searchEl= pAsset.querySelector('#al-search') as HTMLInputElement
+    const statusEl= pAsset.querySelector('#al-status') as HTMLElement
+    const importEl= pAsset.querySelector('#al-import') as HTMLInputElement
+    let activeLib='character'
+    let allItems:any[]=[]
+
+    function formatTime(t:number){ return new Date(t).toLocaleString() }
+
+    function renderLibs(){
+      if(!libsEl) return
+      libsEl.innerHTML=''
+      for(const [key,def] of Object.entries(LIB_DEFS)){
+        const btn=document.createElement('button')
+        btn.className='gas-btn'+(key===activeLib?'':' ghost')
+        btn.textContent=def.label
+        btn.style.textAlign='left'
+        btn.onclick=()=>{ activeLib=key; renderLibs(); renderGrid() }
+        libsEl.appendChild(btn)
+      }
+    }
+
+    function renderGrid(){
+      if(!gridEl) return
+      const q=(searchEl?.value||'').trim().toLowerCase()
+      const list=allItems.filter(a=>a.kind===activeLib && (!q || (a.name||'').toLowerCase().includes(q) || (a.id||'').toLowerCase().includes(q)))
+        .sort((a,b)=>b.createdAt-a.createdAt)
+      if(!list.length){ gridEl.innerHTML='<div class="gas-note" style="grid-column:1/-1">当前库为空，去各工坊生成后点「📥 入库」即可。</div>'; return }
+      gridEl.innerHTML=''
+      for(const item of list){
+        const card=document.createElement('div'); card.className='gas-thumb'
+        card.innerHTML='<img src="'+item.url+'">'
+        const meta=document.createElement('div'); meta.className='meta'; meta.style.height='auto'; meta.style.flexDirection='column'; meta.style.alignItems='flex-start'
+        meta.innerHTML='<span>'+item.id+'</span><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(item.name||'')+'</span><span>'+formatTime(item.createdAt)+'</span>'
+        card.appendChild(meta)
+        const actions=document.createElement('div'); actions.style.position='absolute'; actions.style.top='4px'; actions.style.right='4px'; actions.style.display='flex'; actions.style.gap='4px'
+        const dl=document.createElement('button'); dl.className='gas-btn ghost'; dl.textContent='⬇'; dl.style.padding='2px 6px'; dl.onclick=()=>downloadDataUrl(item.url,item.id+'.png')
+        const del=document.createElement('button'); del.className='gas-btn ghost'; del.textContent='🗑'; del.style.padding='2px 6px'; del.style.color='#e74c3c'; del.onclick=async()=>{ await idbDelete(item.id); allItems=await idbGetAll(); renderGrid(); statusEl.textContent='已删除 '+item.id }
+        actions.append(dl,del); card.appendChild(actions)
+        gridEl.appendChild(card)
+      }
+    }
+
+    async function refresh(){ allItems=await idbGetAll(); renderLibs(); renderGrid() }
+    refreshAssetManagerGlobal=refresh
+    refresh()
+
+    searchEl.addEventListener('input', renderGrid)
+    pAsset.querySelector('#al-export')!.addEventListener('click', ()=>{
+      const payload={ exportedAt:new Date().toISOString(), app:'Godot-Arter', items:allItems }
+      const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})
+      downloadDataUrl(URL.createObjectURL(blob),'godot-arter-assets-'+Date.now()+'.json')
+      statusEl.textContent='已导出 '+allItems.length+' 个素材备份'
+    })
+    importEl.addEventListener('change', (e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const reader=new FileReader()
+      reader.onload=async()=>{
+        try{
+          const data=JSON.parse(reader.result as string)
+          const items=Array.isArray(data)?data:(data.items||[])
+          if(!items.length) throw new Error('备份为空')
+          for(const it of items){ if(it.id && it.url) await idbPut({ ...it, createdAt:it.createdAt||Date.now() }) }
+          await refresh(); statusEl.textContent='已导入 '+items.length+' 个素材'
+        }catch(err:any){ statusEl.textContent='导入失败：'+String(err.message||err).slice(0,60) }
+      }
+      reader.readAsText(f)
+    })
+    pAsset.querySelector('#al-clear')!.addEventListener('click', async()=>{
+      if(!confirm('确定清空「'+LIB_DEFS[activeLib].label+'」？')) return
+      await idbClearByKind(activeLib); await refresh(); statusEl.textContent='已清空 '+LIB_DEFS[activeLib].label
+    })
   })()
 
   // ---- Export center ----
