@@ -701,6 +701,41 @@ const pPost=mkPanel('post', `
     return merged
   }
 
+  // —— Godot 原生 .tres 资源生成（拖入即用,引用同目录同名 PNG）——
+  function buildSpriteFramesTres(pngName:string, perRow:number, anims:{name:string;frames:number[];speed:number;loop:boolean}[], fw:number, fh:number): string {
+    const refs=Array.from(new Set(anims.flatMap(a=>a.frames)))
+    const atlas=new Map<number,string>()
+    refs.forEach((idx,i)=>{ atlas.set(idx,'AtlasTexture_'+i) })
+    const L:string[]=[]
+    L.push('[gd_resource type="SpriteFrames" load_steps='+(atlas.size+2)+' format=3]')
+    L.push('[ext_resource type="Texture2D" path="res://'+pngName+'" id="1_abcde"]')
+    atlas.forEach((id,idx)=>{ const col=idx%perRow, row=Math.floor(idx/perRow)
+      L.push('[sub_resource type="AtlasTexture" id="'+id+'"]')
+      L.push('atlas = ExtResource("1_abcde")')
+      L.push('region = Rect2('+(col*fw)+', '+(row*fh)+', '+fw+', '+fh+')')
+    })
+    L.push('[resource]')
+    const animStr=anims.map(a=>'{'+
+      '"frames": ['+a.frames.map(f=>'{"duration": '+(1/a.speed).toFixed(4)+', "texture": SubResource("'+atlas.get(f)+'")}').join(', ')+'], '+
+      '"loop": '+a.loop+', "name": &"'+a.name+'", "speed": '+a.speed+'.0'+
+    '}').join(', ')
+    L.push('animations = ['+animStr+']')
+    return L.join('\n')
+  }
+  function buildTileSetTres(pngName:string, cols:number, rows:number, tileSize:number): string {
+    const L:string[]=[]
+    L.push('[gd_resource type="TileSet" load_steps=3 format=3]')
+    L.push('[ext_resource type="Texture2D" path="res://'+pngName+'" id="1_abcde"]')
+    L.push('[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]')
+    L.push('texture = ExtResource("1_abcde")')
+    L.push('texture_region_size = Vector2i('+tileSize+', '+tileSize+')')
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) L.push(c+':'+r+'/0 = '+(r*cols+c))
+    L.push('[resource]')
+    L.push('tile_size = Vector2i('+tileSize+', '+tileSize+')')
+    L.push('sources = [SubResource("TileSetAtlasSource_1")]')
+    return L.join('\n')
+  }
+
   const LIB_DEFS:Record<string,{label:string;prefix:string}> = {
     character:{label:'角色库',prefix:'CHAR'},
     spritesheet:{label:'序列帧库',prefix:'SPRITE'},
@@ -1241,7 +1276,8 @@ function mockImage(prompt:string, opts:any): string {
     })
     pSheet.querySelector('#s-export')!.addEventListener('click', ()=>{
       if(!packCanvas) return toast(status,'请先打包',false)
-      const a=document.createElement('a'); a.href=packCanvas.toDataURL(); a.download='spritesheet_'+Date.now()+'.png'; a.click()
+      const ts=Date.now(); const pngName='spritesheet_'+ts+'.png'
+      const a=document.createElement('a'); a.href=packCanvas.toDataURL(); a.download=pngName; a.click()
       // 生成 SpriteFrames json（支持：行=方向 → 命名动画；STAND 复用首帧）
       const w=frames[0]?.width||packCanvas.width, h=frames[0]?.height||packCanvas.height
       const perRow=parseInt((pSheet.querySelector('#s-cols') as HTMLInputElement).value)||frames.length||1
@@ -1264,8 +1300,10 @@ function mockImage(prompt:string, opts:any): string {
       }
       const mf={ meta:{ image:'spritesheet.png', size:[packCanvas.width, packCanvas.height], frames:frames.length, cols:perRow, rows:Math.max(1,Math.ceil(frames.length/perRow)), animation_mode: dirRows?'directional':'single' }, frames: frameList, godot:{ type:'SpriteFrames', animations } }
       const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=url; b.download='SpriteFrames.json'; b.click()
+      // Godot 原生 .tres：引用同目录同名 PNG,拖入项目即可用（零手动配置）
+      const at=document.createElement('a'); at.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildSpriteFramesTres(pngName, perRow, animations, w, h)); at.download='SpriteFrames_'+ts+'.tres'; at.click()
       pushHistory({ kind:'export', what:'spritesheet', at:Date.now() })
-      toast(status,'已导出 PNG + SpriteFrames.json ('+(dirRows?'命名动画 '+animations.map((x:any)=>x.name).join('/').slice(0,40):'默认动画')+') — Godot 导入后创建 SpriteFrames 资源即可使用')
+      toast(status,'已导出 PNG + SpriteFrames.json + SpriteFrames.tres ('+(dirRows?'命名动画 '+animations.map((x:any)=>x.name).join('/').slice(0,40):'默认动画')+') — .tres 与 PNG 放同一目录拖入 Godot 即用')
     })
     pSheet.querySelector('#s-save')!.addEventListener('click', async()=>{
         if(!packCanvas) return toast(status,'请先打包成表',false)
@@ -1711,8 +1749,11 @@ function mockImage(prompt:string, opts:any): string {
       const json:any={ godot:'TileSet', tile_size:tileSize, columns:cols, rows:rows, image:'tileset.png', tiles:[] }
       for(let i=0;i<cols*rows;i++) json.tiles.push({ id:i, region:[(i%cols)*tileSize, Math.floor(i/cols)*tileSize, tileSize, tileSize], collision:false })
       const jblob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'}); const jurl=URL.createObjectURL(jblob)
-      downloadDataUrl(tsUrl,'tileset_'+Date.now()+'.png'); downloadDataUrl(jurl,'TileSet.json')
-      toast(status,'已切成 TileSet：'+cols+'×'+rows+'（'+ts.width+'×'+ts.height+'）', true)
+      const ts3=Date.now()
+      downloadDataUrl(tsUrl,'tileset_'+ts3+'.png'); downloadDataUrl(jurl,'TileSet.json')
+      // Godot 原生 .tres：引用同目录 tileset PNG,拖入即用
+      const t3=document.createElement('a'); t3.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildTileSetTres('tileset_'+ts3+'.png', cols, rows, tileSize)); t3.download='TileSet_'+ts3+'.tres'; t3.click()
+      toast(status,'已切成 TileSet：'+cols+'×'+rows+'（'+ts.width+'×'+ts.height+'）+ TileSet.tres（PNG 同目录拖入 Godot 即用）', true)
     })
 
     pMap.querySelector('#map-dl')!.addEventListener('click', async()=>{
@@ -2040,9 +2081,12 @@ function mockImage(prompt:string, opts:any): string {
       const json:any={ godot:'TileSet', tile_size:last.S, columns:last.cols, rows:last.rows, image:'terrain.png', classes:[...(new Set(last.classes))], tiles:[] }
       for(let i=0;i<last.classes.length;i++) json.tiles.push({ id:i, type:last.classes[i], region:[(i%last.cols)*last.S, Math.floor(i/last.cols)*last.S, last.S, last.S] })
       const blob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'})
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='procedural_tileset_'+Date.now()+'.json'; a.click()
-      const au=document.createElement('a'); au.href=canvas.toDataURL('image/png'); au.download='procedural_terrain_'+Date.now()+'.png'; au.click()
-      if(status) status.textContent='✓ 已导出 TileSet.json（'+last.cols+'×'+last.rows+'）+ 地形预览 PNG'
+      const tsP=Date.now(); const pngP='procedural_terrain_'+tsP+'.png'
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='procedural_tileset_'+tsP+'.json'; a.click()
+      const au=document.createElement('a'); au.href=canvas.toDataURL('image/png'); au.download=pngP; au.click()
+      // Godot 原生 .tres：引用同目录地形 PNG,拖入即用
+      const pt=document.createElement('a'); pt.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildTileSetTres(pngP, last.cols, last.rows, last.S)); pt.download='procedural_tileset_'+tsP+'.tres'; pt.click()
+      if(status) status.textContent='✓ 已导出 TileSet.json（'+last.cols+'×'+last.rows+'）+ 地形预览 PNG + TileSet.tres（PNG 同目录拖入 Godot 即用）'
     })
     pMap.querySelector('#ptm-save')!.addEventListener('click', async()=>{
       if(!last){ run() }

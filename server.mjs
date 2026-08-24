@@ -98,6 +98,13 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
+    // favicon：静默返回 204，避免控制台 404 噪音
+    if (p === '/favicon.ico') {
+      res.writeHead(204)
+      res.end()
+      return
+    }
+
     // public/ 下其他静态资源
     if (p.startsWith('/game-art-studio/')) {
       await serveStatic(p.slice('/game-art-studio/'.length), res)
