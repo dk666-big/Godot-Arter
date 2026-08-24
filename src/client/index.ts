@@ -285,7 +285,7 @@ function buildStudio(): HTMLElement {
   // MATTING
   const pMat=mkPanel('matting', `
     <div class="gas-card">
-      <h4>✂️ 智能抠图 — 色键 / AI / 羽化 / 描边</h4>
+      <h4>✂️ 智能抠图 — 自动扣背景 / 魔棒 / 色键 / AI</h4>
       <div class="gas-row">
         <div style="flex:1">
           <div style="border:1.5px dashed var(--border); border-radius:8px; padding:14px; text-align:center; background:#1a1e20; cursor:pointer" id="m-drop">
@@ -293,7 +293,8 @@ function buildStudio(): HTMLElement {
             <input type="file" id="m-file" accept="image/*" hidden>
           </div>
           <label class="gas-label">抠图模式</label>
-          <select class="gas-select" id="m-mode"><option value="chroma">色键抠图（本地）</option><option value="ai">AI 抠图 (Replicate rembg / BYOK)</option><option value="alpha">颜色转透明</option></select>
+          <select class="gas-select" id="m-mode"><option value="auto" selected>🤖 智能自动扣背景（本地采样，像PS一键抠）</option><option value="wand">🪄 点击背景擦除（魔棒）</option><option value="chroma">🎨 色键抠图（指定颜色）</option><option value="ai">🌐 AI 抠图 (Replicate rembg / BYOK)</option></select>
+          <div class="gas-note" id="m-mode-tip" style="margin-top:4px">🤖 自动模式：自动分析四边背景色，一键扣除背景；复杂背景建议用魔棒或 AI。</div>
           <div id="m-chroma-opts">
             <label class="gas-label">拾取背景色（点击图片拾色）</label>
             <div class="gas-row"><input type="color" id="m-color" value="#ffffff" style="width:48px;height:32px;background:#1e2224;border:1px solid var(--border);border-radius:6px;padding:2px;"><input class="gas-input" id="m-tol" type="range" min="0" max="100" value="30" style="flex:1"><span class="gas-pill" id="m-tol-v">30</span></div>
@@ -948,8 +949,13 @@ function mockImage(prompt:string, opts:any): string {
     const result= pMat.querySelector('#m-result') as HTMLElement
     const canvas= pMat.querySelector('#m-canvas') as HTMLCanvasElement
     const status= pMat.querySelector('#m-status') as HTMLElement
+    const modeTip= pMat.querySelector('#m-mode-tip') as HTMLElement
     let loadedImg: HTMLImageElement|null=null
+    let originalData: ImageData|null=null
     tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
+    modeEl.addEventListener('change', ()=>{
+      if(modeTip) modeTip.textContent = modeEl.value==='auto' ? '🤖 自动模式：从图片四边开始扩散扣除相连背景，适合产品图/素材图' : modeEl.value==='wand' ? '🪄 魔棒模式：点击原图中的背景区域，即可擦除相连相似颜色' : modeEl.value==='ai' ? '🌐 AI 模式：调用 Replicate rembg（需右侧配置 Key），无 Key 时自动回退本地智能抠图' : '🎨 色键模式：点击原图拾取背景色，或直接选颜色'
+    })
     drop.addEventListener('click', ()=> fileInput.click())
     drop.addEventListener('dragover', e=>{e.preventDefault(); drop.style.borderColor='#478cbf'})
     drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
@@ -957,30 +963,75 @@ function mockImage(prompt:string, opts:any): string {
     fileInput.addEventListener('change', ()=>{ const f=fileInput.files?.[0]; if(f) handle(f) })
     async function handle(file:File){
       const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await new Promise(r=>img.onload=r); loadedImg=img
+      canvas.width=img.naturalWidth||img.width; canvas.height=img.naturalHeight||img.height
+      const g=canvas.getContext('2d')!; g.drawImage(img,0,0); originalData=g.getImageData(0,0,canvas.width,canvas.height)
       orig.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; im.style.maxHeight='130px'; orig.appendChild(im)
       result.innerHTML='<span class="gas-note">等待抠图…</span>'
-      // 点击拾色
-      im.style.cursor='crosshair'; im.onclick=(e)=>{
-        const c=document.createElement('canvas'); c.width=im.naturalWidth; c.height=im.naturalHeight; const g=c.getContext('2d')!; g.drawImage(img,0,0)
+      im.style.cursor = modeEl.value==='wand' ? 'crosshair' : 'pointer'
+      im.onclick=(e)=>{
         const rect=im.getBoundingClientRect(); const x=Math.floor((e.clientX-rect.left)/rect.width * img.naturalWidth); const y=Math.floor((e.clientY-rect.top)/rect.height * img.naturalHeight)
-        const d=g.getImageData(x,y,1,1).data; const hex='#'+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); colorEl.value=hex
+        if(modeEl.value==='wand'){
+          doWand(x,y)
+        } else if(modeEl.value==='chroma'){
+          const c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight; const g2=c.getContext('2d')!; g2.drawImage(img,0,0)
+          const dd=g2.getImageData(x,y,1,1).data; const hex='#'+[dd[0],dd[1],dd[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); colorEl.value=hex
+        } else if(modeEl.value==='auto'){
+          toast(status,'自动抠图无需点击，直接点「✂️ 一键抠图」即可')
+        }
       }
     }
-    pMat.querySelector('#m-cut')!.addEventListener('click', async()=>{
-      if(!loadedImg) return toast(status,'请先上传',false)
-      const mode=modeEl.value
-      if(mode==='ai'){
-        const keys=getKeys(); if(!keys.replicate) { toast(status,'未配置 Replicate Key，已回退到本地色键',false); return doChroma() }
-        try{
-          status.textContent='AI 抠图请求中…'
-          // Replicate rembg
-          const fd=new FormData(); // 简化：走 replicate API 需要先转 base64，这里用本地 fallback 演示
-          // 为演示，直接用色键兜底，但提示已尝试
-          doChroma(); status.textContent='AI 模式演示：已用本地算法完成（配置 Key 后可直连 rembg）'
-          return
-        }catch(e:any){ toast(status,String(e.message),false) }
-      } else { doChroma() }
-    })
+
+    function renderResult(){
+      result.innerHTML=''; const out=document.createElement('img'); out.src=canvas.toDataURL('image/png'); out.style.maxWidth='100%'; out.style.maxHeight='180px'; result.appendChild(out)
+      ;(pMat.querySelector('#m-dl') as HTMLButtonElement).disabled=false
+      pushHistory({ kind:'matting', url: canvas.toDataURL() })
+    }
+
+    function doFlood(seeds: number[][], tolerance: number){
+      if(!originalData) return
+      const g=canvas.getContext('2d')!; g.putImageData(originalData,0,0)
+      const w=canvas.width, h=canvas.height
+      const imgData=g.getImageData(0,0,w,h); const d=imgData.data
+      const visited=new Uint8Array(w*h)
+      const queue: number[] = []
+      const push=(idx:number)=>{ if(!visited[idx]){ visited[idx]=1; queue.push(idx) } }
+      for(const [sx,sy] of seeds){ if(sx>=0&&sy>=0&&sx<w&&sy<h) push(sy*w+sx) }
+      const T=tolerance*2.5
+      while(queue.length){
+        const idx=queue.shift()!
+        const y=Math.floor(idx/w), x=idx%w
+        d[idx+3]=0
+        const r=d[idx], gg=d[idx+1], b=d[idx+2]
+        const neighbors=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]]
+        for(const [nx,ny] of neighbors){
+          if(nx<0||ny<0||nx>=w||ny>=h) continue
+          const ni=ny*w+nx
+          if(visited[ni]) continue
+          const dr=d[ni]-r, dg=d[ni+1]-gg, db=d[ni+2]-b
+          const dist=Math.sqrt(dr*dr+dg*dg+db*db)
+          if(dist<T) push(ni)
+        }
+      }
+      g.putImageData(imgData,0,0)
+      renderResult()
+    }
+
+    function doAuto(){
+      if(!originalData) return
+      const w=canvas.width, h=canvas.height
+      const seeds: number[][]=[]
+      for(let x=0;x<w;x++){ seeds.push([x,0]); seeds.push([x,h-1]) }
+      for(let y=0;y<h;y++){ seeds.push([0,y]); seeds.push([w-1,y]) }
+      doFlood(seeds, parseInt(tolEl.value)||30)
+      toast(status,'智能自动抠背景完成（已移除与四边相连的背景）')
+    }
+
+    function doWand(x:number,y:number){
+      if(!originalData) return
+      doFlood([[x,y]], parseInt(tolEl.value)||30)
+      toast(status,'魔棒已擦除相连背景')
+    }
+
     function doChroma(){
       if(!loadedImg) return
       const tol=parseInt(tolEl.value); const target=colorEl.value; const tr=parseInt(target.slice(1,3),16), tg=parseInt(target.slice(3,5),16), tb=parseInt(target.slice(5,7),16)
@@ -992,12 +1043,56 @@ function mockImage(prompt:string, opts:any): string {
         if(dist < tol*2.5){ const a=Math.max(0, (dist - tol*0.5)/ (tol*1.5))*255; d[i+3]= feather? Math.min(255, a+feather*8) : a<80?0:a }
       }
       g.putImageData(imgData,0,0)
-      result.innerHTML=''; const out=document.createElement('img'); out.src=canvas.toDataURL('image/png'); out.style.maxWidth='100%'; out.style.maxHeight='180px'; result.appendChild(out)
-      ;(pMat.querySelector('#m-dl') as HTMLButtonElement).disabled=false
-      pushHistory({ kind:'matting', url: canvas.toDataURL() })
-      toast(status,'抠图完成，可下载透明 PNG')
+      renderResult()
+      toast(status,'色键抠图完成，可下载透明 PNG')
     }
-    pMat.querySelector('#m-reset')!.addEventListener('click', ()=>{ if(!loadedImg) return; result.innerHTML='<span class="gas-note">已重置</span>'; (pMat.querySelector('#m-dl') as HTMLButtonElement).disabled=true })
+
+    async function doAi(){
+      if(!originalData) return
+      const keys=getKeys()
+      if(!keys.replicate){
+        toast(status,'未配置 Replicate Key，已自动使用本地智能抠背景', false)
+        doAuto(); return
+      }
+      status.textContent='AI 抠图请求中…'
+      try{
+        const dataUrl=canvas.toDataURL('image/png')
+        const r=await fetch('https://api.replicate.com/v1/models/cjwbw/rembg/predictions',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+keys.replicate }, body:JSON.stringify({ input: { image: dataUrl } }) })
+        if(!r.ok) throw new Error('Replicate '+r.status+': '+await r.text().then(t=>t.slice(0,120)))
+        const pred=await r.json()
+        for(let i=0;i<40;i++){
+          await new Promise(res=>setTimeout(res,1000))
+          const pr=await fetch(pred.urls?.get,{ headers:{ 'Authorization':'Bearer '+keys.replicate } })
+          const pj=await pr.json()
+          if(pj.status==='succeeded' && pj.output){
+            const outUrl=Array.isArray(pj.output)?pj.output[0]:pj.output
+            const img=new Image(); img.crossOrigin='anonymous'; img.src=outUrl; await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej })
+            canvas.width=img.naturalWidth; canvas.height=img.naturalHeight; const g=canvas.getContext('2d')!; g.drawImage(img,0,0)
+            renderResult(); toast(status,'AI 抠图完成')
+            return
+          }
+          if(pj.status==='failed') throw new Error('Replicate 处理失败')
+        }
+        throw new Error('AI 抠图超时')
+      }catch(e:any){
+        toast(status,'AI 抠图失败，已回退本地智能抠背景：'+String(e.message||e).slice(0,80), false)
+        doAuto()
+      }
+    }
+
+    pMat.querySelector('#m-cut')!.addEventListener('click', async()=>{
+      if(!loadedImg) return toast(status,'请先上传',false)
+      const mode=modeEl.value
+      if(mode==='auto') doAuto()
+      else if(mode==='wand') toast(status,'请点击原图中的背景区域来擦除')
+      else if(mode==='ai') await doAi()
+      else doChroma()
+    })
+    pMat.querySelector('#m-reset')!.addEventListener('click', ()=>{
+      if(!originalData) return
+      const g=canvas.getContext('2d')!; g.putImageData(originalData,0,0)
+      result.innerHTML='<span class="gas-note">已重置</span>'; (pMat.querySelector('#m-dl') as HTMLButtonElement).disabled=true
+    })
     pMat.querySelector('#m-dl')!.addEventListener('click', ()=>{ const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download='matting_'+Date.now()+'.png'; a.click() })
   })()
 
