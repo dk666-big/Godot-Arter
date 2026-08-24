@@ -2,6 +2,8 @@
 
 **One-stop game art workshop with a Godot-ready workflow.**
 
+> 📖 详细功能与操作说明见 [使用说明书.md](使用说明书.md) (User manual)
+
 Godot-Arter is a browser-based game art studio designed around the Godot game engine workflow. It helps you create characters, sprite sheets, game assets, cutouts, seamless maps, and Godot export metadata — all in one place with **BYOK (Bring Your Own Key)** API support.
 
 ## ✨ Features
