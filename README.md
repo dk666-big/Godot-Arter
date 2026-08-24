@@ -19,25 +19,37 @@ Godot-Arter is a browser-based game art studio designed around the Godot game en
 
 ## 🚀 Quick Start
 
-### Option A: Open the standalone web app
+三种方式任选，全部无需构建，也不要求注入 DSH：
 
-Open the local page served by the DSH plugin:
+### Option A: 本地零依赖服务（推荐，全功能）
+
+仅需 **Node.js ≥ 18**（无需 `npm install`），一行命令：
+
+```bash
+node server.mjs                 # 默认端口 3080
+node server.mjs 5173            # 或用 PORT=8080 node server.mjs 指定端口
+```
+
+然后打开：
 
 ```
 http://127.0.0.1:3080/game-art-studio
 ```
 
-Or open the self-contained file:
+该服务自带图片代理（`/game-art-studio/api/proxy-image`），即使图床禁止跨域，
+「序列帧自动切片 / 一键下载 / 无缝地图平铺」等需要读取图片像素的功能也全部可用。
 
-```
-game-art-studio.html
-```
+### Option B: 直接双击打开 game-art-studio.html
 
-No build is required if you use the prebuilt files in `public/` and `lib/`.
+无需任何服务，浏览器直接打开即可用（生成 / 显示 / 本地演示 / 入库 / 下载均正常）。
+程序默认请求 `response_format=b64_json` 让图片直接本地化，摆脱跨域图片 URL 限制，
+绝大多数中转站均可全功能使用；若某中转站既返回跨域远程 URL 又不支持 base64，
+则仅「用远程图做画布切片」类操作受浏览器安全策略限制（显示、下载、入库不受影响）。
+此时切到 Option A 或 C 即可解锁全部能力。
 
-### Option B: Run as a DSH plugin
+### Option C: 作为 DSH 插件运行（可选）
 
-This project is also a DSH super-injector compatible plugin.
+此项目同时是一个 DSH 插件，注入后可复用 DSH 的 web 托管与内置图片代理路由：
 
 ```bash
 # Install dependencies if needed
@@ -55,6 +67,9 @@ dev_reload_package dsh-game-art-studio
 # Package a release tarball
 npm pack --ignore-scripts
 ```
+
+注入后 DSH web 服务也会提供 `http://127.0.0.1:3080/game-art-studio`（同款独立页面），
+并注册 `godot_export_manifest` 工具供对话区调用。
 
 ## 🔑 API Keys & Privacy
 

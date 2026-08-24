@@ -189,6 +189,11 @@ function buildStudio(): HTMLElement {
             <div style="flex:1"><label class="gas-label">视图</label><select class="gas-select" id="c-view"><option value="single">单视图</option><option value="tri">三视图 (前/侧/后)</option><option value="dir8">八方向</option></select></div>
             <div style="flex:1"><label class="gas-label">提供商</label><select class="gas-select" id="c-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select></div>
           </div>
+          <div class="gas-row" style="margin-top:8px;align-items:center">
+            <label class="gas-label" style="margin:0">背景色</label>
+            <input type="color" id="c-bg" value="#ffffff" style="width:46px;height:30px;padding:2px;border:1px solid var(--border);border-radius:6px;background:#1e2224;cursor:pointer">
+            <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px"><input type="checkbox" id="c-bg-trans">透明背景（PNG）</label>
+          </div>
           <div class="gas-row" style="margin-top:10px">
             <button class="gas-btn" id="c-gen" style="flex:1">✨ 生成角色</button>
             <button class="gas-btn ghost" id="c-rand">🎲 随机示例</button>
@@ -274,6 +279,11 @@ function buildStudio(): HTMLElement {
         <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option></select>
         <select class="gas-select" id="f-provider" style="flex:1"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select>
         <button class="gas-btn" id="f-batch">⚡ 批量生成</button>
+      </div>
+      <div class="gas-row" style="margin-top:8px;align-items:center">
+        <label class="gas-label" style="margin:0">背景色</label>
+        <input type="color" id="f-bg" value="#ffffff" style="width:46px;height:30px;padding:2px;border:1px solid var(--border);border-radius:6px;background:#1e2224;cursor:pointer">
+        <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px"><input type="checkbox" id="f-bg-trans">透明背景（PNG）</label>
       </div>
       <div class="gas-progress" style="margin-top:8px"><i id="f-prog"></i></div>
       <div class="gas-note" id="f-status"></div>
@@ -441,7 +451,12 @@ function buildStudio(): HTMLElement {
           <label class="gas-label">预设名称</label><input class="gas-input" id="p-name" placeholder="例：我的中转 / My API">
           <div class="gas-row">
             <div style="flex:1"><label class="gas-label">协议类型</label><select class="gas-select" id="p-type"><option value="openai">OpenAI 兼容</option><option value="stability">Stability 风格</option><option value="siliconflow">SiliconFlow 风格</option></select></div>
-            <div style="flex:1"><label class="gas-label">模型 ID</label><input class="gas-input" id="p-model" placeholder="可选，如 dall-e-3 / flux"></div>
+            <div style="flex:1">
+              <label class="gas-label">模型 ID（可自动获取）</label>
+              <input class="gas-input" id="p-model" list="p-model-list" placeholder="点「获取默认模型」自动拉取，或手动输入">
+              <datalist id="p-model-list"></datalist>
+              <button class="gas-btn ghost" id="p-fetch-models" style="width:100%;margin-top:4px">🔍 获取默认模型</button>
+            </div>
           </div>
           <label class="gas-label">Base URL（可只填到 /v1，系统自动补全 /images/generations）</label><input class="gas-input" id="p-base" placeholder="https://tbtk.asia/v1 或 https://api.example.com/v1/images/generations">
           <label class="gas-label">API Key</label><input class="gas-input" id="p-key" type="password" placeholder="sk-...">
@@ -462,17 +477,20 @@ function buildStudio(): HTMLElement {
         <h4>📚 素材总管 — 全管线素材库</h4>
         <div class="gas-row">
           <div style="width:220px">
-            <label class="gas-label">管线素材库</label>
+            <label class="gas-label">管线 / 自建包</label>
             <div id="al-libs" style="display:flex;flex-direction:column;gap:6px"></div>
-            <div class="gas-note" style="margin-top:8px">入库后素材会按管线自动分类、编号、按时间排序。</div>
+            <button class="gas-btn ghost" id="al-addlib" style="margin-top:4px">➕ 新建包</button>
+            <div class="gas-note" style="margin-top:8px">生成素材可「📥 入库」到当前选中的库；自建包可重命名 / 删除 / 移动素材，自由分类管理。</div>
           </div>
           <div style="flex:1">
             <div class="gas-row">
               <input class="gas-input" id="al-search" placeholder="🔍 搜索编号/名称">
               <button class="gas-btn ghost" id="al-export">⬇ 导出备份</button>
-              <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="al-import" accept=".json,application/json" hidden>⬆ 导入备份</label>
+              <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="al-import" accept=".json,application/json,image/*" multiple hidden>⬆ 导入图片/备份</label>
+              <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="al-import-dir" webkitdirectory multiple accept="image/*" hidden>📁 导入文件夹</label>
               <button class="gas-btn ghost" id="al-clear">🗑 清空当前库</button>
             </div>
+            <div class="gas-note" style="margin-top:6px">支持任意图片格式（PNG/JPG/WebP/GIF/BMP/SVG/AVIF…）单张 / 多选 / 整文件夹导入，也可直接拖图到下方区域；导入的图片按当前库归类。</div>
             <div class="gas-grid" id="al-grid"></div>
             <div class="gas-note" id="al-status"></div>
           </div>
@@ -520,7 +538,7 @@ const pPost=mkPanel('post', `
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
-    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 预设：自定义路由会同步到所有生成面板，Base URL 可只填 /v1，自动补全 images/generations', export:'导出：manifest.json 记录 Godot 目录结构' }
+    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 预设：自定义路由会同步到所有生成面板，Base URL 可只填 /v1，自动补全 images/generations；填好地址+Key 后可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
     if(tip) tip.textContent=tips[id]||''
   }
 
@@ -548,6 +566,32 @@ const pPost=mkPanel('post', `
   async function idbClearByKind(kind:string){ const all=await idbGetAll(); for(const a of all){ if(a.kind===kind) await idbDelete(a.id) } }
   async function idbClearAll(){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).clear(); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
   function downloadDataUrl(dataUrl:string, filename:string){ const a=document.createElement('a'); a.href=dataUrl; a.download=filename; a.click() }
+  // 可靠下载：data:/blob: 直接下载；远程 URL 先试 fetch→blob（CORS 允许时），
+  // 托管环境再走本地代理，都不行则新标签打开原图（绝不覆盖当前页面）
+  const isHostedEnv=()=> location.protocol!=='file:' && location.origin!=='null'
+  async function downloadUrl(url:string, filename:string): Promise<void> {
+    try{
+      let target=url
+      if(/^https?:\/\//i.test(url)){
+        let blob:Blob|null=null
+        try{ const r=await fetch(url); if(r.ok) blob=await r.blob() }catch{}
+        if(!blob && isHostedEnv()){
+          try{ const r2=await fetch('/game-art-studio/api/proxy-image?url='+encodeURIComponent(url)); if(r2.ok) blob=await r2.blob() }catch{}
+        }
+        if(blob){ target=URL.createObjectURL(blob); setTimeout(()=>URL.revokeObjectURL(target),10000) }
+        else { window.open(url,'_blank'); return }
+      }
+      const a=document.createElement('a'); a.href=target; a.download=filename; document.body.appendChild(a); a.click(); a.remove()
+    }catch{ window.open(url,'_blank') }
+  }
+  const LS_CUSTOM_LIBS='dsh-game-art-studio:customLibs'
+  const getCustomLibs=():any[]=>{ try{ const a=JSON.parse(localStorage.getItem(LS_CUSTOM_LIBS)||'[]'); return Array.isArray(a)?a:[] }catch{ return [] } }
+  const saveCustomLibs=(list:any[])=> localStorage.setItem(LS_CUSTOM_LIBS, JSON.stringify(list))
+  function allLibDefs():Record<string,{label:string;prefix:string}> {
+    const merged={ ...LIB_DEFS }
+    for(const c of getCustomLibs()) merged[c.key]={ label:c.label, prefix:c.prefix||'PKG' }
+    return merged
+  }
 
   const LIB_DEFS:Record<string,{label:string;prefix:string}> = {
     character:{label:'角色库',prefix:'CHAR'},
@@ -560,7 +604,7 @@ const pPost=mkPanel('post', `
   }
   let refreshAssetManagerGlobal: (()=>void)|null = null
   async function addToLibrary(kind:string, name:string, url:string): Promise<string>{
-    const def=LIB_DEFS[kind]||LIB_DEFS.asset
+    const def=allLibDefs()[kind]||allLibDefs().asset||{ label:'素材库', prefix:'ASSET' }
     const all=await idbGetAll()
     const count=all.filter(a=>a.kind===kind).length+1
     const id=def.prefix+'-'+String(count).padStart(4,'0')
@@ -623,6 +667,7 @@ const pPost=mkPanel('post', `
     const fb=pPreset.querySelector('#p-base') as HTMLInputElement; if(fb) fb.value=''
     const fk=pPreset.querySelector('#p-key') as HTMLInputElement; if(fk) fk.value=''
     const st=pPreset.querySelector('#p-status') as HTMLElement; if(st) st.textContent=''
+    const dl=pPreset.querySelector('#p-model-list') as HTMLDataListElement; if(dl) dl.innerHTML=''
   }
 
   function editPreset(id:string){
@@ -677,6 +722,7 @@ const pPost=mkPanel('post', `
 
   // 预设面板事件
   pPreset.querySelector('#p-add')!.addEventListener('click', addPresetFromForm)
+  pPreset.querySelector('#p-fetch-models')!.addEventListener('click', ()=>{ void fetchPresetModels() })
   pPreset.querySelector('#p-cancel')!.addEventListener('click', ()=>{ resetPresetForm(); ;(pPreset.querySelector('#p-id-hidden') as HTMLInputElement)?.remove?.() })
   pPreset.querySelector('#p-list')!.addEventListener('click', (e:any)=>{
     const btn=(e.target as HTMLElement).closest?.('button') as HTMLElement | null
@@ -706,15 +752,63 @@ const pPost=mkPanel('post', `
     return b+'/images/generations'
   }
 
+  // 「获取默认模型」：OpenAI 兼容 / SiliconFlow 的模型列表接口是 GET {base}/models
+  // 若用户填的是完整生成端点，先还原根路径再拼 /models
+  function resolveModelsEndpoint(base:string, type:string): string | null {
+    if(type==='stability') return null // Stability 协议无公开模型列表接口
+    let b=base.replace(/\/+$/,'')
+    b=b.replace(/\/(images|image)\/generations$/i,'').replace(/\/generations$/i,'')
+    return b+'/models'
+  }
+
+  async function fetchPresetModels(){
+    const st=pPreset.querySelector('#p-status') as HTMLElement; if(!st) return
+    const type=(pPreset.querySelector('#p-type') as HTMLSelectElement)?.value
+    const base=(pPreset.querySelector('#p-base') as HTMLInputElement)?.value.trim()||''
+    const key=(pPreset.querySelector('#p-key') as HTMLInputElement)?.value.trim()||''
+    if(!base){ st.textContent='请先填写 Base URL 接口地址'; st.style.color='#e74c3c'; return }
+    if(!key){ st.textContent='请先填写 API Key'; st.style.color='#e74c3c'; return }
+    const endpoint=resolveModelsEndpoint(base,type||'openai')
+    if(!endpoint){ st.textContent='Stability 协议暂不提供模型列表接口，请手动填写模型 ID'; st.style.color='#e74c3c'; return }
+    const btn=pPreset.querySelector('#p-fetch-models') as HTMLButtonElement; if(!btn) return
+    btn.disabled=true; const oldLabel=btn.textContent
+    btn.textContent='⏳ 获取中…'
+    st.textContent='正在请求 '+endpoint+' …'; st.style.color='#f1c40f'
+    try{
+      const r=await fetch(endpoint,{ headers:{ 'Authorization':'Bearer '+key, 'Accept':'application/json' } })
+      if(!r.ok) throw new Error('HTTP '+r.status+' '+await r.text().then(t=>t.slice(0,160)))
+      const j=await r.json() as any
+      const arr:any[] = Array.isArray(j.data)? j.data : Array.isArray(j.models)? j.models : Array.isArray(j)? j : []
+      const ids=arr.map((m:any)=> typeof m==='string'? m : (m.id||m.model||m.name)).filter((x:any)=>typeof x==='string').map((x:string)=>x.trim()).filter(Boolean)
+      if(!ids.length) throw new Error('响应中没有找到模型列表（data 为空）')
+      // 图像类模型排前面，便于默认选中
+      const img=ids.filter((id:string)=>/image|dall|flux|sdxl|sd-|stable|t2i|pix|turbo|omni|gpt-image|kandinsky|sana|wan/i.test(id))
+      const ordered=Array.from(new Set([...img, ...ids]))
+      const dl=pPreset.querySelector('#p-model-list') as HTMLDataListElement
+      if(dl) dl.innerHTML=ordered.map((id:string)=>'<option value="'+id.replace(/[<>"']/g,'')+'"></option>').join('')
+      const def=ordered[0]||''
+      ;(pPreset.querySelector('#p-model') as HTMLInputElement).value=def
+      st.textContent='✓ 获取到 '+ids.length+' 个模型，默认：'+def+'（点模型框下拉可切换全部模型）'
+      st.style.color='#2ecc71'
+    }catch(e:any){
+      st.textContent='获取模型失败：'+String(e.message||e).slice(0,160); st.style.color='#e74c3c'
+    }finally{
+      btn.disabled=false; btn.textContent=oldLabel
+    }
+  }
+
   async function toLocalBlobUrl(url:string): Promise<string> {
     if(!/^https?:\/\//i.test(url)) return url
+    // file:// 直开时没有 DSH 代理路由，不能落入代理兜底
+    const hosted= location.protocol!=='file:' && location.origin!=='null'
     try{
       const r=await fetch(url)
-      if(!r.ok) return '/game-art-studio/api/proxy-image?url='+encodeURIComponent(url)
+      if(!r.ok) throw new Error('HTTP '+r.status)
       const blob=await r.blob()
       return URL.createObjectURL(blob)
     }catch{
-      return '/game-art-studio/api/proxy-image?url='+encodeURIComponent(url)
+      // fetch 跨域失败不影响 <img> 直接显示；托管环境才回退到 DSH 代理（供画布切片等需要 CORS 的场景）
+      return hosted ? '/game-art-studio/api/proxy-image?url='+encodeURIComponent(url) : url
     }
   }
 
@@ -779,7 +873,10 @@ const pPost=mkPanel('post', `
       const body:any={ prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024' }
       body.model=preset.model || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3')
       if(preset.type==='siliconflow') body.image_size=opts.size||'1024x1024'
-      const r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) })
+      // 优先要 base64：图片直接本地化，file:// 直开也能切片/下载，摆脱跨域图片 URL 限制
+      body.response_format='b64_json'
+      let r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) })
+      if(r.status===400||r.status===422){ delete body.response_format; r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) }) }
       if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
       const j=await r.json()
       const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url || j.output?.[0]?.url
@@ -792,8 +889,9 @@ const pPost=mkPanel('post', `
     if(provider==='openai'){
       const key=keys.openai
       if(ref){ return await callImageEdits(prompt, 'https://api.openai.com/v1/images/edits', key, { ...opts, model:'dall-e-3' }) }
-      const body={ model:'dall-e-3', prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024', quality:'standard' }
-      const r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) })
+      const body:any={ model:'dall-e-3', prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024', quality:'standard', response_format:'b64_json' }
+      let r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) })
+      if(r.status===400||r.status===422){ delete body.response_format; r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) }) }
       if(!r.ok) throw new Error('OpenAI '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
       const j=await r.json(); const url=j.data?.[0]?.url || j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)
       if(!url) throw new Error('OpenAI 未返回图片')
@@ -820,12 +918,19 @@ const pPost=mkPanel('post', `
   }
 
 function mockImage(prompt:string, opts:any): string {
+    opts=opts||{}
     const c=document.createElement('canvas'); c.width=512; c.height=512; const g=c.getContext('2d')!
-    // 背景
-    const styleMap:Record<string,string>={ pixel32:'#2b2e33', pixel16:'#1e2224', chibi:'#fef9e7', anime:'#e8f8f5', icon:'#f4f6f7' }
-    g.fillStyle=styleMap[opts.style]||'#2b2e33'; g.fillRect(0,0,512,512)
+    if(opts.bgTrans){
+      // 透明背景：先清空，再画淡棋盘格示意透明
+      g.clearRect(0,0,512,512)
+      g.fillStyle='rgba(160,160,160,0.10)'
+    }else{
+      const styleMap:Record<string,string>={ pixel32:'#2b2e33', pixel16:'#1e2224', chibi:'#fef9e7', anime:'#e8f8f5', icon:'#f4f6f7' }
+      g.fillStyle=opts.bg||styleMap[opts.style]||'#2b2e33'; g.fillRect(0,0,512,512)
+      g.fillStyle='rgba(255,255,255,0.04)'
+    }
     // 棋盘格
-    g.fillStyle='rgba(255,255,255,0.04)'; for(let y=0;y<512;y+=32) for(let x=0;x<512;x+=32) if((x+y)%64===0) g.fillRect(x,y,32,32)
+    for(let y=0;y<512;y+=32) for(let x=0;x<512;x+=32) if((x+y)%64===0) g.fillRect(x,y,32,32)
     // 主体：简易角色占位
     g.fillStyle='#478cbf'; g.beginPath(); g.arc(256,220,70,0,Math.PI*2); g.fill()
     g.fillStyle='#e67e22'; g.fillRect(226,290,60,90)
@@ -854,10 +959,13 @@ function mockImage(prompt:string, opts:any): string {
     async function gen(){
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'请先输入角色描述',false)
       const style=styleEl.value, view=viewEl.value, prov=provEl.value
-      const fullPrompt = view==='tri' ? prompt+' , three views front side back, white background, character sheet' : view==='dir8' ? prompt+' , 8 directional sprites, transparent background' : prompt + (style.startsWith('pixel')?' , pixel art, '+style:' , '+style)
+      const bg=(pChar.querySelector('#c-bg') as HTMLInputElement)?.value||'#ffffff'
+      const bgTrans=(pChar.querySelector('#c-bg-trans') as HTMLInputElement)?.checked===true
+      const bgSuffix= bgTrans ? ', transparent background, PNG, no background' : ', solid '+bg+' background'
+      const fullPrompt = view==='tri' ? prompt+' , three views front side back, character sheet'+bgSuffix : view==='dir8' ? prompt+' , 8 directional sprites'+bgSuffix : prompt + (style.startsWith('pixel')?' , pixel art, '+style:' , '+style) + bgSuffix
       setProg(20); status.textContent='生成中… ('+prov+')'; (pChar.querySelector('#c-gen') as HTMLButtonElement).disabled=true
       try{
-        const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024', reference: refUrl || undefined })
+        const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024', bg, bgTrans, reference: refUrl || undefined })
         lastUrl=url; setProg(100)
         preview.innerHTML=''; const img=document.createElement('img'); img.src=url; img.style.maxWidth='100%'; img.style.maxHeight='180px'; img.style.imageRendering='pixelated'; preview.appendChild(img)
         const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+style+'</span><span>'+view+'</span></div>'
@@ -876,7 +984,7 @@ function mockImage(prompt:string, opts:any): string {
       reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='90px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓ 生成时会作为图生图参考') }
       reader.readAsDataURL(f)
     })
-    pChar.querySelector('#c-dl')!.addEventListener('click', ()=>{ if(!lastUrl) return toast(status,'无图片',false); const a=document.createElement('a'); a.href=lastUrl; a.download='character_'+Date.now()+'.png'; a.click() })
+    pChar.querySelector('#c-dl')!.addEventListener('click', ()=>{ if(!lastUrl) return toast(status,'无图片',false); void downloadUrl(lastUrl,'character_'+Date.now()+'.png') })
     pChar.querySelector('#c-save')!.addEventListener('click', async()=>{ if(!lastUrl) return toast(status,'请先生成角色',false); const id=await addToLibrary('character','角色 '+new Date().toLocaleTimeString(),lastUrl); toast(status,'已入库 '+id) })
     pChar.querySelector('#c-to-sheet')!.addEventListener('click', async ()=>{
       if(!lastUrl) return toast(status,'先生成角色',false)
@@ -993,10 +1101,14 @@ function mockImage(prompt:string, opts:any): string {
     })
     pForge.querySelector('#f-batch')!.addEventListener('click', async()=>{
       const lines=ta.value.split('\n').map(s=>s.trim()).filter(Boolean); if(!lines.length) return toast(status,'请输入 Prompt',false)
-      const prov=provEl.value; grid.innerHTML=''; let done=0
+      const prov=provEl.value
+      const bg=(pForge.querySelector('#f-bg') as HTMLInputElement)?.value||'#ffffff'
+      const bgTrans=(pForge.querySelector('#f-bg-trans') as HTMLInputElement)?.checked===true
+      const bgSuffix= bgTrans ? ', transparent background, PNG, no background' : ', solid '+bg+' background'
+      grid.innerHTML=''; let done=0
       for(const line of lines){
         try{
-          const url=await callImageGen(line + ' , game asset, transparent background, centered', prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value, reference: refUrl || undefined })
+          const url=await callImageGen(line + ' , game asset, centered'+bgSuffix, prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value, bg, bgTrans, reference: refUrl || undefined })
           const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
           pushHistory({ kind:'asset', prompt:line, url })
         }catch(e:any){ const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+String(e.message).slice(0,30); grid.appendChild(err) }
@@ -1014,8 +1126,8 @@ function mockImage(prompt:string, opts:any): string {
       })
     pForge.querySelector('#f-dl-all')!.addEventListener('click', async()=>{
       const imgs=[...grid.querySelectorAll('img')] as HTMLImageElement[]; if(!imgs.length) return toast(status,'无素材',false)
-      // 简易打包：依次下载
-      for(let i=0;i<imgs.length;i++){ const a=document.createElement('a'); a.href=imgs[i].src; a.download='asset_'+i+'.png'; a.click(); await new Promise(r=>setTimeout(r,300)) }
+      // 逐个可靠下载（跨域远程图会自动走代理/新标签兜底，不覆盖当前页）
+      for(let i=0;i<imgs.length;i++){ await downloadUrl(imgs[i].src,'asset_'+i+'.png'); await new Promise(r=>setTimeout(r,300)) }
     })
   })()
 
@@ -1335,13 +1447,8 @@ function mockImage(prompt:string, opts:any): string {
 
     pMap.querySelector('#map-dl')!.addEventListener('click', async()=>{
       if(!curImg) return toast(status,'无图片',false)
-      try{
-        const r=await fetch(curImg.src); if(!r.ok) throw new Error('HTTP '+r.status)
-        const blob=await r.blob(); downloadDataUrl(URL.createObjectURL(blob),'map_'+Date.now()+'.png'); toast(status,'已下载 PNG',true)
-      }catch(e:any){
-        if(/^https?:/i.test(curImg.src)){ window.open(curImg.src,'_blank'); toast(status,'远程直链无法直接下载，已在新标签打开原图',false) }
-        else toast(status,'下载失败：'+String(e.message||e).slice(0,60),false)
-      }
+      await downloadUrl(curImg.src||'', 'map_'+Date.now()+'.png')
+      toast(status,'已下载 PNG',true)
     })
     pMap.querySelector('#map-export')!.addEventListener('click', ()=>{ (pMap.querySelector('#map-split') as HTMLButtonElement)?.click?.() })
 
@@ -1447,43 +1554,122 @@ function mockImage(prompt:string, opts:any): string {
     const searchEl= pAsset.querySelector('#al-search') as HTMLInputElement
     const statusEl= pAsset.querySelector('#al-status') as HTMLElement
     const importEl= pAsset.querySelector('#al-import') as HTMLInputElement
+    const importDirEl= pAsset.querySelector('#al-import-dir') as HTMLInputElement
     let activeLib='character'
     let allItems:any[]=[]
+    const isImageFile=(f:any)=> (f.type||'').startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg|avif|ico|tiff?)$/i.test(f.name||'')
 
     function formatTime(t:number){ return new Date(t).toLocaleString() }
 
     function renderLibs(){
       if(!libsEl) return
       libsEl.innerHTML=''
-      for(const [key,def] of Object.entries(LIB_DEFS)){
+      for(const [key,def] of Object.entries(allLibDefs())){
+        const row=document.createElement('div'); row.style.display='flex'; row.style.gap='4px'; row.style.alignItems='center'
         const btn=document.createElement('button')
         btn.className='gas-btn'+(key===activeLib?'':' ghost')
         btn.textContent=def.label
         btn.style.textAlign='left'
+        btn.style.flex='1'
         btn.onclick=()=>{ activeLib=key; renderLibs(); renderGrid() }
-        libsEl.appendChild(btn)
+        row.appendChild(btn)
+        // 自建包支持重命名/删除
+        if(getCustomLibs().some(c=>c.key===key)){
+          const ren=document.createElement('button'); ren.className='gas-btn ghost'; ren.textContent='✎'; ren.style.padding='2px 6px'; ren.title='重命名包'
+          ren.onclick=()=>{
+            const name=prompt('重命名包',def.label); if(!name||!name.trim()) return
+            const list=getCustomLibs(); const c=list.find(x=>x.key===key)
+            if(c){ c.label=name.trim(); saveCustomLibs(list); renderLibs() }
+          }
+          const delBtn=document.createElement('button'); delBtn.className='gas-btn ghost'; delBtn.textContent='🗑'; delBtn.style.padding='2px 6px'; delBtn.style.color='#e74c3c'; delBtn.title='删除包（包内素材移到素材库）'
+          delBtn.onclick=async()=>{
+            if(!confirm('删除包「'+def.label+'」？包内素材将移动到「素材库」。')) return
+            for(const it of allItems) if(it.kind===key) await idbPut({ ...it, kind:'asset' })
+            saveCustomLibs(getCustomLibs().filter(x=>x.key!==key))
+            if(activeLib===key) activeLib='asset'
+            await refresh(); statusEl.textContent='已删除包，素材移入素材库'
+          }
+          row.append(ren,delBtn)
+        }
+        libsEl.appendChild(row)
       }
     }
 
     function renderGrid(){
       if(!gridEl) return
       const q=(searchEl?.value||'').trim().toLowerCase()
+      const libLabel=(allLibDefs()[activeLib]||{}).label||activeLib
       const list=allItems.filter(a=>a.kind===activeLib && (!q || (a.name||'').toLowerCase().includes(q) || (a.id||'').toLowerCase().includes(q)))
         .sort((a,b)=>b.createdAt-a.createdAt)
-      if(!list.length){ gridEl.innerHTML='<div class="gas-note" style="grid-column:1/-1">当前库为空，去各工坊生成后点「📥 入库」即可。</div>'; return }
+      if(!list.length){ gridEl.innerHTML='<div class="gas-note" style="grid-column:1/-1">「'+libLabel+'」为空 —— 生成后点「📥 入库」，或直接拖图片到此处导入。</div>'; return }
       gridEl.innerHTML=''
+      const libKeys=Object.keys(allLibDefs())
       for(const item of list){
         const card=document.createElement('div'); card.className='gas-thumb'
         card.innerHTML='<img src="'+item.url+'">'
         const meta=document.createElement('div'); meta.className='meta'; meta.style.height='auto'; meta.style.flexDirection='column'; meta.style.alignItems='flex-start'
         meta.innerHTML='<span>'+item.id+'</span><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(item.name||'')+'</span><span>'+formatTime(item.createdAt)+'</span>'
         card.appendChild(meta)
-        const actions=document.createElement('div'); actions.style.position='absolute'; actions.style.top='4px'; actions.style.right='4px'; actions.style.display='flex'; actions.style.gap='4px'
-        const dl=document.createElement('button'); dl.className='gas-btn ghost'; dl.textContent='⬇'; dl.style.padding='2px 6px'; dl.onclick=()=>downloadDataUrl(item.url,item.id+'.png')
-        const del=document.createElement('button'); del.className='gas-btn ghost'; del.textContent='🗑'; del.style.padding='2px 6px'; del.style.color='#e74c3c'; del.onclick=async()=>{ await idbDelete(item.id); allItems=await idbGetAll(); renderGrid(); statusEl.textContent='已删除 '+item.id }
-        actions.append(dl,del); card.appendChild(actions)
+        const actions=document.createElement('div'); actions.style.position='absolute'; actions.style.top='4px'; actions.style.right='4px'; actions.style.display='flex'; actions.style.gap='4px'; actions.style.alignItems='center'
+        const dl=document.createElement('button'); dl.className='gas-btn ghost'; dl.textContent='⬇'; dl.style.padding='2px 6px'; dl.onclick=()=>void downloadUrl(item.url,item.id+'.png')
+        // 移动到其他库/包
+        const mv=document.createElement('select'); mv.className='gas-select'; mv.style.padding='1px 2px'; mv.style.fontSize='10px'; mv.style.width='76px'
+        mv.innerHTML='<option value="">⇄ 移动</option>'+libKeys.map(k=>'<option value="'+k+'">'+allLibDefs()[k].label+'</option>').join('')
+        mv.onchange=async()=>{
+          const to=mv.value; if(!to||to===item.kind) return
+          await idbPut({ ...item, kind:to }); allItems=await idbGetAll(); renderGrid()
+          statusEl.textContent='已移动 '+item.id+' → '+((allLibDefs()[to]||{}).label)
+        }
+        const del=document.createElement('button'); del.className='gas-btn ghost'; del.textContent='🗑'; del.style.padding='2px 6px'; del.style.color='#e74c3c'; del.onclick=async()=>{
+          if(!confirm('删除素材 '+item.id+'？')) return
+          await idbDelete(item.id); allItems=await idbGetAll(); renderGrid(); statusEl.textContent='已删除 '+item.id
+        }
+        actions.append(dl,mv,del); card.appendChild(actions)
         gridEl.appendChild(card)
       }
+    }
+
+    // 图片导入（单张/多张/文件夹均可），任意图片格式
+    async function importImages(files:any){
+      const imgs=[...files].filter((f:any)=>isImageFile(f))
+      if(!imgs.length) return { ok:0, fail:0 }
+      let ok=0, fail=0
+      for(const f of imgs){
+        try{
+          const dataUrl=await new Promise<string>((res,rej)=>{
+            const r=new FileReader(); r.onload=()=>res(r.result as string); r.onerror=()=>rej(r.error||new Error('read error')); r.readAsDataURL(f)
+          })
+          const rel=f.webkitRelativePath||''
+          const name= rel.split(/[\\/]/).filter(Boolean).slice(-2).join('/') || f.name
+          await addToLibrary(activeLib, name, dataUrl)
+          ok++
+        }catch{ fail++ }
+      }
+      return { ok, fail }
+    }
+    async function importBackup(file:any){
+      const text=await file.text()
+      const data=JSON.parse(text)
+      const items=Array.isArray(data)?data:(data.items||[])
+      if(!items.length) throw new Error('备份为空')
+      for(const it of items){ if(it.id && it.url) await idbPut({ ...it, createdAt:it.createdAt||Date.now() }) }
+      return items.length
+    }
+    async function handleImportFiles(files:any){
+      const arr=[...files]
+      const jsonFiles=arr.filter((f:any)=>f.type==='application/json'||/\.json$/i.test(f.name||''))
+      const imgFiles=arr.filter((f:any)=>!(f.type==='application/json'||/\.json$/i.test(f.name||'')))
+      let msg=''
+      if(jsonFiles.length){
+        try{ msg+='已导入备份 '+await importBackup(jsonFiles[0])+' 个；' }catch(e:any){ msg+='备份导入失败：'+String(e.message||e).slice(0,40)+'；' }
+      }
+      if(imgFiles.length){
+        const r=await importImages(imgFiles)
+        msg+='已导入图片 '+r.ok+' 张'+(r.fail?'（失败 '+r.fail+'）':'')+'到「'+((allLibDefs()[activeLib]||{}).label)+'」'
+        if(!r.ok && !jsonFiles.length) msg='没有可导入的图片（支持 PNG/JPG/WebP/GIF/BMP/SVG/AVIF 等）'
+      }
+      await refresh()
+      statusEl.textContent=msg||'未导入任何文件'
     }
 
     async function refresh(){ allItems=await idbGetAll(); renderLibs(); renderGrid() }
@@ -1497,23 +1683,21 @@ function mockImage(prompt:string, opts:any): string {
       downloadDataUrl(URL.createObjectURL(blob),'godot-arter-assets-'+Date.now()+'.json')
       statusEl.textContent='已导出 '+allItems.length+' 个素材备份'
     })
-    importEl.addEventListener('change', (e:any)=>{
-      const f=e.target.files?.[0]; if(!f) return
-      const reader=new FileReader()
-      reader.onload=async()=>{
-        try{
-          const data=JSON.parse(reader.result as string)
-          const items=Array.isArray(data)?data:(data.items||[])
-          if(!items.length) throw new Error('备份为空')
-          for(const it of items){ if(it.id && it.url) await idbPut({ ...it, createdAt:it.createdAt||Date.now() }) }
-          await refresh(); statusEl.textContent='已导入 '+items.length+' 个素材'
-        }catch(err:any){ statusEl.textContent='导入失败：'+String(err.message||err).slice(0,60) }
-      }
-      reader.readAsText(f)
+    importEl.addEventListener('change', (e:any)=>{ const fs=e.target.files; if(fs&&fs.length) void handleImportFiles(fs); e.target.value='' })
+    importDirEl.addEventListener('change', (e:any)=>{ const fs=e.target.files; if(fs&&fs.length) void handleImportFiles(fs); e.target.value='' })
+    // 新建自建包
+    pAsset.querySelector('#al-addlib')!.addEventListener('click', ()=>{
+      const name=prompt('新包名称','我的包 '+(getCustomLibs().length+1)); if(!name||!name.trim()) return
+      const list=getCustomLibs(); list.unshift({ key:'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), label:name.trim(), prefix:'PKG' })
+      saveCustomLibs(list); renderLibs(); statusEl.textContent='已创建包「'+name.trim()+'」，切换到它即可导入素材'
     })
+    // 拖放导入：单张 / 多张 / 整文件夹
+    gridEl.addEventListener('dragover', (e:any)=>{ e.preventDefault(); gridEl.style.outline='2px dashed var(--accent)' })
+    gridEl.addEventListener('dragleave', ()=>{ gridEl.style.outline='' })
+    gridEl.addEventListener('drop', (e:any)=>{ e.preventDefault(); gridEl.style.outline=''; const files=e.dataTransfer?.files; if(files&&files.length) void handleImportFiles(files) })
     pAsset.querySelector('#al-clear')!.addEventListener('click', async()=>{
-      if(!confirm('确定清空「'+LIB_DEFS[activeLib].label+'」？')) return
-      await idbClearByKind(activeLib); await refresh(); statusEl.textContent='已清空 '+LIB_DEFS[activeLib].label
+      if(!confirm('确定清空「'+((allLibDefs()[activeLib]||{}).label)+'」？')) return
+      await idbClearByKind(activeLib); await refresh(); statusEl.textContent='已清空 '+((allLibDefs()[activeLib]||{}).label)
     })
   })()
 
