@@ -105,6 +105,7 @@ function buildStudio(): HTMLElement {
     { id:'forge', label:'素材锻造', icon:'🧱' },
     { id:'matting', label:'智能抠图', icon:'✂️' },
     { id:'map', label:'无缝大地图', icon:'🗺️' },
+    { id:'scene', label:'场景工坊', icon:'🌦️' },
     { id:'asset', label:'素材总管', icon:'📚' },
     { id:'post', label:'后处理', icon:'✨' },
     { id:'preset', label:'API 预设', icon:'🔌' },
@@ -212,6 +213,10 @@ function buildStudio(): HTMLElement {
             <div style="flex:1"><label class="gas-label">行 (rows)</label><input class="gas-input" id="s-rows" type="number" value="2" min="1" max="16"></div>
             <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="s-fps" type="number" value="8" min="1" max="24"></div>
           </div>
+          <div class="gas-row" style="margin-top:8px;align-items:center">
+            <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="s-dir-rows"> 行 = 方向（导出命名动画）</label>
+            <input class="gas-input" id="s-dir-names" style="flex:1" placeholder="每行方向名,逗号分隔，如 down,left,up,right">
+          </div>
           <div class="gas-row" style="margin-top:8px">
             <button class="gas-btn" id="s-slice">🔪 切片</button>
             <button class="gas-btn ghost" id="s-pack">📦 打包成表</button>
@@ -260,6 +265,11 @@ function buildStudio(): HTMLElement {
         <label class="gas-label" style="margin:0">背景色</label>
         <input type="color" id="f-bg" value="#ffffff" style="width:46px;height:30px;padding:2px;border:1px solid var(--border);border-radius:6px;background:#1e2224;cursor:pointer">
         <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px"><input type="checkbox" id="f-bg-trans">透明背景（PNG）</label>
+      </div>
+      <div class="gas-row" style="margin-top:8px;align-items:center">
+        <label class="gas-label" style="margin:0">本地程序化生成（无需 API）</label>
+        <button class="gas-btn ghost" id="f-shadow">👤 软阴影</button>
+        <button class="gas-btn ghost" id="f-glow">✨ 光晕</button>
       </div>
       <div class="gas-progress" style="margin-top:8px"><i id="f-prog"></i></div>
       <div class="gas-note" id="f-status"></div>
@@ -369,9 +379,59 @@ function buildStudio(): HTMLElement {
             <label class="gas-label">3×3 平铺校验（无缝检验）</label><div class="gas-preview" id="map-tiled" style="background:#0f1213; min-height:120px; overflow:hidden"><canvas id="map-tiled-canvas" width="192" height="192" style="width:192px;height:192px;image-rendering:pixelated"></canvas></div>
           </div>
         </div>
+        <div class="gas-card" style="margin-top:12px">
+          <h4>🧬 程序化地形（本地生成 · 无需 API）</h4>
+          <div class="gas-row" style="align-items:flex-end">
+            <div style="flex:1"><label class="gas-label">种子</label><input class="gas-input" id="ptm-seed" value="78123"></div>
+            <div style="flex:1"><label class="gas-label">海平面（低=更多陆地）</label><input class="gas-input" id="ptm-sea" type="range" min="-30" max="30" value="0"></div>
+            <div style="flex:1"><label class="gas-label">山脉强度</label><input class="gas-input" id="ptm-mtn" type="range" min="0" max="100" value="40"></div>
+            <button class="gas-btn" id="ptm-gen">🧬 生成地形</button>
+            <button class="gas-btn ghost" id="ptm-export">⬇ 导出 TileSet</button>
+            <button class="gas-btn ghost" id="ptm-save">📥 入库</button>
+          </div>
+          <div class="gas-note" id="ptm-status" style="margin-top:6px">种子化多层噪声地形：水 / 陆地 / 森林 / 山脉 / 雪顶 + 河流，可导出 TileSet.json 与预览图。</div>
+          <canvas id="ptm-canvas" width="256" height="256" style="width:100%;image-rendering:pixelated;border:1px solid var(--border);border-radius:10px;margin-top:8px;background:#141822"></canvas>
+        </div>
         <canvas id="map-canvas" hidden></canvas>
       </div>
     `)
+// SCENE — 天气 × 日夜（功能借鉴 romestead_weather_free：天气参数库 + 程序化覆盖层渲染）
+  const pScene=mkPanel('scene', `
+    <div class="gas-card">
+      <h4>🌦️ 场景工坊 — 天气 × 日夜 实时预览</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">场景描述 Prompt（可选；留空则用上传 / 本地演示底图）</label>
+          <div class="gas-row">
+            <input class="gas-input" id="sc-prompt" placeholder="例：像素风山间小镇，40x40 俯视">
+            <div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="sc-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select><select class="gas-select" id="sc-model-sel" style="display:none;margin-top:4px"></select></div>
+            <button class="gas-btn" id="sc-gen">✨ 生成场景</button>
+            <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="sc-upload" accept="image/*" hidden>📁 上传场景图</label>
+            <button class="gas-btn orange" id="sc-export">⬇ 导出当前帧</button>
+            <button class="gas-btn ghost" id="sc-save">📥 入库</button>
+          </div>
+          <div class="gas-note" id="sc-status" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>☁️ 天气与日夜（参数库：晴天 / 雨天 / 雷暴 / 下雪）</h4>
+      <div class="gas-row" style="align-items:center">
+        <button class="gas-btn ghost" data-weather="clear" style="flex:1">☀️ 晴天</button>
+        <button class="gas-btn ghost" data-weather="rainy" style="flex:1">🌧️ 雨天</button>
+        <button class="gas-btn ghost" data-weather="thunder" style="flex:1">⛈️ 雷暴</button>
+        <button class="gas-btn ghost" data-weather="snow" style="flex:1">❄️ 下雪</button>
+        <button class="gas-btn ghost" id="sc-pause" style="flex:0 0 84px">⏸ 暂停</button>
+      </div>
+      <div class="gas-row" style="margin-top:8px">
+        <div style="flex:1"><label class="gas-label">效果强度</label><input class="gas-input" id="sc-strength" type="range" min="0" max="100" value="100"></div>
+        <div style="flex:1"><label class="gas-label">风力 / 飘动</label><input class="gas-input" id="sc-wind" type="range" min="0" max="100" value="40"></div>
+        <div style="flex:1"><label class="gas-label">时间（日夜）</label><input class="gas-input" id="sc-hour" type="range" min="0" max="2400" value="1000"></div>
+      </div>
+      <div class="gas-label" style="margin-top:6px">预览（左上角显示 天气 · 时刻；雨/雪/闪电为纯程序化绘制）</div>
+      <div class="gas-preview" style="padding:0;overflow:hidden"><canvas id="sc-canvas" width="800" height="450" style="width:100%;height:auto;display:block"></canvas></div>
+    </div>
+  `)
 // EXPORT
   const pExport=mkPanel('export', `
     <div class="gas-card">
@@ -546,15 +606,15 @@ const pPost=mkPanel('post', `
     </div>
   `)
 
-  ;[pChar,pSheet,pForge,pMat,pMap,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
-  panels['character']=pChar; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
+  ;[pChar,pSheet,pForge,pMat,pMap,pScene,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
+  panels['character']=pChar; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
 
   function switchTab(id:string){
     active=id
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
-    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
+    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
     if(tip) tip.textContent=tips[id]||''
   }
 
@@ -616,6 +676,7 @@ const pPost=mkPanel('post', `
     matting:{label:'抠图库',prefix:'MATTING'},
     tile:{label:'瓦片库',prefix:'TILE'},
     map:{label:'大地图库',prefix:'MAP'},
+    scene:{label:'场景库',prefix:'SCENE'},
     post:{label:'后处理库',prefix:'POST'},
   }
   let refreshAssetManagerGlobal: (()=>void)|null = null
@@ -645,7 +706,7 @@ const pPost=mkPanel('post', `
   }
 
   function populateProviderSelects(){
-    const ids=['c-provider','s-provider','f-provider','map-provider']
+    const ids=['c-provider','s-provider','f-provider','map-provider','sc-provider']
     for(const id of ids){
       const sel=main.querySelector('#'+id) as HTMLSelectElement | null
       if(!sel) continue
@@ -801,6 +862,7 @@ const pPost=mkPanel('post', `
   bindModelSelect(pSheet,'s-provider','s-model-sel')
   bindModelSelect(pForge,'f-provider','f-model-sel')
   bindModelSelect(pMap,'map-provider','map-model-sel')
+  bindModelSelect(pScene,'sc-provider','sc-model-sel')
 
   function resolveCustomEndpoint(base:string, type:string): string {
     const b=base.replace(/\/+$/,'')
@@ -1148,11 +1210,30 @@ function mockImage(prompt:string, opts:any): string {
     pSheet.querySelector('#s-export')!.addEventListener('click', ()=>{
       if(!packCanvas) return toast(status,'请先打包',false)
       const a=document.createElement('a'); a.href=packCanvas.toDataURL(); a.download='spritesheet_'+Date.now()+'.png'; a.click()
-      // 生成 SpriteFrames json
-      const mf={ meta:{ image:'spritesheet.png', size:[packCanvas.width, packCanvas.height], frames:frames.length }, frames: frames.map((_,i)=>({ name:'frame_'+i, region:[i*frames[0].width,0,frames[0].width, frames[0].height], duration: 1/(parseInt(fpsEl.value)||8) })), godot:{ type:'SpriteFrames', animations:[{ name:'default', frames: frames.map((_,i)=>i), speed: parseInt(fpsEl.value)||8 }] } }
+      // 生成 SpriteFrames json（支持：行=方向 → 命名动画；STAND 复用首帧）
+      const w=frames[0]?.width||packCanvas.width, h=frames[0]?.height||packCanvas.height
+      const perRow=parseInt((pSheet.querySelector('#s-cols') as HTMLInputElement).value)||frames.length||1
+      const fps=parseInt(fpsEl.value)||8
+      const frameList= frames.map((_,i)=>({ name:'frame_'+i, region:[(i%perRow)*w, Math.floor(i/perRow)*h, w, h], duration: 1/fps }))
+      const dirRows=(pSheet.querySelector('#s-dir-rows') as HTMLInputElement)?.checked===true
+      let animations:any[]=[]
+      if(dirRows && perRow>0){
+        const names=(pSheet.querySelector('#s-dir-names') as HTMLInputElement).value.split(',').map(s=>s.trim()).filter(Boolean)
+        const rows=Math.max(1,Math.ceil(frames.length/perRow))
+        for(let r=0;r<rows;r++){
+          const name=names[r]||('row'+r)
+          const fr=[]; for(let c=0;c<perRow;c++){ const idx=r*perRow+c; if(idx<frames.length) fr.push(idx) }
+          animations.push({ name, frames:fr, speed:fps, loop:true })
+        }
+        // STAND 复用第一个方向动画的首帧（借鉴 occha 生成器约定）
+        if(animations.length && animations[0].frames.length){ animations.push({ name:'stand', frames:[animations[0].frames[0]], speed:fps, loop:false }) }
+      }else{
+        animations=[{ name:'default', frames: frames.map((_,i)=>i), speed:fps }]
+      }
+      const mf={ meta:{ image:'spritesheet.png', size:[packCanvas.width, packCanvas.height], frames:frames.length, cols:perRow, rows:Math.max(1,Math.ceil(frames.length/perRow)), animation_mode: dirRows?'directional':'single' }, frames: frameList, godot:{ type:'SpriteFrames', animations } }
       const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=url; b.download='SpriteFrames.json'; b.click()
       pushHistory({ kind:'export', what:'spritesheet', at:Date.now() })
-      toast(status,'已导出 PNG + SpriteFrames.json (Godot 可直接创建 SpriteFrames 资源后导入)')
+      toast(status,'已导出 PNG + SpriteFrames.json ('+(dirRows?'命名动画 '+animations.map((x:any)=>x.name).join('/').slice(0,40):'默认动画')+') — Godot 导入后创建 SpriteFrames 资源即可使用')
     })
     pSheet.querySelector('#s-save')!.addEventListener('click', async()=>{
         if(!packCanvas) return toast(status,'请先打包成表',false)
@@ -1210,6 +1291,31 @@ function mockImage(prompt:string, opts:any): string {
       const imgs=[...grid.querySelectorAll('img')] as HTMLImageElement[]; if(!imgs.length) return toast(status,'无素材',false)
       // 逐个可靠下载（跨域远程图会自动走代理/新标签兜底，不覆盖当前页）
       for(let i=0;i<imgs.length;i++){ await downloadUrl(imgs[i].src,'asset_'+i+'.png'); await new Promise(r=>setTimeout(r,300)) }
+    })
+    // 本地程序化素材生成（功能借鉴 shadow_texture.gd：椭圆渐变软阴影 / 径向光晕）
+    const addProc=(name:string,url:string)=>{
+      const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+name+'</span><span>本地</span></div>'
+      grid.appendChild(card); pushHistory({ kind:'asset', prompt:name, url }); return card
+    }
+    pForge.querySelector('#f-shadow')!.addEventListener('click', ()=>{
+      const c=document.createElement('canvas'); c.width=128; c.height=64
+      const g=c.getContext('2d')!; g.clearRect(0,0,128,64)
+      const img=g.createImageData(128,64), d=img.data, rx=60, ry=28, cx=64, cy=32
+      for(let y=0;y<64;y++) for(let x=0;x<128;x++){
+        const dx=(x-cx)/rx, dy=(y-cy)/ry, dist=dx*dx+dy*dy
+        const a= dist<=1 ? 0.65*(1-dist*0.4) : 0
+        const i=(y*128+x)*4; d[i]=0; d[i+1]=0; d[i+2]=0; d[i+3]=Math.round(a*255)
+      }
+      g.putImageData(img,0,0)
+      addProc('软阴影 128x64', c.toDataURL('image/png')); toast(status,'已生成软阴影素材（角色脚下阴影可直接用）✓')
+    })
+    pForge.querySelector('#f-glow')!.addEventListener('click', ()=>{
+      const c=document.createElement('canvas'); c.width=128; c.height=128
+      const g=c.getContext('2d')!
+      const grad=g.createRadialGradient(64,64,2,64,64,62)
+      grad.addColorStop(0,'rgba(255,255,255,0.95)'); grad.addColorStop(0.35,'rgba(255,220,160,0.55)'); grad.addColorStop(1,'rgba(255,220,160,0)')
+      g.fillStyle=grad; g.fillRect(0,0,128,128)
+      addProc('光晕 128x128', c.toDataURL('image/png')); toast(status,'已生成光晕素材（粒子/光效可用）✓')
     })
   })()
 
@@ -1629,7 +1735,244 @@ function mockImage(prompt:string, opts:any): string {
     saveBtn.addEventListener('click', async()=>{ if(!resultUrl) return; const id=await addToLibrary('post','后处理 '+new Date().toLocaleTimeString(),resultUrl); toast(status,'已入库 '+id) })
   })()
 
-  // ---- Asset Manager ----
+  // ---- Scene: 天气 × 日夜（程序化覆盖层，功能借鉴 romestead_weather_free）----
+  ;(()=>{
+    const canvas=pScene.querySelector('#sc-canvas') as HTMLCanvasElement
+    const ctx=canvas.getContext('2d')!
+    const status=pScene.querySelector('#sc-status') as HTMLElement
+    const WEATHER_DB:Record<string,any>={
+      clear:{ name:'晴天', ambient:[1,1,1], wind:1, wetness:0, rain:0, snow:0, thunder:false },
+      rainy:{ name:'雨天', ambient:[0.9,0.9,1], wind:2, wetness:0.45, rain:4, snow:0, thunder:false },
+      thunder:{ name:'雷暴', ambient:[0.6,0.6,0.8], wind:3, wetness:0.48, rain:16, snow:0, thunder:true },
+      snow:{ name:'下雪', ambient:[0.94,0.97,1], wind:0.8, wetness:0.18, rain:0, snow:1, thunder:false },
+    }
+    let sceneImg:HTMLImageElement|null=null
+    let weather='clear'
+    let running=true, raf=0, t=0
+    // 确定性伪随机（雨滴/雪花分布稳定）
+    const hash=(n:number)=>{ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x) }
+    const RAIN_N=90, SNOW_N=120
+    const rainArr=Array.from({length:RAIN_N},(_,i)=>({ x:hash(i)*800, y:hash(i+50)*450, len:18+hash(i+9)*30, spd:9+hash(i+3)*8 }))
+    const snowBack=Array.from({length:SNOW_N},(_,i)=>({ x:hash(i)*800, y:hash(i+80)*450, r:1+hash(i+5)*1.5, spd:0.6+hash(i)*1.1, drift:0.3+hash(i+2)*0.8 }))
+    const snowFront=Array.from({length:Math.floor(SNOW_N/2)},(_,i)=>({ x:hash(i+200)*800, y:hash(i+300)*450, r:2+hash(i+7)*2.5, spd:1.1+hash(i+1)*1.6, drift:0.5+hash(i+4)*1.2 }))
+    function hourOf(){ return (parseFloat((pScene.querySelector('#sc-hour') as HTMLInputElement)?.value||'1000')||1000)/100 }
+    function strengthOf(){ return (parseFloat((pScene.querySelector('#sc-strength') as HTMLInputElement)?.value||'100')||100)/100 }
+    function windOf(){ const w=(parseFloat((pScene.querySelector('#sc-wind') as HTMLInputElement)?.value||'40')||40)/100; return (w-0.5)*2 } // -1..1
+    // 日夜环境曲线：亮度 + 色调（清晨/黄昏偏暖，夜晚偏蓝）
+    function timeTint(hour:number){
+      let b:number
+      if(hour<5||hour>=21) b=0.22
+      else if(hour<7) b=0.22+(hour-5)/2*0.78
+      else if(hour<17) b=1
+      else if(hour<19) b=1-(hour-17)/2*0.78
+      else b=0.22
+      const warm=(hour>=6&&hour<=8.5)||(hour>=15.5&&hour<=19)
+      const r=warm?1.0*b:0.86*b, g=warm?0.82*b:0.86*b, bl=warm?0.62*b:1.0*b
+      return { r,g,b:bl, alpha:Math.min(0.85,(1-b)*0.95+0.05) }
+    }
+    function drawBase(){
+      ctx.clearRect(0,0,800,450)
+      if(sceneImg){
+        // cover 缩放铺满
+        const s=Math.max(800/(sceneImg.naturalWidth||800), 450/(sceneImg.naturalHeight||450))
+        const w=(sceneImg.naturalWidth||800)*s, h=(sceneImg.naturalHeight||450)*s
+        ctx.drawImage(sceneImg,(800-w)/2,(450-h)/2,w,h)
+      }else{
+        const g=ctx.createLinearGradient(0,0,0,450)
+        g.addColorStop(0,'#9ec4e8'); g.addColorStop(0.6,'#cfe3ef'); g.addColorStop(1,'#5f8f5f')
+        ctx.fillStyle=g; ctx.fillRect(0,0,800,450)
+        ctx.fillStyle='#fff2a8'; ctx.beginPath(); ctx.arc(660,90,40,0,Math.PI*2); ctx.fill()
+        ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='bold 16px monospace'; ctx.textAlign='center'
+        ctx.fillText('本地演示场景（上传或 AI 生成底图）',400,430)
+      }
+      // 日夜色调（multiply 暗化 + 色调）
+      const tt=timeTint(hourOf())
+      ctx.globalCompositeOperation='multiply'
+      ctx.fillStyle='rgba('+Math.round(tt.r*255)+','+Math.round(tt.g*255)+','+Math.round(tt.b*255)+','+tt.alpha+')'
+      ctx.fillRect(0,0,800,450)
+      ctx.globalCompositeOperation='source-over'
+      // 天气名 + 时刻
+      const wd=WEATHER_DB[weather]||WEATHER_DB.clear
+      const hh=Math.floor(hourOf()), mm=Math.round((hourOf()-hh)*60)
+      ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(8,8,220,24)
+      ctx.fillStyle='#fff'; ctx.font='bold 13px monospace'; ctx.textAlign='left'
+      ctx.fillText(wd.name+' · '+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0'),16,25)
+    }
+    function drawRain(strength:number, wind:number){
+      const data=WEATHER_DB[weather]
+      const n=Math.max(1,Math.floor(RAIN_N*strength*(data.rain/16)*1.6))
+      const windX=wind*26*(data.wind||1)
+      ctx.strokeStyle='rgba(180,200,255,0.55)'; ctx.lineWidth=1
+      for(let i=0;i<n;i++){
+        const r=rainArr[i%RAIN_N]
+        const y=(r.y + (t*r.spd*strength))%460 - 5
+        const x=(r.x + windX*(t*0.01)) % 820 - 10
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-windX*0.18, y+r.len); ctx.stroke()
+      }
+      if(data.wetness>0.3){
+        ctx.fillStyle='rgba(160,190,255,0.25)'
+        for(let i=0;i<6;i++){ const s=hash(i+40+t*0.5)*800; ctx.fillRect(s,444+hash(i+7)*4,2,5) }
+      }
+    }
+    function drawThunder(){
+      const flash=Math.max(0, Math.sin(t*0.55) - 0.82) * Math.max(0, Math.sin(t*0.17))
+      if(flash>0.02){
+        ctx.fillStyle='rgba(255,255,255,'+Math.min(0.85,flash*3)+')'
+        ctx.fillRect(0,0,800,450)
+      }
+    }
+    function drawSnow(strength:number, wind:number){
+      ctx.save()
+      ctx.shadowColor='rgba(255,255,255,0.8)'
+      ctx.shadowBlur=3
+      // 远景层（小、暗、少）
+      ctx.fillStyle='rgba(230,238,250,0.5)'
+      for(const f of snowBack){
+        const y=(f.y + t*f.spd*strength)%460 - 2
+        const x=(f.x + wind*f.drift*40)%820 - 10
+        ctx.beginPath(); ctx.arc(x, y, f.r*0.7, 0, Math.PI*2); ctx.fill()
+      }
+      // 前景层（大、亮、带柔光）
+      ctx.fillStyle='rgba(255,255,255,0.92)'
+      for(const f of snowFront){
+        const y=(f.y + t*f.spd*1.5*strength)%460 - 4
+        const x=(f.x + wind*f.drift*70)%820 - 10
+        ctx.beginPath(); ctx.arc(x, y, f.r, 0, Math.PI*2); ctx.fill()
+      }
+      ctx.restore()
+    }
+    function frame(){
+      t+=0.016
+      const st=strengthOf(), wind=windOf()
+      drawBase()
+      if(st>0.01){
+        if(weather==='rainy'||weather==='thunder') drawRain(st,wind)
+        if(weather==='thunder') drawThunder()
+        if(weather==='snow') drawSnow(st,wind)
+      }
+      if(running) raf=requestAnimationFrame(frame)
+    }
+    frame()
+    pScene.querySelector('#sc-pause')!.addEventListener('click', ()=>{
+      running=!running
+      const b=pScene.querySelector('#sc-pause') as HTMLButtonElement
+      b.textContent=running?'⏸ 暂停':'▶ 播放'
+      if(running){ raf=requestAnimationFrame(frame) }
+    })
+    pScene.querySelectorAll<HTMLElement>('[data-weather]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ weather=btn.dataset.weather||'clear' })
+    })
+    pScene.querySelector('#sc-strength')!.addEventListener('input', ()=>{/* 实时读取 */})
+    const loadImg=(src:string)=>new Promise<HTMLImageElement>((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src })
+    pScene.querySelector('#sc-upload')!.addEventListener('change', async(e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const url=URL.createObjectURL(f); sceneImg=await loadImg(url); toast(status,'场景底图已加载 ✓')
+    })
+    pScene.querySelector('#sc-gen')!.addEventListener('click', async()=>{
+      const prompt=(pScene.querySelector('#sc-prompt') as HTMLInputElement)?.value.trim()
+      const prov=(pScene.querySelector('#sc-provider') as HTMLSelectElement)?.value||'mock'
+      toast(status,'场景生成中…')
+      try{
+        const full=(prompt||'2D game scene background')+' , 2D game scene, wide shot'+ (weather==='snow'?', snowing':weather==='rainy'||weather==='thunder'?', rainy':', clear weather')
+        const url=await callImageGen(full, prov, { size:'1024x576', model: (pScene.querySelector('#sc-model-sel') as HTMLSelectElement)?.value||undefined })
+        sceneImg=await loadImg(url); toast(status,'场景已生成，叠加天气预览 ✓')
+      }catch(err:any){ toast(status,String(err.message||err),false) }
+    })
+    pScene.querySelector('#sc-export')!.addEventListener('click', ()=>{
+      if(!ctx) return
+      const url=canvas.toDataURL('image/png')
+      const a=document.createElement('a'); a.href=url; a.download='scene_weather_'+Date.now()+'.png'; a.click()
+      toast(status,'当前天气帧已导出 PNG ✓')
+    })
+    pScene.querySelector('#sc-save')!.addEventListener('click', async()=>{
+      const id=await addToLibrary('scene','场景 '+new Date().toLocaleTimeString()+' '+WEATHER_DB[weather].name, canvas.toDataURL('image/png'))
+      toast(status,'已入库 '+id)
+    })
+  })()
+
+// ---- 程序化地形（功能借鉴 blob_world：种子化多层噪声 + 分类）----
+  ;(()=>{
+    const canvas=pMap.querySelector('#ptm-canvas') as HTMLCanvasElement
+    const ctx=canvas.getContext('2d')!
+    const status=pMap.querySelector('#ptm-status') as HTMLElement
+    function makeNoise(seed:string){
+      const perm=new Uint8Array(512); const arr=new Uint8Array(256)
+      let h=2166136261
+      for(let i=0;i<16;i++){ h^=seed.charCodeAt(i%seed.length)||0; h=Math.imul(h,16777619)>>>0 }
+      for(let i=0;i<256;i++){ h^=i+1; h=Math.imul(h,16777619)>>>0; arr[i]=h&255 }
+      for(let i=255;i>0;i--){ const j=h%(i+1); const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp; h=Math.imul(h,1664525)+1013904223>>>0 }
+      for(let i=0;i<512;i++) perm[i]=arr[i&255]
+      const fade=(t:number)=>t*t*t*(t*(t*6-15)+10)
+      const lerp2=(a:number,b:number,t:number)=>a+t*(b-a)
+      const grad=(ix:number,iy:number)=>{ const v=perm[(ix+perm[iy&255])&255]/255*2-1; return v }
+      const noise=(x:number,y:number)=>{
+        const x0=Math.floor(x), y0=Math.floor(y), x1=x0+1, y1=y0+1
+        const sx=fade(x-x0), sy=fade(y-y0)
+        const n00=grad(x0,y0)*(x-x0)+grad(x0,y0+1)*(y-y0)
+        const n10=grad(x1,y0)*(x-x1)+grad(x1,y0+1)*(y-y0)
+        const n01=grad(x0,y1)*(x-x0)+grad(x0,y1+1)*(y-y1)
+        const n11=grad(x1,y1)*(x-x1)+grad(x1,y1+1)*(y-y1)
+        const nx0=lerp2(n00,n10,sx), nx1=lerp2(n01,n11,sx)
+        return lerp2(nx0,nx1,sy)
+      }
+      const fbm=(x:number,y:number,oct:number)=>{ let a=0,amp=1,f=1,n=0; for(let i=0;i<oct;i++){ a+=noise(x*f,y*f)*amp; n+=amp; amp*=0.5; f*=2 } return a/n }
+      return { fbm }
+    }
+    function gen(){
+      const seed=(pMap.querySelector('#ptm-seed') as HTMLInputElement)?.value||'78123'
+      const sea=parseFloat((pMap.querySelector('#ptm-sea') as HTMLInputElement)?.value||'0')||0
+      const mtn=parseFloat((pMap.querySelector('#ptm-mtn') as HTMLInputElement)?.value||'40')||40
+      const noise=makeNoise(seed)
+      const W=256,H=256, S=16 // 每格地形块像素
+      const rows=H/S, cols=W/S
+      const classes:string[]=[]
+      for(let ty=0;ty<rows;ty++){
+        for(let tx=0;tx<cols;tx++){
+          const cx=tx/S, cy=ty/S
+          const land=noise.fbm(cx/26,cy/26,3)
+          const mtnN=noise.fbm(cx/42+100,cy/42+100,3)
+          const river=noise.fbm(cx/12.5,cy/12.5,2)
+          const height=land + mtnN*(mtn/100)*0.8 - sea/40
+          let cls:string
+          if(height<0) cls='水'
+          else if(river>-0.08&&river<0.08&&height<0.35) cls='河流'
+          else if(height>0.55) cls='雪顶'
+          else if(height>0.38) cls='山脉'
+          else if(noise.fbm(cx/8+300,cy/8+300,2)>0.05) cls='森林'
+          else cls='陆地'
+          classes.push(cls)
+        }
+      }
+      const colors:Record<string,string>={ '水':'#3b62a0','河流':'#4d86c9','陆地':'#6fa75c','森林':'#477a3a','山脉':'#8a8278','雪顶':'#e8eef2' }
+      const idx=0; ctx.imageSmoothingEnabled=false
+      for(let ty=0;ty<rows;ty++) for(let tx=0;tx<cols;tx++){
+        const cls=classes[ty*cols+tx]
+        ctx.fillStyle=colors[cls]||'#555'
+        ctx.fillRect(tx*S,ty*S,S,S)
+      }
+      return { classes, cols, rows, S, colors }
+    }
+    let last:any=null
+    const run=()=>{ last=gen() }
+    pMap.querySelector('#ptm-gen')!.addEventListener('click', ()=>{ run(); if(status) status.textContent='✓ 已生成 256×256 地形（16px 块 × '+last.cols+'×'+last.rows+'）—— 水/河流/陆地/森林/山脉/雪顶' })
+    pMap.querySelector('#ptm-export')!.addEventListener('click', ()=>{
+      if(!last){ run() }
+      const json:any={ godot:'TileSet', tile_size:last.S, columns:last.cols, rows:last.rows, image:'terrain.png', classes:[...(new Set(last.classes))], tiles:[] }
+      for(let i=0;i<last.classes.length;i++) json.tiles.push({ id:i, type:last.classes[i], region:[(i%last.cols)*last.S, Math.floor(i/last.cols)*last.S, last.S, last.S] })
+      const blob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'})
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='procedural_tileset_'+Date.now()+'.json'; a.click()
+      const au=document.createElement('a'); au.href=canvas.toDataURL('image/png'); au.download='procedural_terrain_'+Date.now()+'.png'; au.click()
+      if(status) status.textContent='✓ 已导出 TileSet.json（'+last.cols+'×'+last.rows+'）+ 地形预览 PNG'
+    })
+    pMap.querySelector('#ptm-save')!.addEventListener('click', async()=>{
+      if(!last){ run() }
+      const id=await addToLibrary('map','程序化地形 '+new Date().toLocaleTimeString(), canvas.toDataURL('image/png'))
+      toast(status||document.body,'已入库 '+id)
+    })
+    run()
+  })()
+
+// ---- Asset Manager ----
   ;(()=>{
     const libsEl= pAsset.querySelector('#al-libs') as HTMLElement
     const gridEl= pAsset.querySelector('#al-grid') as HTMLElement
