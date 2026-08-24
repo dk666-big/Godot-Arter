@@ -18,47 +18,49 @@
 			root.className = "gas-root";
 			const style = document.createElement("style");
 			style.textContent = `
-  .gas-root{ --godot-bg:#1e2224; --panel:#2b2e33; --panel2:#323840; --border:#3a3f47; --accent:#478cbf; --accent2:#6ea6d1; --accent-orange:#e67e22; --text:#e6e6e6; --muted:#9aa0a6; --ok:#2ecc71; --warn:#f1c40f; font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace; color:var(--text); background:var(--godot-bg); border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; max-height:92vh; }
-  .gas-header{ display:flex; align-items:center; gap:12px; padding:10px 14px; background:linear-gradient(180deg,#25282b,#1e2224); border-bottom:1px solid var(--border); }
-  .gas-logo{ width:32px; height:32px; border-radius:6px; background:var(--accent); display:grid; place-items:center; font-weight:800; color:white; box-shadow:0 2px 8px rgba(71,140,191,0.4); }
-  .gas-title{ font-weight:700; letter-spacing:0.5px; }
-  .gas-title small{ display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:2px; }
-  .gas-badge{ margin-left:auto; background:#252a2e; border:1px solid var(--border); padding:4px 8px; border-radius:999px; font-size:11px; color:var(--muted); }
+  .gas-root{ --godot-bg:#1f232b; --panel:#272b35; --panel2:#313642; --border:#3e4553; --accent:#7aa2f7; --accent2:#a5c8ff; --accent-orange:#ff9e64; --pink:#f7768e; --text:#eef1f7; --muted:#a6b0c0; --ok:#4fd68a; --warn:#ffc46b; font-family: 'JetBrains Mono', ui-monospace, Consolas, 'Microsoft YaHei', monospace; color:var(--text); background:var(--godot-bg); border:1px solid var(--border); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; max-height:92vh; box-shadow:0 12px 40px rgba(0,0,0,.35); }
+  .gas-header{ display:flex; align-items:center; gap:14px; padding:14px 20px; background:linear-gradient(135deg,#272c37,#1f232b); border-bottom:1px solid var(--border); }
+  .gas-logo{ width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,#7aa2f7,#c792ea); display:grid; place-items:center; font-weight:800; font-size:18px; color:white; box-shadow:0 4px 14px rgba(122,162,247,.35); }
+  .gas-title{ font-weight:700; letter-spacing:1px; font-size:14px; }
+  .gas-title small{ display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:3px; letter-spacing:.3px; }
+  .gas-badge{ margin-left:auto; background:rgba(255,255,255,.05); border:1px solid var(--border); padding:5px 12px; border-radius:999px; font-size:11px; color:var(--muted); }
   .gas-badge b{ color:var(--accent2); }
-  .gas-tabs{ display:flex; gap:6px; padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:thin; }
-  .gas-tab{ padding:7px 12px; border-radius:7px; border:1px solid transparent; background:#25282b; color:var(--muted); cursor:pointer; font-size:12px; white-space:nowrap; transition:all .15s; }
-  .gas-tab.active{ background:var(--accent); color:white; border-color:#5a9bd0; box-shadow:0 2px 6px rgba(71,140,191,.35); }
-  .gas-tab:hover{ border-color:var(--border); color:var(--text); }
+  .gas-tabs{ display:flex; gap:8px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:thin; }
+  .gas-tab{ padding:8px 14px; border-radius:999px; border:1px solid transparent; background:rgba(255,255,255,.04); color:var(--muted); cursor:pointer; font-size:12px; white-space:nowrap; transition:all .18s; }
+  .gas-tab.active{ background:linear-gradient(135deg,#7aa2f7,#c792ea); color:#fff; font-weight:600; box-shadow:0 4px 12px rgba(122,162,247,.35); }
+  .gas-tab:hover{ border-color:var(--border); color:var(--text); transform:translateY(-1px); }
   .gas-body{ display:flex; flex:1; min-height:0; }
-  .gas-main{ flex:1; padding:14px; overflow:auto; background:var(--godot-bg); }
-  .gas-side{ width:280px; border-left:1px solid var(--border); background:var(--panel); padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
+  .gas-main{ flex:1; padding:20px; overflow:auto; background:var(--godot-bg); }
+  .gas-side{ width:264px; border-left:1px solid var(--border); background:var(--panel); padding:14px; overflow:auto; display:flex; flex-direction:column; gap:14px; }
   @media(max-width:900px){ .gas-side{ display:none; } }
-  .gas-card{ background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px; }
-  .gas-card h4{ margin:0 0 8px; font-size:12px; color:var(--accent2); letter-spacing:0.4px; }
-  .gas-label{ font-size:11px; color:var(--muted); margin:8px 0 4px; display:block; }
-  .gas-input, .gas-select, .gas-textarea{ width:100%; background:#1e2224; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:7px 8px; font-size:12px; font-family:inherit; }
-  .gas-textarea{ min-height:64px; resize:vertical; }
-  .gas-row{ display:flex; gap:8px; }
-  .gas-btn{ padding:7px 12px; border-radius:6px; border:1px solid var(--border); background:var(--accent); color:white; cursor:pointer; font-size:12px; font-weight:600; transition:all .15s; }
-  .gas-btn:hover{ filter:brightness(1.08); transform:translateY(-1px); }
-  .gas-btn.ghost{ background:#2b2e33; color:var(--text); }
-  .gas-btn.orange{ background:var(--accent-orange); border-color:#d56d1a; }
+  .gas-card{ background:var(--panel2); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 2px 10px rgba(0,0,0,.12); }
+  .gas-card h4{ margin:0 0 10px; font-size:13px; color:var(--accent2); letter-spacing:.5px; }
+  .gas-label{ font-size:11px; color:var(--muted); margin:10px 0 5px; display:block; letter-spacing:.3px; }
+  .gas-input, .gas-select, .gas-textarea{ width:100%; background:#1a1e27; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:9px 11px; font-size:12px; font-family:inherit; transition:border-color .15s, box-shadow .15s; }
+  .gas-input:focus, .gas-select:focus, .gas-textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(122,162,247,.15); }
+  .gas-textarea{ min-height:70px; resize:vertical; }
+  .gas-row{ display:flex; gap:10px; }
+  .gas-btn{ padding:9px 14px; border-radius:10px; border:1px solid transparent; background:linear-gradient(135deg,#7aa2f7,#8aa7f0); color:#fff; cursor:pointer; font-size:12px; font-weight:600; transition:all .18s; box-shadow:0 2px 8px rgba(122,162,247,.25); }
+  .gas-btn:hover{ filter:brightness(1.07); transform:translateY(-1px); }
+  .gas-btn.ghost{ background:rgba(255,255,255,.05); color:var(--text); border:1px solid var(--border); box-shadow:none; }
+  .gas-btn.orange{ background:linear-gradient(135deg,#ff9e64,#f7768e); box-shadow:0 2px 8px rgba(255,158,100,.25); }
   .gas-btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
-  .gas-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:10px; margin-top:10px; }
-  .gas-thumb{ aspect-ratio:1; background:#111416; border:1px solid var(--border); border-radius:8px; overflow:hidden; position:relative; display:grid; place-items:center; }
+  .gas-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:14px; margin-top:12px; }
+  .gas-thumb{ aspect-ratio:1; background:#141822; border:1px solid var(--border); border-radius:14px; overflow:hidden; position:relative; display:grid; place-items:center; transition:transform .15s, border-color .15s; }
+  .gas-thumb:hover{ transform:translateY(-2px); border-color:var(--accent); }
   .gas-thumb img, .gas-thumb canvas{ width:100%; height:100%; object-fit:contain; }
-  .gas-thumb .meta{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.6); color:white; font-size:10px; padding:4px 6px; display:flex; justify-content:space-between; }
-  .gas-preview{ background:#0f1213; border:1px solid var(--border); border-radius:8px; padding:10px; display:grid; place-items:center; min-height:180px; max-height:260px; position:relative; overflow:hidden; }
-  .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, #2a2f33 1px, transparent 0); background-size:18px 18px; }
-  .gas-canvas{ max-width:100%; max-height:180px; width:auto; height:auto; image-rendering: pixelated; border-radius:6px; display:block; }
-  .gas-map-viewport{ width:100%; height:380px; overflow:auto; background:#0f1213; border:1px solid var(--border); border-radius:8px; padding:0; position:relative; }
+  .gas-thumb .meta{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:white; font-size:10px; padding:5px 7px; display:flex; justify-content:space-between; }
+  .gas-preview{ background:#141822; border:1px solid var(--border); border-radius:14px; padding:12px; display:grid; place-items:center; min-height:180px; max-height:260px; position:relative; overflow:hidden; }
+  .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, #3a4150 1px, transparent 0); background-size:18px 18px; }
+  .gas-canvas{ max-width:100%; max-height:180px; width:auto; height:auto; image-rendering: pixelated; border-radius:10px; display:block; }
+  .gas-map-viewport{ width:100%; height:380px; overflow:auto; background:#141822; border:1px solid var(--border); border-radius:14px; padding:0; position:relative; }
   .gas-map-viewport img{ display:block; image-rendering: pixelated; max-width:none; cursor:grab; }
-  .gas-kbd{ background:#1a1e20; border:1px solid var(--border); border-bottom-width:2px; padding:1px 5px; border-radius:4px; font-size:10px; color:var(--muted); }
-  .gas-divider{ height:1px; background:var(--border); margin:10px 0; }
-  .gas-note{ font-size:11px; color:var(--muted); line-height:1.5; }
-  .gas-progress{ height:6px; background:#1a1e20; border-radius:999px; overflow:hidden; border:1px solid var(--border); }
-  .gas-progress i{ display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-orange)); width:0%; transition:width .3s; }
-  .gas-pill{ display:inline-flex; align-items:center; gap:4px; font-size:11px; background:#1e2224; border:1px solid var(--border); padding:3px 7px; border-radius:999px; color:var(--muted); }
+  .gas-kbd{ background:#1a1e27; border:1px solid var(--border); border-bottom-width:2px; padding:2px 7px; border-radius:8px; font-size:10px; color:var(--muted); }
+  .gas-divider{ height:1px; background:var(--border); margin:14px 0; opacity:.6; }
+  .gas-note{ font-size:11px; color:var(--muted); line-height:1.7; }
+  .gas-progress{ height:7px; background:#1a1e27; border-radius:999px; overflow:hidden; border:1px solid var(--border); }
+  .gas-progress i{ display:block; height:100%; background:linear-gradient(90deg,#7aa2f7,#c792ea,#ff9e64); width:0%; transition:width .3s; }
+  .gas-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; background:rgba(255,255,255,.05); border:1px solid var(--border); padding:4px 9px; border-radius:999px; color:var(--muted); }
   `;
 			root.appendChild(style);
 			const header = document.createElement("div");
@@ -137,19 +139,6 @@
 			root.appendChild(body);
 			side.innerHTML = `
     <div class="gas-card">
-      <h4>🔑 BYOK · API Keys</h4>
-      <div class="gas-note">Key 仅存于本地浏览器 (localStorage)，直连提供商，不经服务器。</div>
-      <label class="gas-label">OpenAI (DALL·E / GPT-Image)</label><input class="gas-input" id="k-openai" placeholder="sk-..." type="password">
-      <label class="gas-label">Stability AI</label><input class="gas-input" id="k-stability" placeholder="sk-..." type="password">
-      <label class="gas-label">Replicate (抠图/放大)</label><input class="gas-input" id="k-replicate" placeholder="r8_..." type="password">
-      <label class="gas-label">SiliconFlow / Gemini</label><input class="gas-input" id="k-sf" placeholder="sk-..." type="password">
-      <div class="gas-row" style="margin-top:8px">
-        <button class="gas-btn" id="save-keys" style="flex:1">保存</button>
-        <button class="gas-btn ghost" id="clear-keys">清空</button>
-      </div>
-      <div class="gas-note" id="keys-status" style="margin-top:6px;color:#2ecc71;display:none;">✓ 已保存到本地</div>
-    </div>
-    <div class="gas-card">
       <h4>📦 Godot 导出预设</h4>
       <div class="gas-note">
         • 角色 → <span class="gas-kbd">Sprite2D</span> + 透明 PNG<br>
@@ -157,41 +146,13 @@
         • 瓦片 → <span class="gas-kbd">TileSet</span> (16/32px) + <span class="gas-kbd">TileMap</span><br>
         • 抠图后直接拖入 <span class="gas-kbd">res://assets/</span>
       </div>
-      <button class="gas-btn ghost" id="btn-godot-doc" style="width:100%;margin-top:8px;">打开 Godot 官方文档</button>
+      <button class="gas-btn ghost" id="btn-godot-doc" style="width:100%;margin-top:10px;">打开 Godot 官方文档</button>
     </div>
     <div class="gas-card">
       <h4>💡 流水线提示</h4>
       <div class="gas-note" id="pipeline-tip">角色工坊：推荐先用「像素 32px 三视图」生成，再到序列帧一键拆帧。</div>
     </div>
   `;
-			const LS = "dsh-game-art-studio:apiKeys";
-			const loadKeys = () => {
-				try {
-					const j = JSON.parse(localStorage.getItem(LS) || "{}");
-					side.querySelector("#k-openai").value = j.openai || "";
-					side.querySelector("#k-stability").value = j.stability || "";
-					side.querySelector("#k-replicate").value = j.replicate || "";
-					side.querySelector("#k-sf").value = j.siliconflow || "";
-				} catch {}
-			};
-			const saveKeys = () => {
-				const v = {
-					openai: side.querySelector("#k-openai").value.trim(),
-					stability: side.querySelector("#k-stability").value.trim(),
-					replicate: side.querySelector("#k-replicate").value.trim(),
-					siliconflow: side.querySelector("#k-sf").value.trim()
-				};
-				localStorage.setItem(LS, JSON.stringify(v));
-				const s = side.querySelector("#keys-status");
-				s.style.display = "block";
-				setTimeout(() => s.style.display = "none", 1500);
-			};
-			setTimeout(loadKeys, 0);
-			side.querySelector("#save-keys").addEventListener("click", saveKeys);
-			side.querySelector("#clear-keys").addEventListener("click", () => {
-				localStorage.removeItem(LS);
-				loadKeys();
-			});
 			side.querySelector("#btn-godot-doc").addEventListener("click", () => window.open("https://docs.godotengine.org/zh-cn/4.x/tutorials/2d/index.html", "_blank"));
 			const panels = {};
 			function mkPanel(id, html) {
@@ -452,13 +413,30 @@
   `);
 			const pPreset = mkPanel("preset", `
     <div class="gas-card">
+      <h4>🔑 内置供应商 API Key — 统一在此配置</h4>
+      <div class="gas-note">Key 仅存于本地浏览器（localStorage），直连提供商，不经任何服务器。第三方自定义路由请在下方「自定义供应商」添加。</div>
+      <div class="gas-row" style="margin-top:10px">
+        <div style="flex:1"><label class="gas-label">OpenAI (DALL·E / GPT-Image)</label><input class="gas-input" id="k-openai" placeholder="sk-..." type="password"></div>
+        <div style="flex:1"><label class="gas-label">Stability AI</label><input class="gas-input" id="k-stability" placeholder="sk-..." type="password"></div>
+      </div>
+      <div class="gas-row" style="margin-top:6px">
+        <div style="flex:1"><label class="gas-label">Replicate (抠图/放大)</label><input class="gas-input" id="k-replicate" placeholder="r8_..." type="password"></div>
+        <div style="flex:1"><label class="gas-label">SiliconFlow / Gemini</label><input class="gas-input" id="k-sf" placeholder="sk-..." type="password"></div>
+      </div>
+      <div class="gas-row" style="margin-top:10px">
+        <button class="gas-btn" id="save-keys" style="flex:1">💾 保存 Key</button>
+        <button class="gas-btn ghost" id="clear-keys">清空</button>
+      </div>
+      <div class="gas-note" id="keys-status" style="margin-top:8px;color:#2ecc71;display:none;">✓ 已保存到本地</div>
+    </div>
+    <div class="gas-card">
       <h4>🔌 第三方 API 路由预设 — 自定义供应商</h4>
       <div class="gas-note">在这里添加你自己的第三方图像生成 API。添加后会自动出现在「角色 / 序列帧 / 素材 / 大地图」的提供商下拉框中，选择即可调用。<br>支持三类兼容协议：<span class="gas-kbd">OpenAI 兼容</span> / <span class="gas-kbd">Stability 风格</span> / <span class="gas-kbd">SiliconFlow 风格</span>。</div>
       <div class="gas-divider"></div>
       <div class="gas-row">
         <div style="flex:1">
           <label class="gas-label">预设列表</label>
-          <div id="p-list" style="background:#1a1e20;border:1px solid var(--border);border-radius:6px;padding:8px;min-height:80px;font-size:11px;color:var(--muted)">暂无自定义预设</div>
+          <div id="p-list" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;padding:8px;min-height:80px;font-size:11px;color:var(--muted)">暂无自定义预设</div>
         </div>
         <div style="width:360px">
           <label class="gas-label">预设名称</label><input class="gas-input" id="p-name" placeholder="例：我的中转 / My API">
@@ -482,6 +460,35 @@
       </div>
     </div>
   `);
+			// 内置供应商 Key（统一在 API 预设面板配置）
+			const LS = "dsh-game-art-studio:apiKeys";
+			const loadKeys = () => {
+				try {
+					const j = JSON.parse(localStorage.getItem(LS) || "{}");
+					pPreset.querySelector("#k-openai").value = j.openai || "";
+					pPreset.querySelector("#k-stability").value = j.stability || "";
+					pPreset.querySelector("#k-replicate").value = j.replicate || "";
+					pPreset.querySelector("#k-sf").value = j.siliconflow || "";
+				} catch {}
+			};
+			const saveKeys = () => {
+				const v = {
+					openai: pPreset.querySelector("#k-openai").value.trim(),
+					stability: pPreset.querySelector("#k-stability").value.trim(),
+					replicate: pPreset.querySelector("#k-replicate").value.trim(),
+					siliconflow: pPreset.querySelector("#k-sf").value.trim()
+				};
+				localStorage.setItem(LS, JSON.stringify(v));
+				const s = pPreset.querySelector("#keys-status");
+				s.style.display = "block";
+				setTimeout(() => s.style.display = "none", 1500);
+			};
+			setTimeout(loadKeys, 0);
+			pPreset.querySelector("#save-keys").addEventListener("click", saveKeys);
+			pPreset.querySelector("#clear-keys").addEventListener("click", () => {
+				localStorage.removeItem(LS);
+				loadKeys();
+			});
 			const pAsset = mkPanel("asset", `
       <div class="gas-card">
         <h4>📚 素材总管 — 全管线素材库</h4>
@@ -572,7 +579,7 @@
 					map: "无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览",
 					asset: "素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份",
 					post: "后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化",
-					preset: "API 预设：自定义路由会同步到所有生成面板，Base URL 可只填 /v1，自动补全 images/generations；填好地址+Key 后可点「🔍 获取默认模型」一键拉取全部可用模型",
+					preset: "API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型",
 					export: "导出：manifest.json 记录 Godot 目录结构"
 				};
 				if (tip) tip.textContent = tips[id] || "";
