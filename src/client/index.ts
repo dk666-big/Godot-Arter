@@ -197,6 +197,8 @@ function buildStudio(): HTMLElement {
           <div class="gas-note" id="c-status" style="margin-top:6px"></div>
         </div>
         <div style="width:220px">
+          <label class="gas-label">参考图（可选）</label>
+          <div class="gas-preview tiled" id="c-ref-preview" style="min-height:80px;max-height:100px"><span class="gas-note">未添加</span></div>
           <label class="gas-label">预览 · Godot Sprite2D</label>
           <div class="gas-preview" id="c-preview"><span class="gas-note">等待生成…</span></div>
           <div class="gas-row" style="margin-top:8px">
@@ -256,6 +258,15 @@ function buildStudio(): HTMLElement {
       <textarea class="gas-textarea" id="f-prompts" style="min-height:80px" placeholder="像素风 金币 正面 32px 图标 透明背景
 像素风 红药水 瓶子
 像素风 木宝箱 关闭/打开 两态"></textarea>
+      <div class="gas-row" style="margin-top:8px">
+        <div style="flex:1">
+          <label class="gas-label">参考图（可选，批量生成都会参考此图）</label>
+          <div class="gas-row">
+            <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="f-ref" accept="image/*" hidden>📁 上传参考</label>
+            <div id="f-ref-preview" class="gas-preview tiled" style="min-height:56px;max-height:80px;flex:1"><span class="gas-note">未添加</span></div>
+          </div>
+        </div>
+      </div>
       <div class="gas-row" style="margin-top:8px">
         <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option></select>
         <select class="gas-select" id="f-provider" style="flex:1"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select>
@@ -324,6 +335,15 @@ function buildStudio(): HTMLElement {
               <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="map-file" accept="image/*" hidden>📁 上传</label>
             </div>
             <div class="gas-row" style="margin-top:8px">
+              <div style="flex:1">
+                <label class="gas-label">参考图（可选，生成时作为图生图参考）</label>
+                <div class="gas-row">
+                  <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="map-ref" accept="image/*" hidden>📁 上传参考</label>
+                  <div id="map-ref-preview" class="gas-preview tiled" style="min-height:56px;max-height:80px;flex:1"><span class="gas-note">未添加</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="gas-row" style="margin-top:8px">
               <div style="flex:1"><label class="gas-label">瓦片尺寸</label><select class="gas-select" id="map-size"><option value="16">16px</option><option value="32" selected>32px</option><option value="64">64px</option><option value="128">128px</option></select></div>
               <div style="flex:1"><label class="gas-label">完整地图尺寸</label><select class="gas-select" id="map-big-size"><option value="1024">1024×1024</option><option value="1536">1536×1024</option><option value="2048" selected>2048×2048</option><option value="4096">4096×4096</option></select></div>
             </div>
@@ -335,6 +355,7 @@ function buildStudio(): HTMLElement {
               <button class="gas-btn ghost" id="map-dl">⬇ 当前图</button>
             </div>
             <div class="gas-note" id="map-status"></div>
+              <div class="gas-progress" id="map-progress" style="margin-top:6px;display:none"><i></i></div>
             <div class="gas-divider"></div>
             <label class="gas-label">🗺️ 完整地图 / 大地图缩放预览（支持滚轮缩放、拖拽查看细节）</label>
             <div class="gas-map-viewport" id="map-big-viewport">
@@ -626,44 +647,80 @@ function buildStudio(): HTMLElement {
     }
   }
 
+  function dataUrlToBlob(dataUrl:string): Blob {
+    const parts=dataUrl.split(',')
+    const mime=parts[0].match(/:(.*?);/)?.[1]||'image/png'
+    const b64=parts[1]||''
+    const bin=atob(b64)
+    const arr=new Uint8Array(bin.length)
+    for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i)
+    return new Blob([arr],{type:mime})
+  }
+
+  function resolveEditsEndpoint(url:string): string {
+    const u=url.replace(/\/images\/generations$/i, '/images/edits').replace(/\/generations$/i, '/edits')
+    return u
+  }
+
+  async function callImageEdits(prompt:string, endpoint:string, key:string, opts:any): Promise<string> {
+    const fd=new FormData()
+    fd.append('image', dataUrlToBlob(opts.reference), 'reference.png')
+    fd.append('prompt', prompt.slice(0,1000))
+    if(opts.model) fd.append('model', opts.model)
+    fd.append('n','1')
+    fd.append('size', opts.size||'1024x1024')
+    const r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+key }, body:fd })
+    if(!r.ok) throw new Error('Edits '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
+    const j=await r.json()
+    const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url
+    if(!url) throw new Error('Edits 未返回图片 URL')
+    return await toLocalBlobUrl(url)
+  }
+
   async function callImageGen(prompt:string, provider:string, opts:any={}): Promise<string> {
-      const keys=getKeys()
-      // 本地 mock：用 canvas 生成占位图，保证无 Key 也能演示
-      if(provider==='mock') return mockImage(prompt, opts)
+    const keys=getKeys()
+    const ref=opts.reference
+    // 本地 mock：用 canvas 生成占位图，保证无 Key 也能演示
+    if(provider==='mock') return mockImage(prompt, opts)
 
-      // 自定义第三方 API 路由预设
-      if(provider.startsWith('custom:')){
-        const id=provider.slice(7)
-        const preset=getCustomProviders().find(p=>p.id===id)
-        if(!preset) throw new Error('自定义预设不存在，请到「API 预设」重新配置')
-        if(!preset.baseUrl) throw new Error('第三方预设「'+preset.name+'」缺少 Base URL')
-        if(!preset.apiKey) throw new Error('第三方预设「'+preset.name+'」缺少 API Key')
-        const base=preset.baseUrl.replace(/\/+$/,'')
-        const endpoint=resolveCustomEndpoint(base, preset.type)
-        const label=preset.name||'第三方'
-        if(preset.type==='stability'){
-          const fd=new FormData(); fd.append('prompt', prompt); fd.append('output_format','png')
-          if(preset.model) fd.append('model', preset.model)
-          const r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+preset.apiKey, 'Accept':'image/*' }, body:fd })
-          if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-          const blob=await r.blob(); return URL.createObjectURL(blob)
-        }
-        // OpenAI 兼容 / SiliconFlow 风格：JSON POST
-        const body:any={ prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024' }
-        body.model=preset.model || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3')
-        if(preset.type==='siliconflow') body.image_size=opts.size||'1024x1024'
-        const r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) })
+    // 自定义第三方 API 路由预设
+    if(provider.startsWith('custom:')){
+      const id=provider.slice(7)
+      const preset=getCustomProviders().find(p=>p.id===id)
+      if(!preset) throw new Error('自定义预设不存在，请到「API 预设」重新配置')
+      if(!preset.baseUrl) throw new Error('第三方预设「'+preset.name+'」缺少 Base URL')
+      if(!preset.apiKey) throw new Error('第三方预设「'+preset.name+'」缺少 API Key')
+      const base=preset.baseUrl.replace(/\/+$/,'')
+      const endpoint=resolveCustomEndpoint(base, preset.type)
+      const label=preset.name||'第三方'
+      if(preset.type==='stability'){
+        const fd=new FormData(); fd.append('prompt', prompt); fd.append('output_format','png')
+        if(preset.model) fd.append('model', preset.model)
+        if(ref) fd.append('image', dataUrlToBlob(ref), 'reference.png')
+        const r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+preset.apiKey, 'Accept':'image/*' }, body:fd })
         if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-        const j=await r.json()
-        const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url || j.output?.[0]?.url
-        if(!url) throw new Error('第三方('+label+') 未返回图片 URL')
-        return await toLocalBlobUrl(url)
+        const blob=await r.blob(); return URL.createObjectURL(blob)
       }
+      // OpenAI 兼容 / SiliconFlow 风格
+      if(ref){
+        return await callImageEdits(prompt, resolveEditsEndpoint(endpoint), preset.apiKey, { ...opts, model: preset.model || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3') })
+      }
+      const body:any={ prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024' }
+      body.model=preset.model || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3')
+      if(preset.type==='siliconflow') body.image_size=opts.size||'1024x1024'
+      const r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) })
+      if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
+      const j=await r.json()
+      const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url || j.output?.[0]?.url
+      if(!url) throw new Error('第三方('+label+') 未返回图片 URL')
+      return await toLocalBlobUrl(url)
+    }
 
-      // 内置供应商
-      if(!keys[provider]){ throw new Error('未配置 '+provider+' 的 API Key，请到右侧保存或切到“本地演示”') }
-      if(provider==='openai'){
+    // 内置供应商
+    if(!keys[provider]){ throw new Error('未配置 '+provider+' 的 API Key，请到右侧保存或切到“本地演示”') }
+    if(provider==='openai'){
       const key=keys.openai
+      if(ref){ return await callImageEdits(prompt, 'https://api.openai.com/v1/images/edits', key, { ...opts, model:'dall-e-3' }) }
       const body={ model:'dall-e-3', prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024', quality:'standard' }
       const r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) })
       if(!r.ok) throw new Error('OpenAI '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
@@ -674,12 +731,14 @@ function buildStudio(): HTMLElement {
     if(provider==='stability'){
       const key=keys.stability
       const fd=new FormData(); fd.append('prompt', prompt); fd.append('output_format','png')
+      if(ref) fd.append('image', dataUrlToBlob(ref), 'reference.png')
       const r=await fetch('https://api.stability.ai/v2beta/stable-image/generate/sd3',{ method:'POST', headers:{ 'Authorization':'Bearer '+key, 'Accept':'image/*' }, body:fd })
       if(!r.ok) throw new Error('Stability '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
       const blob=await r.blob(); return URL.createObjectURL(blob)
     }
     if(provider==='siliconflow'){
       const key=keys.siliconflow
+      if(ref){ return await callImageEdits(prompt, 'https://api.siliconflow.cn/v1/images/edits', key, { ...opts, model:'black-forest-labs/FLUX.1-schnell' }) }
       const r=await fetch('https://api.siliconflow.cn/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify({ model:'black-forest-labs/FLUX.1-schnell', prompt, image_size:opts.size||'1024x1024' }) })
       if(!r.ok) throw new Error('SiliconFlow '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
       const j=await r.json(); const url=j.data?.[0]?.url || j.images?.[0]?.url
@@ -689,7 +748,7 @@ function buildStudio(): HTMLElement {
     return mockImage(prompt, opts)
   }
 
-  function mockImage(prompt:string, opts:any): string {
+function mockImage(prompt:string, opts:any): string {
     const c=document.createElement('canvas'); c.width=512; c.height=512; const g=c.getContext('2d')!
     // 背景
     const styleMap:Record<string,string>={ pixel32:'#2b2e33', pixel16:'#1e2224', chibi:'#fef9e7', anime:'#e8f8f5', icon:'#f4f6f7' }
@@ -715,8 +774,10 @@ function buildStudio(): HTMLElement {
     const prog= pChar.querySelector('#c-prog') as HTMLElement
     const status= pChar.querySelector('#c-status') as HTMLElement
     const preview= pChar.querySelector('#c-preview') as HTMLElement
+    const refPreview= pChar.querySelector('#c-ref-preview') as HTMLElement
     const gallery= pChar.querySelector('#c-gallery') as HTMLElement
     let lastUrl=''
+    let refUrl=''
     const setProg=(p:number)=> prog.style.width=p+'%'
 
     async function gen(){
@@ -725,7 +786,7 @@ function buildStudio(): HTMLElement {
       const fullPrompt = view==='tri' ? prompt+' , three views front side back, white background, character sheet' : view==='dir8' ? prompt+' , 8 directional sprites, transparent background' : prompt + (style.startsWith('pixel')?' , pixel art, '+style:' , '+style)
       setProg(20); status.textContent='生成中… ('+prov+')'; (pChar.querySelector('#c-gen') as HTMLButtonElement).disabled=true
       try{
-        const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024' })
+        const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024', reference: refUrl || undefined })
         lastUrl=url; setProg(100)
         preview.innerHTML=''; const img=document.createElement('img'); img.src=url; img.style.maxWidth='100%'; img.style.maxHeight='180px'; img.style.imageRendering='pixelated'; preview.appendChild(img)
         const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+style+'</span><span>'+view+'</span></div>'
@@ -739,7 +800,10 @@ function buildStudio(): HTMLElement {
     pChar.querySelector('#c-gen')!.addEventListener('click', gen)
     pChar.querySelector('#c-rand')!.addEventListener('click', ()=>{ const samples=['像素风 32px 勇者 红围巾 金色短发 Q版','赛博格少女 蓝色机甲 霓虹光','像素史莱姆 王冠 表情三态','中世纪法师 紫袍 法杖 8bit']; promptEl.value=samples[Math.floor(Math.random()*samples.length)]; })
     pChar.querySelector('#c-upload')!.addEventListener('change', (e:any)=>{
-      const f=e.target.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); preview.innerHTML=''; const img=document.createElement('img'); img.src=url; img.style.maxWidth='100%'; preview.appendChild(img); lastUrl=url
+      const f=e.target.files?.[0]; if(!f) return
+      const reader=new FileReader()
+      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='90px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓ 生成时会作为图生图参考') }
+      reader.readAsDataURL(f)
     })
     pChar.querySelector('#c-dl')!.addEventListener('click', ()=>{ if(!lastUrl) return toast(status,'无图片',false); const a=document.createElement('a'); a.href=lastUrl; a.download='character_'+Date.now()+'.png'; a.click() })
     pChar.querySelector('#c-to-sheet')!.addEventListener('click', async ()=>{
@@ -842,12 +906,20 @@ function buildStudio(): HTMLElement {
     const grid= pForge.querySelector('#f-grid') as HTMLElement
     const prog= pForge.querySelector('#f-prog') as HTMLElement
     const status= pForge.querySelector('#f-status') as HTMLElement
+    const refPreview= pForge.querySelector('#f-ref-preview') as HTMLElement
+    let refUrl=''
+    pForge.querySelector('#f-ref')!.addEventListener('change', (e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const reader=new FileReader()
+      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓') }
+      reader.readAsDataURL(f)
+    })
     pForge.querySelector('#f-batch')!.addEventListener('click', async()=>{
       const lines=ta.value.split('\n').map(s=>s.trim()).filter(Boolean); if(!lines.length) return toast(status,'请输入 Prompt',false)
       const prov=provEl.value; grid.innerHTML=''; let done=0
       for(const line of lines){
         try{
-          const url=await callImageGen(line + ' , game asset, transparent background, centered', prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value })
+          const url=await callImageGen(line + ' , game asset, transparent background, centered', prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value, reference: refUrl || undefined })
           const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
           pushHistory({ kind:'asset', prompt:line, url })
         }catch(e:any){ const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+String(e.message).slice(0,30); grid.appendChild(err) }
@@ -939,8 +1011,13 @@ function buildStudio(): HTMLElement {
     const canvas= pMap.querySelector('#map-canvas') as HTMLCanvasElement
     const tiledCanvas= pMap.querySelector('#map-tiled-canvas') as HTMLCanvasElement
     const status= pMap.querySelector('#map-status') as HTMLElement
+    const refPreview= pMap.querySelector('#map-ref-preview') as HTMLElement
+    const mapProgress= pMap.querySelector('#map-progress') as HTMLElement
     let curImg: HTMLImageElement|null=null
     let corsSafe=true
+    let mapRefUrl=''
+    function startMapProgress(){ if(!mapProgress) return; mapProgress.style.display='block'; const i=mapProgress.querySelector('i') as HTMLElement; if(i){ i.style.width='15%'; const t=setInterval(()=>{ const w=parseFloat(i.style.width)||15; if(w<85){ i.style.width=Math.min(85,w+Math.random()*12)+'%' } },400); (mapProgress as any)._timer=t } }
+    function finishMapProgress(){ if(!mapProgress) return; const i=mapProgress.querySelector('i') as HTMLElement; if(i) i.style.width='100%'; const t=(mapProgress as any)._timer; if(t) clearInterval(t); setTimeout(()=>{ if(mapProgress) mapProgress.style.display='none'; if(i) i.style.width='0%' },800) }
 
     const modeTip= pMap.querySelector('#map-mode-tip') as HTMLElement
     const modeLabels:Record<string,string>={ tile:'🧩 瓦片模式：AI 生成单块可平铺瓦片 → 可生成高分辨率瓦片大地图 / TileSet', fullmap:'🌍 完整大地图模式：AI 直接生成一张完整无缝大地图 → 可作为场景整图，也可切成 TileSet' }
@@ -960,28 +1037,36 @@ function buildStudio(): HTMLElement {
 
     fileInput.addEventListener('change', async()=>{ const f=fileInput.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); const img=await loadImg(url); showPreview(img,true) })
 
+    pMap.querySelector('#map-ref')!.addEventListener('change', (e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const reader=new FileReader()
+      reader.onload=()=>{ mapRefUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=mapRefUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓') }
+      reader.readAsDataURL(f)
+    })
     pMap.querySelector('#map-gen')!.addEventListener('click', async()=>{
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'请先输入提示词',false)
       const prov=providerEl.value
       const mode=modeTypeEl.value
+      startMapProgress()
       try{
         if(mode==='fullmap'){
           const targetSize=parseInt((pMap.querySelector('#map-big-size') as HTMLSelectElement).value)||2048
           const size=targetSize+'x'+targetSize
-          const url=await callImageGen(prompt+' , full seamless game map, top-down, high detail, tileable, no UI, no watermark', prov, { size })
+          const url=await callImageGen(prompt+' , full seamless game map, top-down, high detail, tileable, no UI, no watermark', prov, { size, reference: mapRefUrl || undefined })
           const img=await loadImg(url)
           showPreview(img, corsSafe)
           if(corsSafe){ setBigMap(img.src, img.naturalWidth||targetSize, img.naturalHeight||targetSize); toast(status,'完整大地图已生成：'+(img.naturalWidth||targetSize)+'×'+(img.naturalHeight||targetSize), true) }
           else toast(status,'完整大地图已生成（远程直链）', false)
         } else {
           const ts=parseInt((pMap.querySelector('#map-size') as HTMLSelectElement).value)||32
-          const url=await callImageGen(prompt+' , seamless tileable texture, '+ts+'px', prov, {})
+          const url=await callImageGen(prompt+' , seamless tileable texture, '+ts+'px', prov, { reference: mapRefUrl || undefined })
           const img=await loadImg(url)
           showPreview(img, corsSafe)
           setBigMap(img.src, img.naturalWidth||256, img.naturalHeight||256)
           toast(status,corsSafe?'瓦片已生成':'瓦片已生成（远程直链）', !!corsSafe)
         }
-      }catch(e:any){ toast(status,String(e.message||e),false) }
+        finishMapProgress()
+      }catch(e:any){ finishMapProgress(); toast(status,String(e.message||e),false) }
     })
 
     pMap.querySelector('#map-seam')!.addEventListener('click', async()=>{
