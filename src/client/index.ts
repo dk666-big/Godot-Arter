@@ -1898,22 +1898,20 @@ function mockImage(prompt:string, opts:any): string {
     function makeNoise(seed:string){
       const perm=new Uint8Array(512); const arr=new Uint8Array(256)
       let h=2166136261
-      for(let i=0;i<16;i++){ h^=seed.charCodeAt(i%seed.length)||0; h=Math.imul(h,16777619)>>>0 }
-      for(let i=0;i<256;i++){ h^=i+1; h=Math.imul(h,16777619)>>>0; arr[i]=h&255 }
+      for(let i=0;i<seed.length;i++){ h^=seed.charCodeAt(i)||0; h=Math.imul(h,16777619)>>>0 }
+      for(let i=0;i<256;i++){ h=Math.imul(h^(i+7),16777619)>>>0; arr[i]=h&255 }
       for(let i=255;i>0;i--){ const j=h%(i+1); const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp; h=Math.imul(h,1664525)+1013904223>>>0 }
       for(let i=0;i<512;i++) perm[i]=arr[i&255]
       const fade=(t:number)=>t*t*t*(t*(t*6-15)+10)
-      const lerp2=(a:number,b:number,t:number)=>a+t*(b-a)
-      const grad=(ix:number,iy:number)=>{ const v=perm[(ix+perm[iy&255])&255]/255*2-1; return v }
+      const lerp2=(a:number,b:number,t:number)=>a+(b-a)*t
+      const DIRS:number[][]=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]
+      const grad=(ix:number,iy:number,dx:number,dy:number)=>{ const d=DIRS[perm[(ix+perm[iy&255])&255]&7]; return d[0]*dx+d[1]*dy }
       const noise=(x:number,y:number)=>{
-        const x0=Math.floor(x), y0=Math.floor(y), x1=x0+1, y1=y0+1
-        const sx=fade(x-x0), sy=fade(y-y0)
-        const n00=grad(x0,y0)*(x-x0)+grad(x0,y0+1)*(y-y0)
-        const n10=grad(x1,y0)*(x-x1)+grad(x1,y0+1)*(y-y0)
-        const n01=grad(x0,y1)*(x-x0)+grad(x0,y1+1)*(y-y1)
-        const n11=grad(x1,y1)*(x-x1)+grad(x1,y1+1)*(y-y1)
-        const nx0=lerp2(n00,n10,sx), nx1=lerp2(n01,n11,sx)
-        return lerp2(nx0,nx1,sy)
+        const X=Math.floor(x), Y=Math.floor(y)
+        const xf=x-X, yf=y-Y
+        const u=fade(xf), v=fade(yf)
+        const n00=grad(X,Y,xf,yf), n10=grad(X+1,Y,xf-1,yf), n01=grad(X,Y+1,xf,yf-1), n11=grad(X+1,Y+1,xf-1,yf-1)
+        return lerp2(lerp2(n00,n10,u),lerp2(n01,n11,u),v)/1.41421356
       }
       const fbm=(x:number,y:number,oct:number)=>{ let a=0,amp=1,f=1,n=0; for(let i=0;i<oct;i++){ a+=noise(x*f,y*f)*amp; n+=amp; amp*=0.5; f*=2 } return a/n }
       return { fbm }
@@ -1928,17 +1926,17 @@ function mockImage(prompt:string, opts:any): string {
       const classes:string[]=[]
       for(let ty=0;ty<rows;ty++){
         for(let tx=0;tx<cols;tx++){
-          const cx=tx/S, cy=ty/S
-          const land=noise.fbm(cx/26,cy/26,3)
-          const mtnN=noise.fbm(cx/42+100,cy/42+100,3)
-          const river=noise.fbm(cx/12.5,cy/12.5,2)
-          const height=land + mtnN*(mtn/100)*0.8 - sea/40
+          // 按瓦片索引频率采样（跨多块噪声域），保证一块地图形状丰富
+          const land=noise.fbm(tx/5.5,ty/5.5,3)
+          const mtnN=noise.fbm(tx/8+100,ty/8+100,3)
+          const river=noise.fbm(tx/3.2,ty/3.2,2)
+          const height=land + mtnN*(mtn/100)*0.9 - sea/40
           let cls:string
-          if(height<0) cls='水'
-          else if(river>-0.08&&river<0.08&&height<0.35) cls='河流'
-          else if(height>0.55) cls='雪顶'
-          else if(height>0.38) cls='山脉'
-          else if(noise.fbm(cx/8+300,cy/8+300,2)>0.05) cls='森林'
+          if(height<-0.06) cls='水'
+          else if(height>=-0.02&&river>-0.05&&river<0.05&&height<0.45) cls='河流'
+          else if(height>0.32) cls='雪顶'
+          else if(height>0.16) cls='山脉'
+          else if(noise.fbm(tx/11+300,ty/11+300,2)>0.04) cls='森林'
           else cls='陆地'
           classes.push(cls)
         }
