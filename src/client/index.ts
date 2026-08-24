@@ -42,49 +42,49 @@ function buildStudio(): HTMLElement {
   // ---- CSS (Godot 4.x Editor 风格) ----
   const style = document.createElement('style')
   style.textContent = `
-  .gas-root{ --godot-bg:#1f232b; --panel:#272b35; --panel2:#313642; --border:#3e4553; --accent:#7aa2f7; --accent2:#a5c8ff; --accent-orange:#ff9e64; --pink:#f7768e; --text:#eef1f7; --muted:#a6b0c0; --ok:#4fd68a; --warn:#ffc46b; font-family: 'JetBrains Mono', ui-monospace, Consolas, 'Microsoft YaHei', monospace; color:var(--text); background:var(--godot-bg); border:1px solid var(--border); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; max-height:92vh; box-shadow:0 12px 40px rgba(0,0,0,.35); }
-  .gas-header{ display:flex; align-items:center; gap:14px; padding:14px 20px; background:linear-gradient(135deg,#272c37,#1f232b); border-bottom:1px solid var(--border); }
-  .gas-logo{ width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg,#7aa2f7,#c792ea); display:grid; place-items:center; font-weight:800; font-size:18px; color:white; box-shadow:0 4px 14px rgba(122,162,247,.35); }
-  .gas-title{ font-weight:700; letter-spacing:1px; font-size:14px; }
-  .gas-title small{ display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:3px; letter-spacing:.3px; }
+  .gas-root{ --godot-bg:#1f232b; --panel:#272b35; --panel2:#313642; --border:#3e4553; --accent:#7aa2f7; --accent2:#a5c8ff; --accent-orange:#ff9e64; --pink:#f7768e; --text:#eef1f7; --muted:#a6b0c0; --ok:#4fd68a; --warn:#ffc46b; font-family: 'JetBrains Mono', ui-monospace, Consolas, 'Microsoft YaHei', monospace; color:var(--text); background:var(--godot-bg); border:1px solid var(--border); border-radius:18px; overflow:hidden; display:flex; flex-direction:column; max-height:96vh; width:100%; max-width:1740px; margin:0 auto; box-shadow:0 12px 40px rgba(0,0,0,.35); }
+  .gas-header{ display:flex; align-items:center; gap:16px; padding:18px 26px; position:relative; z-index:6; background:linear-gradient(135deg,#272c37,#1f232b); border-bottom:1px solid var(--border); }
+  .gas-logo{ width:42px; height:42px; border-radius:13px; background:linear-gradient(135deg,#7aa2f7,#c792ea); display:grid; place-items:center; font-weight:800; font-size:20px; color:white; box-shadow:0 4px 14px rgba(122,162,247,.35); }
+  .gas-title{ font-weight:700; letter-spacing:1px; font-size:15px; }
+  .gas-title small{ display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:4px; letter-spacing:.3px; }
   .gas-badge{ margin-left:auto; background:rgba(255,255,255,.05); border:1px solid var(--border); padding:5px 12px; border-radius:999px; font-size:11px; color:var(--muted); }
   .gas-badge b{ color:var(--accent2); }
-  .gas-tabs{ display:flex; gap:8px; padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:thin; }
-  .gas-tab{ padding:8px 14px; border-radius:999px; border:1px solid transparent; background:rgba(255,255,255,.04); color:var(--muted); cursor:pointer; font-size:12px; white-space:nowrap; transition:all .18s; }
-  .gas-tab.active{ background:linear-gradient(135deg,#7aa2f7,#c792ea); color:#fff; font-weight:600; box-shadow:0 4px 12px rgba(122,162,247,.35); }
-  .gas-tab:hover{ border-color:var(--border); color:var(--text); transform:translateY(-1px); }
-  .gas-body{ display:flex; flex:1; min-height:0; }
-  .gas-main{ flex:1; padding:20px; overflow:auto; background:var(--godot-bg); }
-  .gas-side{ width:264px; border-left:1px solid var(--border); background:var(--panel); padding:14px; overflow:auto; display:flex; flex-direction:column; gap:14px; }
+  .gas-tabs{ display:flex; gap:10px; padding:12px 18px; position:relative; z-index:5; background:#262a34; border-bottom:1px solid var(--border); overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
+  .gas-tab{ padding:10px 16px; border-radius:999px; border:1px solid transparent; background:#2c313d; color:var(--muted); cursor:pointer; font-size:12px; white-space:nowrap; transition:background .18s, color .18s, box-shadow .18s; }
+  .gas-tab.active{ background:linear-gradient(135deg,#7aa2f7,#c792ea); color:#fff; font-weight:600; box-shadow:0 2px 8px rgba(122,162,247,.32); }
+  .gas-tab:hover{ border-color:var(--border); color:var(--text); }
+  .gas-body{ display:flex; flex:1; min-height:0; position:relative; z-index:0; }
+  .gas-main{ flex:1; padding:26px; overflow-y:auto; overflow-x:hidden; background:var(--godot-bg); }
+  .gas-side{ width:276px; border-left:1px solid var(--border); background:var(--panel); padding:18px; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column; gap:16px; }
   @media(max-width:900px){ .gas-side{ display:none; } }
-  .gas-card{ background:var(--panel2); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:0 2px 10px rgba(0,0,0,.12); }
-  .gas-card h4{ margin:0 0 10px; font-size:13px; color:var(--accent2); letter-spacing:.5px; }
-  .gas-label{ font-size:11px; color:var(--muted); margin:10px 0 5px; display:block; letter-spacing:.3px; }
-  .gas-input, .gas-select, .gas-textarea{ width:100%; background:#1a1e27; border:1px solid var(--border); color:var(--text); border-radius:10px; padding:9px 11px; font-size:12px; font-family:inherit; transition:border-color .15s, box-shadow .15s; }
+  .gas-card{ background:var(--panel2); border:1px solid var(--border); border-radius:18px; padding:24px; box-shadow:0 2px 10px rgba(0,0,0,.12); }
+  .gas-card h4{ margin:2px 0 14px; font-size:14px; color:var(--accent2); letter-spacing:.5px; }
+  .gas-label{ font-size:11px; color:var(--muted); margin:14px 0 6px; display:block; letter-spacing:.3px; }
+  .gas-input, .gas-select, .gas-textarea{ width:100%; background:#1a1e27; border:1px solid var(--border); color:var(--text); border-radius:11px; padding:10px 12px; font-size:12px; font-family:inherit; transition:border-color .15s, box-shadow .15s; }
   .gas-input:focus, .gas-select:focus, .gas-textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(122,162,247,.15); }
-  .gas-textarea{ min-height:70px; resize:vertical; }
-  .gas-row{ display:flex; gap:10px; }
-  .gas-btn{ padding:9px 14px; border-radius:10px; border:1px solid transparent; background:linear-gradient(135deg,#7aa2f7,#8aa7f0); color:#fff; cursor:pointer; font-size:12px; font-weight:600; transition:all .18s; box-shadow:0 2px 8px rgba(122,162,247,.25); }
-  .gas-btn:hover{ filter:brightness(1.07); transform:translateY(-1px); }
-  .gas-btn.ghost{ background:rgba(255,255,255,.05); color:var(--text); border:1px solid var(--border); box-shadow:none; }
+  .gas-textarea{ min-height:76px; resize:vertical; }
+  .gas-row{ display:flex; gap:14px; }
+  .gas-btn{ padding:10px 16px; border-radius:12px; border:1px solid transparent; background:linear-gradient(135deg,#7aa2f7,#8aa7f0); color:#fff; cursor:pointer; font-size:12px; font-weight:600; transition:filter .18s, box-shadow .18s; box-shadow:0 2px 8px rgba(122,162,247,.25); }
+  .gas-btn:hover{ filter:brightness(1.07); }
+  .gas-btn.ghost{ background:#2c313d; color:var(--text); border:1px solid var(--border); box-shadow:none; }
   .gas-btn.orange{ background:linear-gradient(135deg,#ff9e64,#f7768e); box-shadow:0 2px 8px rgba(255,158,100,.25); }
-  .gas-btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
-  .gas-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:14px; margin-top:12px; }
-  .gas-thumb{ aspect-ratio:1; background:#141822; border:1px solid var(--border); border-radius:14px; overflow:hidden; position:relative; display:grid; place-items:center; transition:transform .15s, border-color .15s; }
-  .gas-thumb:hover{ transform:translateY(-2px); border-color:var(--accent); }
+  .gas-btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .gas-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(172px,1fr)); gap:18px; margin-top:16px; }
+  .gas-thumb{ aspect-ratio:1; background:#141822; border:1px solid var(--border); border-radius:16px; overflow:hidden; position:relative; display:grid; place-items:center; transition:border-color .15s; }
+  .gas-thumb:hover{ border-color:var(--accent); }
   .gas-thumb img, .gas-thumb canvas{ width:100%; height:100%; object-fit:contain; }
-  .gas-thumb .meta{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:white; font-size:10px; padding:5px 7px; display:flex; justify-content:space-between; }
-  .gas-preview{ background:#141822; border:1px solid var(--border); border-radius:14px; padding:12px; display:grid; place-items:center; min-height:180px; max-height:260px; position:relative; overflow:hidden; }
-  .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, #3a4150 1px, transparent 0); background-size:18px 18px; }
+  .gas-thumb .meta{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:white; font-size:10px; padding:6px 8px; display:flex; justify-content:space-between; }
+  .gas-preview{ background:#141822; border:1px solid var(--border); border-radius:16px; padding:16px; display:grid; place-items:center; min-height:180px; max-height:280px; position:relative; overflow:hidden; }
+  .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, #3a4150 1px, transparent 0); background-size:20px 20px; }
   .gas-canvas{ max-width:100%; max-height:180px; width:auto; height:auto; image-rendering: pixelated; border-radius:10px; display:block; }
-  .gas-map-viewport{ width:100%; height:380px; overflow:auto; background:#141822; border:1px solid var(--border); border-radius:14px; padding:0; position:relative; }
+  .gas-map-viewport{ width:100%; height:400px; overflow:auto; background:#141822; border:1px solid var(--border); border-radius:16px; padding:0; position:relative; }
   .gas-map-viewport img{ display:block; image-rendering: pixelated; max-width:none; cursor:grab; }
   .gas-kbd{ background:#1a1e27; border:1px solid var(--border); border-bottom-width:2px; padding:2px 7px; border-radius:8px; font-size:10px; color:var(--muted); }
-  .gas-divider{ height:1px; background:var(--border); margin:14px 0; opacity:.6; }
-  .gas-note{ font-size:11px; color:var(--muted); line-height:1.7; }
+  .gas-divider{ height:1px; background:var(--border); margin:20px 0; opacity:.6; }
+  .gas-note{ font-size:11px; color:var(--muted); line-height:1.75; }
   .gas-progress{ height:7px; background:#1a1e27; border-radius:999px; overflow:hidden; border:1px solid var(--border); }
   .gas-progress i{ display:block; height:100%; background:linear-gradient(90deg,#7aa2f7,#c792ea,#ff9e64); width:0%; transition:width .3s; }
-  .gas-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; background:rgba(255,255,255,.05); border:1px solid var(--border); padding:4px 9px; border-radius:999px; color:var(--muted); }
+  .gas-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; background:#2c313d; border:1px solid var(--border); padding:4px 10px; border-radius:999px; color:var(--muted); }
   `
   root.appendChild(style)
 
@@ -642,6 +642,7 @@ const pPost=mkPanel('post', `
 
   function switchTab(id:string){
     active=id
+    main.scrollTop=0
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
