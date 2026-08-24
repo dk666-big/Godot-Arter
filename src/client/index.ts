@@ -301,6 +301,10 @@ function buildStudio(): HTMLElement {
             <label class="gas-label">羽化 / 描边</label>
             <div class="gas-row"><span class="gas-note">羽化</span><input class="gas-input" id="m-feather" type="range" min="0" max="10" value="0" style="flex:1"><span class="gas-note">描边</span><input type="color" id="m-stroke" value="#000000"></div>
           </div>
+          <div class="gas-row" style="margin-top:6px;align-items:center">
+            <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="m-keep" checked> 去残留（保留最大主体，自动清理飘絮/碎点）</label>
+            <span class="gas-note">色键模式未手动拾色时自动取四角色为背景色</span>
+          </div>
           <div class="gas-row" style="margin-top:8px">
             <button class="gas-btn" id="m-cut">✂️ 一键抠图</button>
             <button class="gas-btn ghost" id="m-reset">↺ 重置</button>
@@ -391,6 +395,33 @@ function buildStudio(): HTMLElement {
           </div>
           <div class="gas-note" id="ptm-status" style="margin-top:6px">种子化多层噪声地形：水 / 陆地 / 森林 / 山脉 / 雪顶 + 河流，可导出 TileSet.json 与预览图。</div>
           <canvas id="ptm-canvas" width="256" height="256" style="width:100%;image-rendering:pixelated;border:1px solid var(--border);border-radius:10px;margin-top:8px;background:#141822"></canvas>
+        </div>
+        <div class="gas-card" style="margin-top:12px">
+          <h4>🧩 无缝拼接工作台 — 区块矩阵 / AI 边缘重绘 / 掩码 / Godot 导出</h4>
+          <div class="gas-row" style="align-items:center">
+            <button class="gas-btn" id="st-add">➕ 当前图作新区块</button>
+            <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="st-file" accept="image/*" hidden>📁 上传区块图</label>
+            <button class="gas-btn ghost" id="st-edge">🔲 提取右边缘参考</button>
+            <button class="gas-btn ghost" id="st-edge-b">🔲 提取下边缘参考</button>
+            <span class="gas-note" id="st-gridinfo" style="flex:1"></span>
+            <button class="gas-btn orange" id="st-export">📦 导出 Godot 包</button>
+            <button class="gas-btn ghost" id="st-clear">🗑 清空</button>
+          </div>
+          <div class="gas-row" style="margin-top:8px;align-items:center">
+            <label class="gas-label" style="margin:0">对齐偏移(px)</label>
+            <input class="gas-input" id="st-offset" type="range" min="-256" max="256" value="0" style="flex:1">
+            <span class="gas-pill" id="st-offset-v">0</span>
+            <button class="gas-btn ghost" id="st-undo">↺ 撤销上区块</button>
+          </div>
+          <div class="gas-row" style="margin-top:8px;align-items:center">
+            <label class="gas-label" style="margin:0">掩码绘制（拖拽涂画）</label>
+            <button class="gas-btn ghost" data-mask="col" style="flex:1">🟥 禁足区</button>
+            <button class="gas-btn ghost" data-mask="occ" style="flex:1">🟦 遮挡区</button>
+            <button class="gas-btn ghost" data-mask="fg" style="flex:1">🟨 前景层</button>
+            <button class="gas-btn ghost" id="st-mask-clear">清除当前块掩码</button>
+          </div>
+          <div class="gas-note" id="st-status" style="margin-top:6px">构思借鉴 MapStitch：AI 大图按区块矩阵拼接 → 提取边缘参考图喂给 AI 局部重绘 → 上传邻接图自动对齐拼合；拖拽绘制 禁足(碰撞)/遮挡(半透明)/前景(压层) 掩码；导出与 MapChunkManager.cs 兼容的 map_data.json（global_position + global_polygons）。</div>
+          <canvas id="st-canvas" width="960" height="480" style="width:100%;cursor:pointer;border:1px solid var(--border);border-radius:10px;margin-top:8px;background:#141822;image-rendering:pixelated"></canvas>
         </div>
         <canvas id="map-canvas" hidden></canvas>
       </div>
@@ -1334,6 +1365,7 @@ function mockImage(prompt:string, opts:any): string {
     const modeTip= pMat.querySelector('#m-mode-tip') as HTMLElement
     let loadedImg: HTMLImageElement|null=null
     let originalData: ImageData|null=null
+    let colorTouched=false
     tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
     modeEl.addEventListener('change', ()=>{
       if(modeTip) modeTip.textContent = modeEl.value==='auto' ? '🤖 自动模式：从图片四边开始扩散扣除相连背景，适合产品图/素材图' : modeEl.value==='wand' ? '🪄 魔棒模式：点击原图中的背景区域，即可擦除相连相似颜色' : modeEl.value==='ai' ? '🌐 AI 模式：调用 Replicate rembg（需右侧配置 Key），无 Key 时自动回退本地智能抠图' : '🎨 色键模式：点击原图拾取背景色，或直接选颜色'
@@ -1344,6 +1376,7 @@ function mockImage(prompt:string, opts:any): string {
     drop.addEventListener('drop', e=>{ e.preventDefault(); const f=e.dataTransfer?.files?.[0]; if(f){ const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; handle(f) }})
     fileInput.addEventListener('change', ()=>{ const f=fileInput.files?.[0]; if(f) handle(f) })
     async function handle(file:File){
+      colorTouched=false
       const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await new Promise(r=>img.onload=r); loadedImg=img
       canvas.width=img.naturalWidth||img.width; canvas.height=img.naturalHeight||img.height
       const g=canvas.getContext('2d')!; g.drawImage(img,0,0); originalData=g.getImageData(0,0,canvas.width,canvas.height)
@@ -1356,7 +1389,7 @@ function mockImage(prompt:string, opts:any): string {
           doWand(x,y)
         } else if(modeEl.value==='chroma'){
           const c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight; const g2=c.getContext('2d')!; g2.drawImage(img,0,0)
-          const dd=g2.getImageData(x,y,1,1).data; const hex='#'+[dd[0],dd[1],dd[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); colorEl.value=hex
+          const dd=g2.getImageData(x,y,1,1).data; const hex='#'+[dd[0],dd[1],dd[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); colorEl.value=hex; colorTouched=true
         } else if(modeEl.value==='auto'){
           toast(status,'自动抠图无需点击，直接点「✂️ 一键抠图」即可')
         }
@@ -1396,7 +1429,36 @@ function mockImage(prompt:string, opts:any): string {
         }
       }
       g.putImageData(imgData,0,0)
+      keepLargest()
       renderResult()
+    }
+    // 去残留：只保留面积最大的连通主体（借鉴 MapStitch 的边缘愈合/透空思路）
+    function keepLargest(){
+      const chk=(pMat.querySelector('#m-keep') as HTMLInputElement)?.checked
+      if(!chk) return
+      const w=canvas.width, h=canvas.height
+      const g0=canvas.getContext('2d')!; const imgData=g0.getImageData(0,0,w,h); const d=imgData.data
+      const labels=new Int32Array(w*h); labels.fill(-1)
+      const stack:number[]=[]; let label=0; const counts:number[]=[]
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        const idx=y*w+x
+        if(d[idx*4+3]>10 && labels[idx]<0){
+          labels[idx]=label; counts[label]=0; stack.push(idx)
+          while(stack.length){
+            const i=stack.pop()!; counts[label]++
+            const yy=Math.floor(i/w), xx=i%w
+            if(xx+1<w && labels[i+1]<0 && d[(i+1)*4+3]>10){ labels[i+1]=label; stack.push(i+1) }
+            if(xx-1>=0 && labels[i-1]<0 && d[(i-1)*4+3]>10){ labels[i-1]=label; stack.push(i-1) }
+            if(yy+1<h && labels[i+w]<0 && d[(i+w)*4+3]>10){ labels[i+w]=label; stack.push(i+w) }
+            if(yy-1>=0 && labels[i-w]<0 && d[(i-w)*4+3]>10){ labels[i-w]=label; stack.push(i-w) }
+          }
+          label++
+        }
+      }
+      let best=-1,bestN=-1
+      for(let i=0;i<counts.length;i++) if(counts[i]>bestN){ bestN=counts[i]; best=i }
+      for(let i=0;i<labels.length;i++){ if(labels[i]!==best) d[i*4+3]=0 }
+      g0.putImageData(imgData,0,0)
     }
 
     function doAuto(){
@@ -1417,7 +1479,25 @@ function mockImage(prompt:string, opts:any): string {
 
     function doChroma(){
       if(!loadedImg) return
-      const tol=parseInt(tolEl.value); const target=colorEl.value; const tr=parseInt(target.slice(1,3),16), tg=parseInt(target.slice(3,5),16), tb=parseInt(target.slice(5,7),16)
+      const tol=parseInt(tolEl.value); let target=colorEl.value
+      // 未手动拾色时：任意纯色底识别 —— 取外沿 4px 边框的众数颜色
+      if(!colorTouched){
+        const cs=document.createElement('canvas'); cs.width=loadedImg.naturalWidth; cs.height=loadedImg.naturalHeight
+        const cg=cs.getContext('2d')!; cg.drawImage(loadedImg,0,0)
+        const d=cg.getImageData(0,0,cs.width,cs.height).data
+        const bw=4; const buckets=new Map<string,{n:number,r:number,g:number,b:number}>()
+        for(let y=0;y<cs.height;y++) for(let x=0;x<cs.width;x++){
+          if(x>=bw && y>=bw && x<cs.width-bw && y<cs.height-bw) continue
+          const i=(y*cs.width+x)*4
+          const k=String(((d[i]>>4)<<8)|((d[i+1]>>4)<<4)|(d[i+2]>>4))
+          const b=buckets.get(k)||{n:0,r:0,g:0,b:0}; b.n++; b.r+=d[i]; b.g+=d[i+1]; b.b+=d[i+2]; buckets.set(k,b)
+        }
+        let best:any=null
+        for(const b of buckets.values()) if(!best||b.n>best.n) best=b
+        colorEl.value='#'+[Math.round(best.r/best.n),Math.round(best.g/best.n),Math.round(best.b/best.n)].map(v=>v.toString(16).padStart(2,'0')).join('')
+        target=colorEl.value
+      }
+      const tr=parseInt(target.slice(1,3),16), tg=parseInt(target.slice(3,5),16), tb=parseInt(target.slice(5,7),16)
       const feather=parseInt((pMat.querySelector('#m-feather') as HTMLInputElement).value)||0
       canvas.width=loadedImg.naturalWidth; canvas.height=loadedImg.naturalHeight; const g=canvas.getContext('2d')!; g.drawImage(loadedImg,0,0)
       const imgData=g.getImageData(0,0,canvas.width,canvas.height); const d=imgData.data
@@ -1426,6 +1506,7 @@ function mockImage(prompt:string, opts:any): string {
         if(dist < tol*2.5){ const a=Math.max(0, (dist - tol*0.5)/ (tol*1.5))*255; d[i+3]= feather? Math.min(255, a+feather*8) : a<80?0:a }
       }
       g.putImageData(imgData,0,0)
+      keepLargest()
       renderResult()
       toast(status,'色键抠图完成，可下载透明 PNG')
     }
@@ -1968,6 +2049,144 @@ function mockImage(prompt:string, opts:any): string {
       toast(status||document.body,'已入库 '+id)
     })
     run()
+  })()
+
+// ---- 无缝拼接工作台（构思借鉴 MapStitch：区块矩阵 / 边缘参考 / 掩码 / Godot 导出）----
+  ;(()=>{
+    const stCanvas=pMap.querySelector('#st-canvas') as HTMLCanvasElement
+    const ctx=stCanvas.getContext('2d')!
+    const info=pMap.querySelector('#st-gridinfo') as HTMLElement
+    const offV=pMap.querySelector('#st-offset-v') as HTMLElement
+    const CHUNK=1024, OVERLAP=128, STRIDE=CHUNK-OVERLAP, SCALE=0.42
+    let chunks:any[]=[] // {gx,gy,img,ox,oy,masks:{col,occ,fg}: number[][][]}
+    let sel=-1, maskLayer='', drawing:any=null
+    const MASK_COLORS:Record<string,{fill:string,stroke:string}>={ col:{fill:'rgba(255,70,70,0.35)',stroke:'rgba(255,70,70,0.9)'}, occ:{fill:'rgba(80,130,255,0.32)',stroke:'rgba(80,130,255,0.9)'}, fg:{fill:'rgba(255,215,90,0.32)',stroke:'rgba(255,215,90,0.9)'} }
+    const cam=()=>({ x:stCanvas.width/2, y:stCanvas.height/2 })
+    function redraw(){
+      ctx.clearRect(0,0,stCanvas.width,stCanvas.height)
+      ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1
+      for(let i=-6;i<=6;i++){ const x=cam().x+i*STRIDE*SCALE; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,stCanvas.height); ctx.stroke() }
+      for(let j=-6;j<=6;j++){ const y=cam().y+j*STRIDE*SCALE; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(stCanvas.width,y); ctx.stroke() }
+      chunks.forEach((c:any,idx:number)=>{
+        const wx=cam().x+(c.gx*STRIDE+(c.ox||0))*SCALE, wy=cam().y+(c.gy*STRIDE+(c.oy||0))*SCALE
+        ctx.drawImage(c.img,wx,wy,CHUNK*SCALE,CHUNK*SCALE)
+        ctx.strokeStyle= idx===sel?'#ffd76a':'rgba(255,255,255,0.5)'; ctx.lineWidth= idx===sel?3:1
+        ctx.strokeRect(wx,wy,CHUNK*SCALE,CHUNK*SCALE)
+        for(const key of ['col','occ','fg'] as const){
+          const mc=MASK_COLORS[key]; ctx.fillStyle=mc.fill; ctx.strokeStyle=mc.stroke; ctx.lineWidth=2
+          for(const stroke of c.masks[key]){
+            if(stroke.length<2) continue
+            ctx.beginPath(); ctx.moveTo(wx+stroke[0][0]*SCALE,wy+stroke[0][1]*SCALE)
+            for(let i=1;i<stroke.length;i++) ctx.lineTo(wx+stroke[i][0]*SCALE,wy+stroke[i][1]*SCALE)
+            ctx.closePath(); ctx.fill(); ctx.stroke()
+          }
+        }
+      })
+      if(info) info.textContent = chunks.length? (chunks.length+' 区块 · 选中 '+ (sel>=0? chunks[sel].gx+','+chunks[sel].gy:'无') + ' · 1024px/块 · 重叠 '+OVERLAP+'px') : ''
+    }
+    function loadImg(src:string):Promise<HTMLImageElement>{ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src }) }
+    async function addChunk(img:HTMLImageElement){
+      // 统一缩放到 1024 区块
+      const c=document.createElement('canvas'); c.width=CHUNK; c.height=CHUNK
+      const g=c.getContext('2d')!; g.imageSmoothingEnabled=false
+      const s=Math.max(CHUNK/(img.naturalWidth||CHUNK), CHUNK/(img.naturalHeight||CHUNK))
+      const w=(img.naturalWidth||CHUNK)*s, h=(img.naturalHeight||CHUNK)*s
+      g.drawImage(img,(CHUNK-w)/2,(CHUNK-h)/2,w,h)
+      const dataUrl=c.toDataURL('image/png')
+      const chunk={ gx:chunks.length, gy:0, img:await loadImg(dataUrl), ox:0, oy:0, masks:{ col:[], occ:[], fg:[] } }
+      chunks.push(chunk); sel=chunks.length-1; redraw()
+      if(status) { status.textContent='已加入区块 '+chunk.gx+','+chunk.gy+'（'+CHUNK+'×'+CHUNK+'）→ 可提取边缘参考图交给 AI 局部重绘，再点「上传区块图」回拼'; status.style.color='#2ecc71' }
+    }
+    function canvasXY(e:any){ const r=stCanvas.getBoundingClientRect(); return { vx:(e.clientX-r.left)/r.width*stCanvas.width, vy:(e.clientY-r.top)/r.height*stCanvas.height } }
+    function toChunkLocal(vx:number,vy:number,c:any){ return { x:(vx-cam().x)/SCALE-(c.gx*STRIDE+(c.ox||0)), y:(vy-cam().y)/SCALE-(c.gy*STRIDE+(c.oy||0)) } }
+    async function edgeStrip(side:'right'|'bottom'){
+      if(sel<0||!chunks[sel]) { if(status) status.textContent='请先选中一个区块'; return }
+      const c=chunks[sel]
+      const cvs=document.createElement('canvas')
+      cvs.width = side==='right'? OVERLAP : CHUNK
+      cvs.height = side==='right'? CHUNK : OVERLAP
+      const g=cvs.getContext('2d')!
+      if(side==='right') g.drawImage(c.img, CHUNK-OVERLAP,0,OVERLAP,CHUNK,0,0,OVERLAP,CHUNK)
+      else g.drawImage(c.img, 0,CHUNK-OVERLAP,CHUNK,OVERLAP,0,0,CHUNK,OVERLAP)
+      const a=document.createElement('a'); a.href=cvs.toDataURL('image/png'); a.download='edge_'+side+'_'+c.gx+'_'+c.gy+'.png'; a.click()
+      if(status) status.textContent='已提取'+ (side==='right'?'右':'下') +'边缘参考图（'+ (side==='right'?OVERLAP+'×'+CHUNK:CHUNK+'×'+OVERLAP) +'）→ 发给 AI 局部重绘后上传回拼'; status.style.color='#2ecc71'
+    }
+    // ---- events ----
+    pMap.querySelector('#st-add')!.addEventListener('click', async()=>{
+      const big=(pMap.querySelector('#map-big-img') as HTMLImageElement)?.src
+      const prev=(pMap.querySelector('#map-preview img') as HTMLImageElement | null)
+      const src= prev?.src || big || ''
+      if(!src || src==='' || src.endsWith('尚未生成大地图')) { if(status){ status.textContent='请先生成或上传一张底图（可用「✨ AI 生成」或上传）'; status.style.color='#e74c3c' } return }
+      toast(status,'正在把当前图加入区块矩阵…')
+      try{ await addChunk(await loadImg(src)) }catch(e:any){ toast(status,String(e.message||e),false) }
+    })
+    pMap.querySelector('#st-file')!.addEventListener('change', async(e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const url=URL.createObjectURL(f); try{ await addChunk(await loadImg(url)) }catch(err:any){ toast(status,String(err.message||err),false) }
+    })
+    pMap.querySelector('#st-edge')!.addEventListener('click', ()=> edgeStrip('right'))
+    pMap.querySelector('#st-edge-b')!.addEventListener('click', ()=> edgeStrip('bottom'))
+    pMap.querySelector('#st-offset')!.addEventListener('input', (e:any)=>{
+      const v=parseInt(e.target.value)||0; if(offV) offV.textContent=String(v)
+      if(sel>=0&&chunks[sel]){ chunks[sel].ox=v; redraw() }
+    })
+    pMap.querySelector('#st-undo')!.addEventListener('click', ()=>{ if(chunks.length){ chunks.pop(); sel=Math.min(sel,chunks.length-1); redraw(); if(status) status.textContent='已撤销最后一个区块' } })
+    pMap.querySelector('#st-clear')!.addEventListener('click', ()=>{
+      if(!chunks.length) return
+      if(!confirm('清空拼接工作台？')) return
+      chunks=[]; sel=-1; redraw(); if(status) status.textContent='工作台已清空'
+    })
+    pMap.querySelector('#st-mask-clear')!.addEventListener('click', ()=>{
+      if(sel<0||!chunks[sel]) { if(status) status.textContent='请先选中区块'; return }
+      for(const k of ['col','occ','fg']) chunks[sel].masks[k]=[]
+      redraw(); if(status) status.textContent='已清除当前区块全部掩码'
+    })
+    pMap.querySelectorAll<HTMLElement>('[data-mask]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        maskLayer = maskLayer===btn.dataset.mask ? '' : (btn.dataset.mask||'')
+        pMap.querySelectorAll<HTMLElement>('[data-mask]').forEach(b=>{ b.style.outline = b===btn && maskLayer ? '2px solid var(--accent)' : '' })
+        if(status) status.textContent = maskLayer? '正在绘制「'+btn.textContent?.trim()+'」——在画布上按住拖拽涂画，松开成块':'已退出掩码绘制'
+      })
+    })
+    stCanvas.addEventListener('mousedown', (e:any)=>{
+      if(!maskLayer || sel<0 || !chunks[sel]) return
+      const {vx,vy}=canvasXY(e); const c=chunks[sel]; const p=toChunkLocal(vx,vy,c)
+      if(p.x<-50||p.y<-50||p.x>CHUNK+50||p.y>CHUNK+50) return
+      drawing={ pts:[[Math.round(p.x),Math.round(p.y)]] }
+      stCanvas.style.cursor='crosshair'
+      redraw()
+    })
+    stCanvas.addEventListener('mousemove', (e:any)=>{
+      if(!drawing) return
+      const {vx,vy}=canvasXY(e); const c=chunks[sel]; const p=toChunkLocal(vx,vy,c)
+      const last=drawing.pts[drawing.pts.length-1]
+      if(Math.hypot(p.x-last[0],p.y-last[1])>10) drawing.pts.push([Math.round(p.x),Math.round(p.y)])
+      redraw()
+    })
+    stCanvas.addEventListener('mouseup', ()=>{
+      if(!drawing) return
+      if(drawing.pts.length>=2){ const c=chunks[sel]; c.masks[maskLayer||'col'].push(drawing.pts); if(status) status.textContent = '已记录「'+ (maskLayer==='col'?'禁足':maskLayer==='occ'?'遮挡':'前景') +'」掩码（' + (c.gx)+','+(c.gy)+ '）,可继续绘制或导出' }
+      drawing=null; stCanvas.style.cursor='pointer'; redraw()
+    })
+    pMap.querySelector('#st-export')!.addEventListener('click', ()=>{
+      if(!chunks.length){ if(status){ status.textContent='工作台为空，先加入区块'; status.style.color='#e74c3c' } return }
+      for(const c of chunks){
+        const a=document.createElement('a'); a.href=c.img.src; a.download='chunk_'+c.gx+'_'+c.gy+'_bg.png'; a.click()
+      }
+      const polygons:{col:number[][][],occ:number[][][],fg:number[][][]}={ col:[],occ:[],fg:[] }
+      for(const c of chunks) for(const key of ['col','occ','fg'] as const){
+        for(const stroke of c.masks[key]){
+          polygons[key].push(stroke.map((pt:number[])=>[pt[0]+c.gx*STRIDE+(c.ox||0), pt[1]+c.gy*STRIDE+(c.oy||0)]))
+        }
+      }
+      const json={ map_version:'FINAL_PERFECT', chunk_stride:STRIDE, chunk_size:CHUNK, overlap:OVERLAP,
+        chunks: chunks.map(c=>({ chunk_id:c.gx+'_'+c.gy, grid_x:c.gx, grid_y:c.gy, background_path:'images/chunk_'+c.gx+'_'+c.gy+'_bg.png', global_position:{ x:c.gx*STRIDE+(c.ox||0), y:c.gy*STRIDE+(c.oy||0) }, buildings:[] })),
+        global_polygons: polygons }
+      const blob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'})
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='map_data.json'; a.click()
+      if(status){ status.textContent='✓ 已导出 '+chunks.length+' 个区块 PNG + map_data.json（MapChunkManager.cs 兼容：global_position + global_polygons）'; status.style.color='#2ecc71' }
+    })
+    redraw()
   })()
 
 // ---- Asset Manager ----
