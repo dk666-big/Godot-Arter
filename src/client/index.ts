@@ -101,6 +101,8 @@ function buildStudio(): HTMLElement {
   tabs.className = 'gas-tabs'
   const tabDefs: { id:string; label:string; icon:string }[] = [
     { id:'character', label:'角色工坊', icon:'🧍' },
+    { id:'seq', label:'单帧动画', icon:'🎬' },
+    { id:'pipe', label:'素材流水线', icon:'🚀' },
     { id:'sheet', label:'序列帧', icon:'🎞️' },
     { id:'forge', label:'素材锻造', icon:'🧱' },
     { id:'matting', label:'智能抠图', icon:'✂️' },
@@ -257,7 +259,112 @@ function buildStudio(): HTMLElement {
     </div>
   `)
 
-  // FORGE
+  // 单帧动画工作区（分治策略：AI 逐张画独立单角色，代码负责裁边/对齐/拼接/GIF）
+  const pSeq=mkPanel('seq', `
+    <div class="gas-card">
+      <h4>🎬 单帧动画 — 逐帧生成 · 自动对齐去串位</h4>
+      <div class="gas-note" style="margin:0 0 10px">核心：AI 只画"单张独立角色"，帧边界/排列/对齐/拼接全部交给代码 → 从根源消除邻帧串位。每行一个动作=一帧。</div>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">逐帧动作描述（每行一帧）</label>
+          <textarea class="gas-textarea" id="q-prompts" style="min-height:110px" placeholder="每行一帧动作。例：
+站立 idle
+抬右手
+挥法杖
+收招"></textarea>
+          <div class="gas-row" style="margin-top:8px">
+            <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="q-fps" type="number" value="8" min="1" max="24"></div>
+            <div style="flex:1"><label class="gas-label">参考图（可选）</label><label class="gas-btn ghost" style="cursor:pointer;width:100%;justify-content:center"><input type="file" id="q-ref" accept="image/*" hidden>📁 上传</label></div>
+            <div style="flex:0 0 150px"><label class="gas-label">提供商</label><select class="gas-select" id="q-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示</option></select><select class="gas-select" id="q-model-sel" style="display:none;margin-top:4px"></select></div>
+          </div>
+          <div id="q-ref-preview" class="gas-preview tiled" style="min-height:44px;max-height:56px;margin-top:8px"><span class="gas-note">无参考图</span></div>
+          <div class="gas-row" style="margin-top:8px">
+            <button class="gas-btn" id="q-gen">✨ 逐帧生成</button>
+            <button class="gas-btn ghost" id="q-align">🔧 批处理对齐</button>
+            <button class="gas-btn ghost" id="q-pack">📦 拼成精灵表</button>
+            <button class="gas-btn ghost" id="q-gif">🎞 合成 GIF</button>
+          </div>
+          <div class="gas-row" style="margin-top:8px">
+            <button class="gas-btn ghost" id="q-animate">▶ 预览</button>
+            <button class="gas-btn orange" id="q-export">⬇ 导出 Godot</button>
+            <button class="gas-btn ghost" id="q-save">📥 全部入库</button>
+            <button class="gas-btn ghost" id="q-clear">清空</button>
+          </div>
+          <div class="gas-progress" style="margin-top:8px"><i id="q-prog"></i></div>
+          <div class="gas-note" id="q-status"></div>
+        </div>
+        <div style="width:320px">
+          <label class="gas-label">动画预览（可点 ⛶ 全屏）</label>
+          <div class="gas-preview tiled" id="q-preview"><canvas class="gas-canvas" id="q-canvas" width="288" height="288"></canvas></div>
+          <label class="gas-label">精灵表（横排拼接）</label>
+          <div class="gas-preview" id="q-pack-preview"><span class="gas-note">等待拼接</span></div>
+        </div>
+      </div>
+      <div class="gas-divider"></div>
+      <div class="gas-card" style="background:#1e2224">
+        <h4>🖱️ 上传整表 → 手动框选裁剪</h4>
+        <div class="gas-note" style="margin:0 0 8px">把一张完整序列帧图上传后，用鼠标拖拽框出每一帧区域，框完点「✅ 应用并批量对齐」→ 自动裁白边/统一尺寸/脚底对齐，再复用上面拼接/GIF/导出。</div>
+        <div class="gas-row" style="margin-top:6px">
+          <label class="gas-btn ghost" style="cursor:pointer;flex:1;justify-content:center"><input type="file" id="q-sheet-file" accept="image/*" hidden>📤 上传整表</label>
+          <button class="gas-btn ghost" id="q-box-auto">✨ 自动框图</button>
+          <button class="gas-btn ghost" id="q-box-undo">↩ 撤销上一框</button>
+          <button class="gas-btn ghost" id="q-box-clear">🧹 清除框选</button>
+          <button class="gas-btn" id="q-box-apply">✅ 应用并批量对齐</button>
+        </div>
+        <div class="gas-preview tiled" style="margin-top:8px;max-height:340px;overflow:auto;background:#0f1213">
+          <canvas id="q-sheet-canvas" width="800" height="400" style="display:block;cursor:crosshair;image-rendering:pixelated;max-width:100%;height:auto"></canvas>
+        </div>
+        <div class="gas-note" id="q-box-status" style="margin-top:6px">未上传整表。</div>
+      </div>
+      <label class="gas-label">帧列表</label>
+      <div class="gas-grid" id="q-frames"></div>
+    </div>
+  `)
+
+
+  // 素材处理流水线（五步：切→透→齐→名→导 一键批量）
+  const pPipe=mkPanel('pipe', `
+    <div class="gas-card">
+      <h4>🚀 素材处理流水线 — 切 → 透 → 齐 → 名 → 导 一键批量</h4>
+      <div class="gas-note" style="margin:0 0 10px">把 AI 生成图直接变成 Godot 可用动画素材。批量导入单帧或多帧整表，一键完成 切割 → 去背 → 统一画布+脚部对齐 → 规范命名 → 导出 SpriteFrames。</div>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">1️⃣ 导入素材（多选 / 拖拽；单张=整表将自动切分）</label>
+          <div style="border:1.5px dashed var(--border);border-radius:8px;padding:14px;text-align:center;background:#1a1e20;cursor:pointer;" id="pp-drop">
+            <div style="font-size:22px">📥</div><div class="gas-note">点击或拖拽上传 PNG/JPG<br>支持多选单帧，或一张完整序列帧（自动切分）</div>
+            <input type="file" id="pp-file" accept="image/*" multiple hidden>
+          </div>
+          <div class="gas-row" style="margin-top:8px">
+            <div style="flex:1"><label class="gas-label">动作名（命名前缀）</label><input class="gas-input" id="pp-name" value="walk"></div>
+            <div style="flex:1"><label class="gas-label">FPS</label><input class="gas-input" id="pp-fps" type="number" value="8" min="1" max="24"></div>
+            <div style="flex:1"><label class="gas-label">目标尺寸（0=自适应）</label><input class="gas-input" id="pp-size" type="number" value="0" min="0" max="512"></div>
+            <div style="flex:1"><label class="gas-label">去背模式</label><select class="gas-select" id="pp-bg"><option value="white">白底去背后</option><option value="gray">灰底去背后</option><option value="none">不去背</option></select></div>
+          </div>
+          <div class="gas-row" style="margin-top:8px;align-items:center">
+            <label class="gas-label" style="margin:0">输入类型</label>
+            <select class="gas-select" id="pp-mode" style="flex:1"><option value="frames">多张单帧（每张一帧）</option><option value="sheet">一张整表（自动切分）</option></select>
+            <button class="gas-btn" id="pp-run">🚀 一键处理</button>
+          </div>
+          <div class="gas-row" style="margin-top:8px">
+            <button class="gas-btn ghost" id="pp-clear">🧹 清空</button>
+            <button class="gas-btn orange" id="pp-dl">⬇ 下载全部</button>
+            <button class="gas-btn ghost" id="pp-save">📥 全部入库</button>
+          </div>
+          <div class="gas-progress" style="margin-top:8px"><i id="pp-prog"></i></div>
+          <div class="gas-note" id="pp-status"></div>
+        </div>
+        <div style="width:320px">
+          <label class="gas-label">精灵表（横排）</label>
+          <div class="gas-preview" id="pp-pack-preview"><span class="gas-note">等待处理</span></div>
+          <label class="gas-label">动画预览</label>
+          <div class="gas-preview tiled" id="pp-preview"><canvas class="gas-canvas" id="pp-canvas" width="288" height="288"></canvas></div>
+        </div>
+      </div>
+      <label class="gas-label">处理结果帧</label>
+      <div class="gas-grid" id="pp-frames"></div>
+    </div>
+  `)
+
   const pForge=mkPanel('forge', `
     <div class="gas-card">
       <h4>🧱 素材锻造 — 道具 / 图标 / 特效 一键批量</h4>
@@ -657,8 +764,8 @@ const pPost=mkPanel('post', `
     </div>
   `)
 
-  ;[pChar,pSheet,pForge,pMat,pMap,pScene,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
-  panels['character']=pChar; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
+  ;[pChar,pSeq,pPipe,pSheet,pForge,pMat,pMap,pScene,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
+  panels['character']=pChar; panels['seq']=pSeq; panels['pipe']=pPipe; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
 
   function switchTab(id:string){
     active=id
@@ -666,7 +773,7 @@ const pPost=mkPanel('post', `
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
-    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
+    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', seq:'单帧动画：AI 逐张画单角色，代码自动裁白边/脚底对齐/横排拼接，从根源消除邻帧串位', pipe:'素材流水线：批量导入帧/整表，一键完成 切→去背→脚部对齐→命名→导出 SpriteFrames，产出 Godot 直接可用动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
     if(tip) tip.textContent=tips[id]||''
   }
 
@@ -807,6 +914,204 @@ const pPost=mkPanel('post', `
     const ext=/webp/i.test(mime)?'.webp':/jpe?g/i.test(mime)?'.jpg':/gif/i.test(mime)?'.gif':/svg/i.test(mime)?'.svg':/avif/i.test(mime)?'.avif': '.png'
     return { bytes, mime, ext }
   }
+
+  // ---- 单帧动画工具：白边裁剪 / 统一画布 / 脚底对齐 / 横排拼接 ----
+  function canvasToData(cvs:HTMLCanvasElement): ImageData { return cvs.getContext('2d')!.getImageData(0,0,cvs.width,cvs.height) }
+  function blankCanvas(w:number,h:number): HTMLCanvasElement { const c=document.createElement('canvas'); c.width=Math.max(1,w); c.height=Math.max(1,h); return c }
+  // 找到内容包围盒（非纯白 / alpha>0），返回相对源图坐标；用亮度容差适配浅色/渐变背景
+  function trimWhitespace(img:HTMLImageElement|HTMLCanvasElement):{sx:number;sy:number;w:number;h:number}{
+    const W=img.naturalWidth||(img as HTMLCanvasElement).width, H=img.naturalHeight||(img as HTMLCanvasElement).height
+    if(W<1||H<1) return { sx:0, sy:0, w:W, h:H }
+    const c=blankCanvas(W,H); const g=c.getContext('2d')!; g.imageSmoothingEnabled=false; g.drawImage(img as any,0,0)
+    const d=g.getImageData(0,0,W,H).data
+    let minX=W,minY=H,maxX=-1,maxY=-1
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const i=(y*W+x)*4; const a=d[i+3]
+      // 内容 = 不透明 且 (RGB 与纯白差距大 或 明显低于纯白亮度)
+      const isWhiteish = d[i]>=238 && d[i+1]>=238 && d[i+2]>=238
+      if(a>8 && !isWhiteish){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y }
+    }
+    if(maxX<minX||maxY<minY) return { sx:0, sy:0, w:W, h:H } // 全白/空 → 保底全图
+    return { sx:minX, sy:minY, w:maxX-minX+1, h:maxY-minY+1 }
+  }
+  // 把原始帧裁白边（返回透明小图）
+  function cropToContent(img:HTMLImageElement|HTMLCanvasElement): HTMLCanvasElement {
+    const b=trimWhitespace(img)
+    const out=blankCanvas(b.w,b.h)
+    out.getContext('2d')!.drawImage(img as any, b.sx,b.sy,b.w,b.h, 0,0,b.w,b.h)
+    return out
+  }
+  // 把一组帧统一到同一画布：水平居中 + 脚底对齐，返回一个"能容纳全部内容+上下留白"的画布尺寸
+  function normalizeFrames(frames:HTMLCanvasElement[], pad=12):{frames:HTMLCanvasElement[];w:number;h:number}{
+    if(!frames.length) return { frames, w:0, h:0 }
+    let maxW=0, maxH=0
+    for(const f of frames){ maxW=Math.max(maxW, f.width); maxH=Math.max(maxH, f.height) }
+    const w=maxW+pad*2, h=maxH+pad*2
+    const out:HTMLCanvasElement[]=[]
+    for(const f of frames){
+      const c=blankCanvas(w,h); const g=c.getContext('2d')!; g.imageSmoothingEnabled=false
+      const x=Math.floor((w-f.width)/2)      // 水平居中
+      const y=Math.floor((h-f.height)-pad)   // 脚底对齐到同一基线（下对齐）
+      g.drawImage(f, x, y)
+      out.push(c)
+    }
+    return { frames: out, w, h }
+  }
+  // 横排拼接成精灵表（透明背景）
+  function packRow(frames:HTMLCanvasElement[]): HTMLCanvasElement {
+    if(!frames.length){ const c=blankCanvas(1,1); return c }
+    const fw=frames[0].width, fh=frames[0].height
+    const out=blankCanvas(fw*frames.length, fh)
+    const g=out.getContext('2d')!; g.imageSmoothingEnabled=false
+    frames.forEach((fc,i)=> g.drawImage(fc, i*fw, 0))
+    return out
+  }
+  // 从整表按矩形区域裁剪出独立帧
+  function cropSheet(img:HTMLCanvasElement, rect:{x:number;y:number;w:number;h:number}): HTMLCanvasElement {
+    const x=Math.max(0, Math.min(rect.x, img.width-1)), y=Math.max(0, Math.min(rect.y, img.height-1))
+    const w=Math.max(1, Math.min(rect.w, img.width-x)), h=Math.max(1, Math.min(rect.h, img.height-y))
+    const out=blankCanvas(w,h); out.getContext('2d')!.drawImage(img, x,y,w,h, 0,0,w,h)
+    return out
+  }
+  // 去背：把背景透明化。mode=white(白度>240全透明/225~240半透明)；gray(RGB接近且亮度95~165按接近度透明)
+  function removeBackground(cvs:HTMLCanvasElement, mode:'white'|'gray'|'none'='white'){
+    if(!cvs||mode==='none') return cvs
+    const g=cvs.getContext('2d')!; const W=cvs.width, H=cvs.height
+    const imgData=g.getImageData(0,0,W,H); const d=imgData.data
+    for(let i=0;i<d.length;i+=4){
+      const r=d[i], gr=d[i+1], b=d[i+2], a=d[i+3]
+      if(a===0) continue
+      if(mode==='white'){
+        // 白度：取 max 与 min 的差值小且都高 → 越接近纯白越透明
+        const bright=(r+gr+b)/3
+        if(r>240&&gr>240&&b>240){ d[i+3]=0 }
+        else if(bright>225&&bright<=240 && Math.max(r,gr,b)-Math.min(r,gr,b)<18){ d[i+3]=Math.round(255*(240-bright)/15) }
+      } else if(mode==='gray'){
+        // 灰度背景：RGB 接近(最大差<25)且亮度 95~165
+        const mx=Math.max(r,gr,b), mn=Math.min(r,gr,b)
+        if(mx-mn<25){
+          const bright=(r+gr+b)/3
+          if(bright>=95&&bright<=165){ d[i+3]=0 }
+          else if(bright>165&&bright<205 && mx-mn<20){ d[i+3]=Math.round(255*(205-bright)/40) }
+        }
+      }
+    }
+    g.putImageData(imgData,0,0)
+    return cvs
+  }
+  // 规范命名：{prefix}_{i}.png，帧号从 0 连续
+  function buildFrameNaming(prefix:string, count:number): string[] {
+    const p=(prefix||'frame').replace(/[^\w-]+/g,'_')||'frame'
+    return Array.from({length:count},(_,i)=> p+'_'+i+'.png')
+  }
+  // 自动框图：按列投影找水平分隔缝（横排整表），返回帧矩形数组
+  function autoBoxProjection(img:HTMLCanvasElement): {x:number;y:number;w:number;h:number}[] {
+    const W=img.width, H=img.height
+    const d=img.getContext('2d')!.getImageData(0,0,W,H).data
+    const col=new Float32Array(W)
+    for(let x=0;x<W;x++) for(let y=0;y<H;y++){
+      const i=(y*W+x)*4; const a=d[i+3]; const isWhite=d[i]>=240&&d[i+1]>=240&&d[i+2]>=240
+      if(a>8 && !isWhite) col[x]++
+    }
+    const mean=col.reduce((a,b)=>a+b,0)/W
+    const active=(x:number)=> col[x] > mean*0.12
+    const spans:{x0:number;x1:number}[]=[]
+    let inSpan=false, x0=0
+    for(let x=0;x<W;x++){ if(active(x)){ if(!inSpan){ x0=x; inSpan=true } } else { if(inSpan){ if(x-x0>=8) spans.push({x0,x1:x-1}); inSpan=false } } }
+    if(inSpan) spans.push({x0,x1:W-1})
+    const row=new Float32Array(H)
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=(y*W+x)*4; const a=d[i+3]; const isWhite=d[i]>=240&&d[i+1]>=240&&d[i+2]>=240; if(a>8&&!isWhite) row[y]++ }
+    const rowMean=row.reduce((a,b)=>a+b,0)/H
+    let top=0,bot=H-1
+    while(top<H && row[top]<=rowMean*0.12) top++
+    while(bot>top && row[bot]<=rowMean*0.12) bot--
+    if(top>=bot){ top=0; bot=H-1 }
+    if(spans.length<2){
+      // 单角色或未检测出分隔 → 视为单帧
+      return [{ x:0, y:top, w:W, h:bot-top+1 }]
+    }
+    return spans.map(sp=>({ x:sp.x0, y:top, w:sp.x1-sp.x0+1, h:bot-top+1 }))
+  }
+
+  // ---- 内置 GIF89a 编码器（LZW，纯 JS 零依赖）----
+  function buildGif(frames:HTMLCanvasElement[], fps:number, loop=true): Blob {
+    if(!frames.length) return new Blob([], {type:'image/gif'})
+    const W=frames[0].width, H=frames[0].height
+    const frameDatas:ImageData[] = frames.map(canvasToData)
+    // 收集全局调色板（RGB 去重，最多 256 色）
+    const palette:{r:number;g:number;b:number}[]=[]
+    const palMap=new Map<number,number>()
+    const px=(r:number,g:number,b:number)=>{ const key=(r<<16)|(g<<8)|b; if(!palMap.has(key)){ if(palette.length<256){ palMap.set(key, palette.length); palette.push({r,g,b}) } } return palMap.get(key)??0 }
+    for(const fd of frameDatas) for(let i=0;i<fd.data.length;i+=4){ if(fd.data[i+3]>8) px(fd.data[i],fd.data[i+1],fd.data[i+2]) }
+    if(!palette.length) palette.push({r:0,g:0,b:0})
+    // 补齐到 2 的幂颜色数
+    let colors=palette.length; let bitDepth=1; while((1<<bitDepth)<colors) bitDepth++
+    const colorCount=1<<bitDepth
+    const table = new Uint8Array(colorCount*3)
+    for(let i=0;i<colorCount;i++){ const c=palette[i]||{r:0,g:0,b:0}; table[i*3]=c.r; table[i*3+1]=c.g; table[i*3+2]=c.b }
+    // 透明色索引：额外加一个全透明色项（RGBA=0,0,0,0）
+    const transparentIndex=colors<colorCount? colors : (palette.length<256? palette.length : 0)
+    // 为每帧生成 LZW 编码的索引序列
+    const lzwKeySize = Math.max(2, bitDepth)
+    const imageLzw=(fd:ImageData, out:number[])=>{
+      // 建立像素 → 调色板索引
+      const idx=new Uint8Array(W*H)
+      for(let i=0;i<W*H;i++){
+        const o=i*4; const a=fd.data[o+3]
+        if(a<=8){ idx[i]=transparentIndex; continue }
+        const k=(fd.data[o]<<16)|(fd.data[o+1]<<8)|fd.data[o+2]
+        idx[i]=palMap.has(k)? palMap.get(k)! : 0
+      }
+      // LZW-GIF 编码（用 "p1,p2,..." 字符串表示当前序列，正确编码每个 code）
+      const CLEAR=1<<lzwKeySize, EOI=CLEAR+1
+      let codeSize=lzwKeySize+1
+      let dict=new Map<string,number>(); let nextCode=EOI+1
+      const bitBuf:number[]=[]
+      const emit=(code:number, bits:number)=>{ for(let b=0;b<bits;b++) bitBuf.push((code>>b)&1); while(bitBuf.length>=8){ let byte=0; for(let k=0;k<8;k++) byte|=bitBuf[k]<<k; out.push(byte); bitBuf.splice(0,8) } }
+      emit(CLEAR, codeSize)
+      let cur=''
+      for(let i=0;i<idx.length;i++){
+        const c=idx[i]; const k=cur? cur+','+c : String(c)
+        if(dict.has(k)){ cur=k; continue }
+        emit(dict.has(cur)? dict.get(cur)! : c, codeSize)   // cur 可能为空或单像素，直接发对应码
+        if(nextCode<(1<<codeSize) && dict.size<4096){ dict.set(k, nextCode++) }
+        if(nextCode>=(1<<codeSize) && codeSize<12){ codeSize++ }
+        if(nextCode>=4096){ emit(CLEAR, codeSize); dict.clear(); nextCode=EOI+1; codeSize=lzwKeySize+1 }
+        cur=String(c)
+      }
+      if(cur) emit(dict.has(cur)? dict.get(cur)! : parseInt(cur.split(',').pop()!,10), codeSize)
+      emit(EOI, codeSize)
+      return out
+    }
+    // 组装字节
+    const bytes:number[]=[]
+    const pushStr=(s:string)=>{ for(let i=0;i<s.length;i++) bytes.push(s.charCodeAt(i)) }
+    pushStr('GIF89a')
+    // Logical Screen Descriptor
+    bytes.push(W&0xff,(W>>8)&0xff,H&0xff,(H>>8)&0xff, 0xF0|(bitDepth-1), 0x00, 0x00)
+    // Global Color Table
+    for(let i=0;i<table.length;i++) bytes.push(table[i])
+    // NETSCAPE looping (if loop)
+    if(loop){
+      bytes.push(0x21,0xFF,0x0B); pushStr('NETSCAPE2.0'); bytes.push(0x03,0x01,0x00,0x00,0x00)
+    }
+    // 每帧
+    const delay=Math.max(2, Math.round(100/fps))
+    for(const fd of frameDatas){
+      // Graphic Control Extension (transparent index, delay)
+      bytes.push(0x21,0xF9,0x04, 0x09, delay&0xff, (delay>>8)&0xff, transparentIndex, 0x00)
+      // Image Descriptor, full frame, no interlace
+      bytes.push(0x2C, 0,0,0,0, W&0xff,(W>>8)&0xff, H&0xff,(H>>8)&0xff, 0x00)
+      const lzw:number[]=[]; imageLzw(fd, lzw)
+      // LZW min code size + sub-blocks
+      bytes.push(lzwKeySize)
+      for(let i=0;i<lzw.length;i+=255){ const chunk=lzw.slice(i,i+255); bytes.push(chunk.length); for(const c of chunk) bytes.push(c) }
+      bytes.push(0x00)
+    }
+    bytes.push(0x3B)
+    return new Blob([new Uint8Array(bytes)], {type:'image/gif'})
+  }
+
   const LS_CUSTOM_LIBS='dsh-game-art-studio:customLibs'
   const getCustomLibs=():any[]=>{ try{ const a=JSON.parse(localStorage.getItem(LS_CUSTOM_LIBS)||'[]'); return Array.isArray(a)?a:[] }catch{ return [] } }
   const saveCustomLibs=(list:any[])=> localStorage.setItem(LS_CUSTOM_LIBS, JSON.stringify(list))
@@ -917,7 +1222,7 @@ const pPost=mkPanel('post', `
   }
 
   function populateProviderSelects(){
-    const ids=['c-provider','s-provider','f-provider','map-provider','sc-provider']
+    const ids=['c-provider','q-provider','s-provider','f-provider','map-provider','sc-provider']
     for(const id of ids){
       const sel=main.querySelector('#'+id) as HTMLSelectElement | null
       if(!sel) continue
@@ -1070,6 +1375,7 @@ const pPost=mkPanel('post', `
   renderPresetList()
   populateProviderSelects()
   bindModelSelect(pChar,'c-provider','c-model-sel')
+  bindModelSelect(pSeq,'q-provider','q-model-sel')
   bindModelSelect(pSheet,'s-provider','s-model-sel')
   bindModelSelect(pForge,'f-provider','f-model-sel')
   bindModelSelect(pMap,'map-provider','map-model-sel')
@@ -1337,7 +1643,7 @@ function mockImage(prompt:string, opts:any): string {
     pChar.querySelector('#c-upload')!.addEventListener('change', (e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
       const reader=new FileReader()
-      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='90px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓ 生成时会作为图生图参考') }
+      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='90px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); const del=document.createElement('button'); del.type='button'; del.textContent='✕ 删除'; del.style.cssText='margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:#2c313d;color:#e74c3c;cursor:pointer;display:block'; del.onclick=(e:any)=>{ e.stopPropagation(); refUrl=''; refPreview.innerHTML='<span class="gas-note">未添加</span>'; toast(status,'参考图已删除') }; refPreview.appendChild(del); toast(status,'参考图已添加 ✓ 生成时会作为图生图参考') }
       reader.readAsDataURL(f)
     })
     pChar.querySelector('#c-dl')!.addEventListener('click', ()=>{ if(!lastUrl) return toast(status,'无图片',false); void downloadUrl(lastUrl,'character_'+Date.now()+'.png') })
@@ -1549,33 +1855,42 @@ function mockImage(prompt:string, opts:any): string {
       const dw=f.width*s, dh=f.height*s
       g.drawImage(f, (W-dw)>>1, (H-dh)>>1, dw, dh)
     }
-    // 自动清除邻帧渗漏：保留最大连通主体，清除贴边的孤立碎片（邻帧手臂/武器尖端）。
-    // 帧尺寸保持不变 → 打包/导出/逐帧微调裁剪仍以统一帧大小工作。
+    // 自动清除邻帧/杂散渗漏与半透明残影：保留最大主体，清除半透明流光/鬼影及与主体不相交的独立块。
+    // 主体永远不清除——彻底避免把大块残影误当主体、反而删掉角色。
     function cleanFrameBleed(cvs:HTMLCanvasElement){
       const W=cvs.width, H=cvs.height, N=W*H
       if(N<1) return
       const g=cvs.getContext('2d')!; const img=g.getImageData(0,0,W,H); const d=img.data
+      // ① 先把半透明残影(alpha<96)真正清成透明——它们不成块、也不会被误当主体
+      let changed=false
+      for(let i=0;i<N;i++){ const a=d[i*4+3]; if(a>0 && a<96){ d[i*4+3]=0; changed=true } }
+      // ② 对"实心"像素做连通域：只保留最大主体，清除与主体包围盒不相交的独立块
       const op=new Uint8Array(N)
-      for(let i=0;i<N;i++) op[i]=d[i*4+3]>=8?1:0
+      for(let i=0;i<N;i++) op[i]=d[i*4+3]>=96?1:0
       const label=new Int32Array(N).fill(-1)
-      const sizes:number[]=[]; const edge:boolean[]=[]; const stack:number[]=[]; let comps=0
+      const sizes:number[]=[]; const stack:number[]=[]; const bbox:{minX:number;minY:number;maxX:number;maxY:number}[]=[]; let comps=0
       const near=(p:number)=>{ const x=p%W, y=(p/W)|0; const q:number[]=[]
         if(x>0)q.push(p-1); if(x<W-1)q.push(p+1); if(y>0)q.push(p-W); if(y<H-1)q.push(p+W); return q }
       for(let s=0;s<N;s++){
         if(!op[s]||label[s]!==-1) continue
-        const cid=comps++; let sz=0, ed=false
+        const cid=comps++; let sz=0; let minX=W,minY=H,maxX=0,maxY=0
         stack.length=0; stack.push(s); label[s]=cid
         while(stack.length){
           const p=stack.pop()!; const x=p%W, y=(p/W)|0; sz++
-          if(x===0||y===0||x===W-1||y===H-1) ed=true
+          if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y
           for(const q of near(p)) if(op[q]&&label[q]===-1){ label[q]=cid; stack.push(q) }
         }
-        sizes.push(sz); edge.push(ed)
+        sizes.push(sz); bbox.push({minX,minY,maxX,maxY})
       }
-      let main=0; for(let i=1;i<comps;i++) if(sizes[i]>sizes[main]) main=i
-      const mainSize=sizes[main]
-      let changed=false
-      for(let s=0;s<N;s++){ const cid=label[s]; if(cid!==-1&&cid!==main&&edge[cid]&&sizes[cid]<mainSize){ const i=s*4; if(d[i+3]!==0){ d[i+3]=0; changed=true } } }
+      if(comps>1){
+        let main=0; for(let i=1;i<comps;i++) if(sizes[i]>sizes[main]) main=i
+        const mb=bbox[main]
+        const intersects=(a:{minX:number;minY:number;maxX:number;maxY:number})=> a.minX<=mb.maxX && a.maxX>=mb.minX && a.minY<=mb.maxY && a.maxY>=mb.minY
+        for(let s=0;s<N;s++){
+          const cid=label[s]
+          if(cid!==-1 && cid!==main && !intersects(bbox[cid])){ const i=s*4; if(d[i+3]!==0){ d[i+3]=0; changed=true } }
+        }
+      }
       if(changed) g.putImageData(img,0,0)
     }
     function zoomPreview(){
@@ -1700,7 +2015,7 @@ function mockImage(prompt:string, opts:any): string {
     sRefInput.addEventListener('change', (e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
       const reader=new FileReader()
-      reader.onload=()=>{ sheetRefUrl=reader.result as string; sRefPreview.innerHTML=''; const im=document.createElement('img'); im.src=sheetRefUrl; im.style.maxWidth='100%'; im.style.maxHeight='48px'; im.style.imageRendering='pixelated'; sRefPreview.appendChild(im); toast(status,'角色参考图已添加 ✓ 生成时按该角色绘制动作') }
+      reader.onload=()=>{ sheetRefUrl=reader.result as string; sRefPreview.innerHTML=''; const im=document.createElement('img'); im.src=sheetRefUrl; im.style.maxWidth='100%'; im.style.maxHeight='48px'; im.style.imageRendering='pixelated'; sRefPreview.appendChild(im); const del=document.createElement('button'); del.type='button'; del.textContent='✕ 删除'; del.style.cssText='margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:#2c313d;color:#e74c3c;cursor:pointer;display:block'; del.onclick=(e:any)=>{ e.stopPropagation(); sheetRefUrl=''; sRefPreview.innerHTML='<span class="gas-note">无</span>'; toast(status,'参考图已删除') }; sRefPreview.appendChild(del); toast(status,'角色参考图已添加 ✓ 生成时按该角色绘制动作') }
       reader.readAsDataURL(f)
     })
     pSheet.querySelector('#s-export')!.addEventListener('click', ()=>{
@@ -1752,15 +2067,416 @@ function mockImage(prompt:string, opts:any): string {
       const layout=(pSheet.querySelector('#s-layout') as HTMLSelectElement)?.value||'auto'
       const LAYOUT_HINT:Record<string,string>={ auto:'', single:', 8 frames, single horizontal row, left to right', '2x4':', 8 frames, 2 rows 4 columns, left to right then next row', '4x2':', 8 frames, 4 rows 2 columns, left to right then next row', tri:', three views side by side, front side back, 3 frames', dir8:', 8 directional sprites, 2 rows 4 columns: down/up row then left/right row' }
       const LAYOUT_GRID:Record<string,[number,number]>={ single:[8,1], '2x4':[4,2], '4x2':[2,4], tri:[3,1], dir8:[4,2] }
+      // 强化：每帧完全隔离 + 留透明间隙 + 肢体不越界，尽量减少邻帧交叉
+      const SEPARATION=', each frame fully isolated and centered, clear transparent gap/gutter between every frame, no parts crossing frame borders, no overlapping limbs between frames, uniform grid layout'
       toast(status,'序列生成中…（请稍候，生成后自动切分）')
       try{
-        const url=await callImageGen(prompt + ' , sprite sheet, transparent background, same character across all frames' + (LAYOUT_HINT[layout]||''), prov as any, { size:'1024x512', model: (pSheet.querySelector('#s-model-sel') as HTMLSelectElement)?.value||undefined, reference: sheetRefUrl || undefined })
+        const url=await callImageGen(prompt + ' , sprite sheet, transparent background, same character across all frames' + SEPARATION + (LAYOUT_HINT[layout]||''), prov as any, { size:'1024x512', model: (pSheet.querySelector('#s-model-sel') as HTMLSelectElement)?.value||undefined, reference: sheetRefUrl || undefined })
         const img=await loadImage(url)
         // 按所选布局预置行列；若选「智能」则由 sliceFromFile 自动检测
         if(layout!=='auto'){ const gc=LAYOUT_GRID[layout]?.[0]||8, gr=LAYOUT_GRID[layout]?.[1]||1; colsEl.value=String(gc); rowsEl.value=String(gr) }
         const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0)
         c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) })
       }catch(e:any){ toast(status,String(e.message),false) }
+    })
+  })()
+  // ---- 单帧动画工作区（分治策略）----
+  ;(()=>{
+    const promptsEl= pSeq.querySelector('#q-prompts') as HTMLTextAreaElement
+    const fpsEl= pSeq.querySelector('#q-fps') as HTMLInputElement
+    const provEl= pSeq.querySelector('#q-provider') as HTMLSelectElement
+    const status= pSeq.querySelector('#q-status') as HTMLElement
+    const prog= pSeq.querySelector('#q-prog') as HTMLElement
+    const framesEl= pSeq.querySelector('#q-frames') as HTMLElement
+    const canvas= pSeq.querySelector('#q-canvas') as HTMLCanvasElement
+    const packPrev= pSeq.querySelector('#q-pack-preview') as HTMLElement
+    const refInput= pSeq.querySelector('#q-ref') as HTMLInputElement
+    const refPreview= pSeq.querySelector('#q-ref-preview') as HTMLElement
+    let rawFrames: HTMLCanvasElement[]=[]   // 生成后、裁边前的原始帧
+    let frames: HTMLCanvasElement[]=[]      // 批处理对齐后的帧
+    let packCanvas: HTMLCanvasElement|null=null
+    let refUrl=''
+    let animId=0
+
+    const loadImage=(src:string):Promise<HTMLImageElement>=> new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src })
+    const setProg=(p:number)=> prog.style.width=p+'%'
+    const drawFrame=(cvs:HTMLCanvasElement, idx:number)=>{
+      const g=cvs.getContext('2d')!; const f=frames[idx]||rawFrames[idx]; if(!f) return
+      const W=cvs.width, H=cvs.height; g.imageSmoothingEnabled=false; g.clearRect(0,0,W,H)
+      const s=Math.max(1, Math.floor(Math.min(W/f.width, H/f.height)))
+      const dw=f.width*s, dh=f.height*s
+      g.drawImage(f, (W-dw)>>1, (H-dh)>>1, dw, dh)
+    }
+    const renderThumbs=()=>{
+      framesEl.innerHTML=''
+      const list=frames.length? frames : rawFrames
+      list.forEach((fc,i)=>{
+        const d=document.createElement('div'); d.className='gas-thumb'; d.appendChild(fc)
+        const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+(i+1)+'</span><span>'+fc.width+'×'+fc.height+'</span>'
+        d.appendChild(meta); framesEl.appendChild(d)
+      })
+    }
+
+    // 参考图
+    refInput.addEventListener('change', (e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const reader=new FileReader()
+      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const im=document.createElement('img'); im.src=refUrl; im.style.maxWidth='100%'; im.style.maxHeight='48px'; im.style.imageRendering='pixelated'; refPreview.appendChild(im); const del=document.createElement('button'); del.type='button'; del.textContent='✕ 删除'; del.style.cssText='margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:#2c313d;color:#e74c3c;cursor:pointer;display:block'; del.onclick=(e:any)=>{ e.stopPropagation(); refUrl=''; refPreview.innerHTML='<span class="gas-note">无参考图</span>'; toast(status,'参考图已删除') }; refPreview.appendChild(del); toast(status,'参考图已添加 ✓') }
+      reader.readAsDataURL(f)
+    })
+
+    // 逐帧生成：每行一个动作 → 独立单角色图（白底、居中、留白边）
+    const FRAME_SUFFIX=', single character, one pose only, full body, centered, plain solid white background, large empty margin around the character, no text, no watermark, no other characters, no partial limbs at edges'
+    pSeq.querySelector('#q-gen')!.addEventListener('click', async ()=>{
+      const lines=promptsEl.value.split('\n').map(s=>s.trim()).filter(Boolean)
+      if(!lines.length) return toast(status,'请输入至少一行动作描述',false)
+      const prov=provEl.value
+      rawFrames=[]; frames=[]; packCanvas=null; packPrev.innerHTML='<span class="gas-note">等待拼接</span>'; framesEl.innerHTML=''
+      const genBtn=pSeq.querySelector('#q-gen') as HTMLButtonElement; genBtn.disabled=true
+      let done=0
+      setProg(5)
+      for(const line of lines){
+        try{
+          toast(status,'生成第 '+(done+1)+' 帧：'+line.slice(0,16)+'…')
+          const url=await callImageGen(line+FRAME_SUFFIX, prov, { size:'1024x1024', model:(pSeq.querySelector('#q-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl||undefined })
+          const img=await loadImage(url)
+          const c=blankCanvas(img.naturalWidth||img.width, img.naturalHeight||img.height)
+          c.getContext('2d')!.drawImage(img,0,0)
+          rawFrames.push(c)
+          const thumb=document.createElement('div'); thumb.className='gas-thumb'; thumb.appendChild(c)
+          const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+(done+1)+'</span><span>RAW</span>'; thumb.appendChild(meta)
+          framesEl.appendChild(thumb)
+        }catch(e:any){ toast(status,'第 '+(done+1)+' 帧失败：'+String(e.message||e).slice(0,60), false) }
+        done++; setProg(5+Math.round(done/lines.length*45))
+      }
+      genBtn.disabled=false; setProg(0)
+      if(rawFrames[0]){ canvas.width=288; canvas.height=288; drawFrame(canvas,0) }
+      toast(status,'已生成 '+rawFrames.length+'/'+lines.length+' 张单帧（自动切分前请点「批处理对齐」）', rawFrames.length>0)
+    })
+
+    // 批处理对齐：裁白边 + 统一画布 + 脚底对齐
+    pSeq.querySelector('#q-align')!.addEventListener('click', ()=>{
+      if(!rawFrames.length) return toast(status,'请先逐帧生成',false)
+      setProg(10)
+      const cropped=rawFrames.map(cropToContent)
+      const norm=normalizeFrames(cropped, 12)
+      frames=norm.frames
+      renderThumbs()
+      canvas.width=288; canvas.height=288; drawFrame(canvas,0)
+      setProg(0)
+      toast(status,'已对齐 '+frames.length+' 帧（裁白边→'+frames[0].width+'×'+frames[0].height+'· 脚底对齐）', true)
+    })
+
+    // 拼成精灵表（横排）
+    pSeq.querySelector('#q-pack')!.addEventListener('click', ()=>{
+      const list=frames.length? frames : rawFrames
+      if(!list.length) return toast(status,'无帧可拼接',false)
+      packCanvas=packRow(list)
+      packPrev.innerHTML=''; const img=document.createElement('img'); img.src=packCanvas.toDataURL()
+      img.style.maxWidth='100%'; img.style.maxHeight='200px'; img.style.width='auto'; img.style.height='auto'; img.style.objectFit='contain'; img.style.imageRendering='pixelated'; packPrev.appendChild(img)
+      toast(status,'已拼成 '+packCanvas.width+'×'+packCanvas.height+' 精灵表', true)
+    })
+
+    // 合成 GIF
+    pSeq.querySelector('#q-gif')!.addEventListener('click', ()=>{
+      const list=frames.length? frames : rawFrames
+      if(!list.length) return toast(status,'无帧可合成 GIF',false)
+      const fps=parseInt(fpsEl.value)||8
+      const blob=buildGif(list, fps, true)
+      const url=URL.createObjectURL(blob)
+      const a=document.createElement('a'); a.href=url; a.download='animation_'+Date.now()+'.gif'; a.click()
+      setTimeout(()=>URL.revokeObjectURL(url), 5000)
+      toast(status,'已合成并下载 GIF（'+list.length+' 帧 @ '+fps+' FPS）', true)
+    })
+
+    // 预览动画
+    pSeq.querySelector('#q-animate')!.addEventListener('click', ()=>{
+      const list=frames.length? frames : rawFrames
+      if(!list.length) return toast(status,'无帧',false)
+      const fps=parseInt(fpsEl.value)||8; cancelAnimationFrame(animId)
+      let idx=0
+      let lastT=performance.now()
+      const tick=(now:number)=>{ if(now-lastT>=1000/fps){ drawFrame(canvas, idx); idx=(idx+1)%list.length; lastT=now } animId=requestAnimationFrame(tick) }
+      animId=requestAnimationFrame(tick)
+      setTimeout(()=>cancelAnimationFrame(animId), 4000)
+    })
+
+    // 导出 Godot：精灵表 PNG + SpriteFrames.json/.tres + GIF
+    pSeq.querySelector('#q-export')!.addEventListener('click', ()=>{
+      const list=frames.length? frames : rawFrames
+      if(!list.length) return toast(status,'先对齐/拼接',false)
+      const sheet = packCanvas || packRow(list)
+      const ts=Date.now(); const pngName='seqframe_'+ts+'.png'
+      const a=document.createElement('a'); a.href=sheet.toDataURL(); a.download=pngName; a.click()
+      const fw=list[0].width, fh=list[0].height, fps=parseInt(fpsEl.value)||8, perRow=list.length
+      const animations=[{ name:'default', frames:list.map((_,i)=>i), speed:fps, loop:true }]
+      const mf={ meta:{ image:pngName, size:[sheet.width,sheet.height], frames:list.length, cols:perRow, rows:1, animation_mode:'single' }, frames:list.map((_,i)=>({ name:'frame_'+i, region:[i*fw,0,fw,fh], duration:1/fps })), godot:{ type:'SpriteFrames', animations } }
+      const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const bu=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=bu; b.download='SpriteFrames.json'; b.click()
+      const at=document.createElement('a'); at.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildSpriteFramesTres(pngName, perRow, animations, fw, fh)); at.download='SpriteFrames_'+ts+'.tres'; at.click()
+      const gifBlob=buildGif(list, fps, true); const gu=URL.createObjectURL(gifBlob); const g=document.createElement('a'); g.href=gu; g.download='animation_'+ts+'.gif'; g.click(); setTimeout(()=>{URL.revokeObjectURL(bu);URL.revokeObjectURL(gu)},5000)
+      pushHistory({ kind:'spritesheet', file:'seqframe', cols:perRow, rows:1, count:list.length })
+      toast(status,'已导出 PNG + SpriteFrames.json/.tres + GIF（'+list.length+' 帧）', true)
+    })
+
+    // 全部入库
+    pSeq.querySelector('#q-save')!.addEventListener('click', async ()=>{
+      const list=frames.length? frames : rawFrames
+      if(!list.length) return toast(status,'无素材可入库',false)
+      const sheet = packCanvas || packRow(list)
+      const id=await addToLibrary('spritesheet','单帧动画 '+new Date().toLocaleTimeString(), sheet.toDataURL(), { cols:list.length, rows:1, fps:parseInt(fpsEl.value)||8, frameW:list[0].width, frameH:list[0].height, frames:list.length, dirRows:false, dirNames:'' })
+      toast(status,'已入库 '+id, true)
+    })
+
+    // 清空
+    pSeq.querySelector('#q-clear')!.addEventListener('click', ()=>{
+      rawFrames=[]; frames=[]; packCanvas=null; framesEl.innerHTML=''; packPrev.innerHTML='<span class="gas-note">等待拼接</span>'
+      const g=canvas.getContext('2d')!; g.clearRect(0,0,canvas.width,canvas.height)
+      toast(status,'已清空', true)
+    })
+
+    // ---- 上传整表 → 手动框选裁剪 ----
+    const sheetFile= pSeq.querySelector('#q-sheet-file') as HTMLInputElement
+    const sheetCanvas= pSeq.querySelector('#q-sheet-canvas') as HTMLCanvasElement
+    const sheetCtx= sheetCanvas.getContext('2d')!
+    const boxStatus= pSeq.querySelector('#q-box-status') as HTMLElement
+    let sheetImg: HTMLCanvasElement|null=null
+    let sheetScale=1
+    let boxRects: {x:number;y:number;w:number;h:number}[]=[]
+    let boxDrag: {x0:number;y0:number;x1:number;y1:number}|null=null
+    let boxDragging=false
+
+    const drawSheet=()=>{
+      sheetCtx.clearRect(0,0,sheetCanvas.width,sheetCanvas.height)
+      if(sheetImg){
+        sheetCtx.imageSmoothingEnabled=false
+        sheetCtx.drawImage(sheetImg, 0,0, sheetImg.width, sheetImg.height, 0,0, sheetCanvas.width, sheetCanvas.height)
+      }
+      // 已框框（黄）
+      sheetCtx.strokeStyle='#ffd76a'; sheetCtx.lineWidth=2
+      for(const r of boxRects){
+        sheetCtx.strokeRect(r.x*sheetScale, r.y*sheetScale, r.w*sheetScale, r.h*sheetScale)
+      }
+      // 当前拖拽框（青）
+      if(boxDrag){
+        const x=Math.min(boxDrag.x0,boxDrag.x1)*sheetScale, y=Math.min(boxDrag.y0,boxDrag.y1)*sheetScale
+        const w=Math.abs(boxDrag.x1-boxDrag.x0)*sheetScale, h=Math.abs(boxDrag.y1-boxDrag.y0)*sheetScale
+        sheetCtx.strokeStyle='#6ea6d1'; sheetCtx.lineWidth=2
+        sheetCtx.strokeRect(x,y,w,h)
+      }
+    }
+    const imgToCanvas=(img:HTMLImageElement)=>{ const c=blankCanvas(img.naturalWidth||img.width, img.naturalHeight||img.height); const g=c.getContext('2d')!; g.imageSmoothingEnabled=false; g.drawImage(img,0,0); return c }
+    sheetFile.addEventListener('change', async (e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const url=URL.createObjectURL(f)
+      try{
+        const img=await loadImage(url)
+        sheetImg=imgToCanvas(img)
+        boxRects=[]; boxDrag=null
+        // 画布内部像素 = 图片原始像素（不缩放），彻底避免显示缩放导致的坐标漂移
+        sheetCanvas.width=sheetImg.width; sheetCanvas.height=sheetImg.height
+        sheetScale=1
+        drawSheet()
+        boxStatus.textContent='已加载整表（'+sheetImg.width+'×'+sheetImg.height+'），拖拽框出每帧区域。'
+      }catch(err:any){ boxStatus.textContent='加载失败：'+String(err.message||err).slice(0,60); boxStatus.style.color='#e74c3c' }
+      finally{ URL.revokeObjectURL(url) }
+    })
+    // 用 offsetX/offsetY（相对 canvas 内部像素，天然准确）换算坐标，不漂移
+    const evtPos=(e:MouseEvent)=>{ return { x:e.offsetX/sheetScale, y:e.offsetY/sheetScale } }
+    sheetCanvas.addEventListener('mousedown', (e)=>{ if(!sheetImg) return; const p=evtPos(e); e.preventDefault(); boxDragging=true; boxDrag={x0:Math.max(0,Math.min(p.x,sheetImg.width)), y0:Math.max(0,Math.min(p.y,sheetImg.height)), x1:Math.max(0,Math.min(p.x,sheetImg.width)), y1:Math.max(0,Math.min(p.y,sheetImg.height)) }; drawSheet() })
+    sheetCanvas.addEventListener('mousemove', (e)=>{ if(!boxDragging||!boxDrag) return; const p=evtPos(e); boxDrag.x1=Math.max(0,Math.min(p.x,sheetImg!.width)); boxDrag.y1=Math.max(0,Math.min(p.y,sheetImg!.height)); drawSheet() })
+    const endBox=()=>{
+      if(!boxDragging||!boxDrag) return
+      const x=Math.min(boxDrag.x0,boxDrag.x1), y=Math.min(boxDrag.y0,boxDrag.y1)
+      const w=Math.abs(boxDrag.x1-boxDrag.x0), h=Math.abs(boxDrag.y1-boxDrag.y0)
+      if(w>=6&&h>=6) boxRects.push({x,y,w,h})
+      boxDrag=null; boxDragging=false; drawSheet()
+      boxStatus.textContent='已框 '+boxRects.length+' 帧，可继续框选/撤销/清除，或点「✅ 应用并批量对齐」。'
+    }
+    sheetCanvas.addEventListener('mouseup', endBox)
+    sheetCanvas.addEventListener('mouseleave', endBox)
+    // ✨ 自动框图：按列投影找内容分隔缝，自动生成每帧矩形
+    const autoBox=()=>{
+      if(!sheetImg) return toast(status,'请先上传整表',false)
+      const W=sheetImg.width, H=sheetImg.height
+      const d=sheetCtx.getImageData(0,0,W,H).data
+      // 列投影：每列"非白/非透明内容"像素数
+      const col=new Float32Array(W)
+      for(let x=0;x<W;x++) for(let y=0;y<H;y++){
+        const i=(y*W+x)*4; const a=d[i+3]; const isWhite=d[i]>=240&&d[i+1]>=240&&d[i+2]>=240
+        if(a>8 && !isWhite) col[x]++
+      }
+      const colMax=Math.max(...col)||1
+      // 找"内容密簇"：超过平均的列视为有效，用间隙分隔
+      const mean=col.reduce((a,b)=>a+b,0)/W
+      const active=(x:number)=> col[x] > mean*0.12
+      const spans:{x0:number;x1:number}[]=[]
+      let inSpan=false, x0=0
+      for(let x=0;x<W;x++){ if(active(x)){ if(!inSpan){x0=x; inSpan=true} } else { if(inSpan){ if(x-x0>=8) spans.push({x0,x1:x-1}); inSpan=false } } }
+      if(inSpan) spans.push({x0,x1:W-1})
+      if(spans.length<2){ toast(status,'未能自动检测出多帧（可能角色连在一起或被裁切），请手动框选',false); return }
+      // 行范围：取整表最上/最下内容行
+      const row=new Float32Array(H)
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){ const i=(y*W+x)*4; const a=d[i+3]; const isWhite=d[i]>=240&&d[i+1]>=240&&d[i+2]>=240; if(a>8&&!isWhite) row[y]++ }
+      const rowMean=row.reduce((a,b)=>a+b,0)/H
+      let top=0,bot=H-1
+      while(top<H && row[top]<=rowMean*0.12) top++
+      while(bot>top && row[bot]<=rowMean*0.12) bot--
+      if(top>=bot){ top=0; bot=H-1 }
+      boxRects=spans.map(sp=>({ x:sp.x0, y:top, w:sp.x1-sp.x0+1, h:bot-top+1 }))
+      drawSheet()
+      boxStatus.textContent='✨ 自动框出 '+boxRects.length+' 帧，可手动微调后点「✅ 应用并批量对齐」。'
+      toast(status,'自动框出 '+boxRects.length+' 帧',true)
+    }
+    pSeq.querySelector('#q-box-auto')!.addEventListener('click', autoBox)
+    pSeq.querySelector('#q-box-undo')!.addEventListener('click', ()=>{ boxRects.pop(); drawSheet(); boxStatus.textContent='已框 '+boxRects.length+' 帧。' })
+    pSeq.querySelector('#q-box-clear')!.addEventListener('click', ()=>{ boxRects=[]; boxDrag=null; drawSheet(); boxStatus.textContent='已清除框选。' })
+    pSeq.querySelector('#q-box-apply')!.addEventListener('click', ()=>{
+      if(!sheetImg) return toast(status,'请先上传整表',false)
+      if(!boxRects.length) return toast(status,'请先框出帧区域（可点「✨ 自动框图」）',false)
+      setProg(30); boxStatus.textContent='正在应用…'; boxStatus.style.color=''
+      try{
+        const cropped=boxRects.map(r=> cropSheet(sheetImg!, r)).map(c=>cropToContent(c))
+        // 对每帧清残留（保留最大主体）
+        cropped.forEach(c=>cleanFrameBleed(c))
+        const normalized=cropped.filter(c=>{ // 丢弃近乎全透明的帧（避免帧列表空白）
+          const d=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data; let op=0
+          for(let i=0;i<c.width*c.height;i++) if(d[i*4+3]>16) op++
+          return op > c.width*c.height*0.01
+        })
+        if(!normalized.length){ boxStatus.textContent='框选区域没有有效内容（可能框到纯白/空白），请重新框选。'; boxStatus.style.color='#e74c3c'; setProg(0); return }
+        const norm=normalizeFrames(normalized, 12)
+        frames=norm.frames
+        rawFrames=normalized  // 保留裁边后的帧
+        renderThumbs()
+        canvas.width=288; canvas.height=288; drawFrame(canvas,0)
+        boxStatus.textContent='已从 '+boxRects.length+' 个框生成 '+frames.length+' 帧（裁边→'+frames[0].width+'×'+frames[0].height+'· 脚底对齐）。'
+        toast(status,'框选分离成功：'+frames.length+' 帧（'+frames[0].width+'×'+frames[0].height+'）', true)
+      }catch(err:any){
+        boxStatus.textContent='应用失败：'+String(err.message||err).slice(0,80); boxStatus.style.color='#e74c3c'
+      }
+      setProg(0)
+    })
+  })()
+
+  // ---- 素材处理流水线（切→透→齐→名→导）----
+  ;(()=>{
+    const drop= pPipe.querySelector('#pp-drop') as HTMLElement
+    const fileInput= pPipe.querySelector('#pp-file') as HTMLInputElement
+    const nameEl= pPipe.querySelector('#pp-name') as HTMLInputElement
+    const fpsEl= pPipe.querySelector('#pp-fps') as HTMLInputElement
+    const sizeEl= pPipe.querySelector('#pp-size') as HTMLInputElement
+    const bgEl= pPipe.querySelector('#pp-bg') as HTMLSelectElement
+    const modeEl= pPipe.querySelector('#pp-mode') as HTMLSelectElement
+    const status= pPipe.querySelector('#pp-status') as HTMLElement
+    const prog= pPipe.querySelector('#pp-prog') as HTMLElement
+    const framesEl= pPipe.querySelector('#pp-frames') as HTMLElement
+    const canvas= pPipe.querySelector('#pp-canvas') as HTMLCanvasElement
+    const packPrev= pPipe.querySelector('#pp-pack-preview') as HTMLElement
+    let rawFrames: HTMLCanvasElement[]=[]   // 切割后、去背/对齐前的帧
+    let frames: HTMLCanvasElement[]=[]      // 对齐后的帧
+    let sheet: HTMLCanvasElement|null=null  // 精灵表
+    let animId=0
+    const loadImage=(src:string):Promise<HTMLImageElement>=> new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src })
+    const setProg=(p:number)=> prog.style.width=p+'%'
+    const imgToCanvas=(img:HTMLImageElement)=>{ const c=blankCanvas(img.naturalWidth||img.width, img.naturalHeight||img.height); const g=c.getContext('2d')!; g.imageSmoothingEnabled=false; g.drawImage(img,0,0); return c }
+    const drawPreview=(idx=0)=>{ const g=canvas.getContext('2d')!; const f=frames[idx]; if(!f) return; canvas.width=288; canvas.height=288; g.imageSmoothingEnabled=false; g.clearRect(0,0,288,288); const s=Math.max(1,Math.floor(Math.min(288/f.width,288/f.height))); const dw=f.width*s, dh=f.height*s; g.drawImage(f,(288-dw)>>1,(288-dh)>>1,dw,dh) }
+    const renderThumbs=()=>{ framesEl.innerHTML=''; const list=frames.length? frames: rawFrames; list.forEach((fc,i)=>{ const d=document.createElement('div'); d.className='gas-thumb'; d.appendChild(fc); const m=document.createElement('div'); m.className='meta'; m.innerHTML='<span>#'+(i+1)+'</span><span>'+fc.width+'×'+fc.height+'</span>'; d.appendChild(m); framesEl.appendChild(d) }) }
+    const scaleTo=(cvs:HTMLCanvasElement, target:number)=>{ if(target<=0||target>=cvs.width&&target>=cvs.height) return cvs; const w=target, h=Math.max(1,Math.round(cvs.height*target/cvs.width)); const out=blankCanvas(w,h); const g=out.getContext('2d')!; g.imageSmoothingEnabled=false; g.drawImage(cvs,0,0,w,h); return out }
+
+    // 导入：读取所有选中的图片为 canvas（先存，处理时再切分/去背）
+    let importedFiles: File[]=[]
+    const ingestFiles=(files:FileList|File[])=>{
+      importedFiles=Array.from(files).filter(f=>/^image\//.test(f.type)||/\.(png|jpe?g|webp)$/i.test(f.name||''))
+      status.textContent='已导入 '+importedFiles.length+' 个文件，选择输入类型后点「🚀 一键处理」。'
+      toast(status,'已导入 '+importedFiles.length+' 个文件', true)
+    }
+    drop.addEventListener('click', ()=> fileInput.click())
+    drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.style.borderColor='#478cbf' })
+    drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
+    drop.addEventListener('drop', e=>{ e.preventDefault(); drop.style.borderColor='var(--border)'; const f=e.dataTransfer?.files; if(f&&f.length) ingestFiles(f) })
+    fileInput.addEventListener('change', ()=>{ const f=fileInput.files; if(f&&f.length){ ingestFiles(f); fileInput.value='' } })
+
+    // 🚀 一键处理：切→透→齐→名→导
+    pPipe.querySelector('#pp-run')!.addEventListener('click', async ()=>{
+      if(!importedFiles.length) return toast(status,'请先导入素材',false)
+      setProg(10); status.textContent='处理中…'; status.style.color=''
+      try{
+        const mode=modeEl.value, bgMode=bgEl.value as 'white'|'gray'|'none', target=parseInt(sizeEl.value)||0, fps=parseInt(fpsEl.value)||8
+        const prefix=nameEl.value.trim()||'frame'
+        rawFrames=[]
+        // 第1步 切割
+        if(mode==='sheet' && importedFiles.length===1){
+          const img=await loadImage(URL.createObjectURL(importedFiles[0]))
+          const sheetImg=imgToCanvas(img)
+          const boxes=autoBoxProjection(sheetImg)
+          rawFrames=boxes.map(r=> cropSheet(sheetImg, r))
+          status.textContent='整表自动切分：'+rawFrames.length+' 帧。'
+        } else {
+          for(const f of importedFiles){ const img=await loadImage(URL.createObjectURL(f)); rawFrames.push(imgToCanvas(img)) }
+          status.textContent='多张单帧：'+rawFrames.length+' 帧。'
+        }
+        setProg(30)
+        // 第2步 去背 + 第3步 裁边/对齐
+        const processed=rawFrames.map(c=>{
+          removeBackground(c, bgMode)
+          const cropped=cropToContent(c)
+          cleanFrameBleed(cropped)
+          return scaleTo(cropped, target)
+        }).filter(c=>{ // 丢弃近全透明
+          const d=c.getContext('2d')!.getImageData(0,0,c.width,c.height).data; let op=0
+          for(let i=0;i<c.width*c.height;i++) if(d[i*4+3]>16) op++
+          return op > c.width*c.height*0.01
+        })
+        if(!processed.length){ status.textContent='没有有效内容（可能全部被去背清空），请检查去背模式。'; status.style.color='#e74c3c'; setProg(0); return }
+        const norm=normalizeFrames(processed, 12)
+        frames=norm.frames
+        setProg(60)
+        // 横排拼成精灵表
+        sheet=packRow(frames)
+        packPrev.innerHTML=''; const pim=document.createElement('img'); pim.src=sheet.toDataURL(); pim.style.maxWidth='100%'; pim.style.maxHeight='200px'; pim.style.width='auto'; pim.style.height='auto'; pim.style.objectFit='contain'; pim.style.imageRendering='pixelated'; packPrev.appendChild(pim)
+        renderThumbs(); drawPreview(0)
+        setProg(90)
+        // 第4步 命名 + 第5步 导出配置
+        const names=buildFrameNaming(prefix, frames.length)
+        const fw=frames[0].width, fh=frames[0].height, perRow=frames.length
+        const animations=[{ name:prefix, frames:frames.map((_,i)=>i), speed:fps, loop:true }]
+        const mf={ meta:{ image:'spritesheet.png', size:[sheet.width,sheet.height], frames:frames.length, cols:perRow, rows:1, animation_mode:'single' }, frames:frames.map((_,i)=>({ name:names[i], region:[i*fw,0,fw,fh], duration:1/fps })), godot:{ type:'SpriteFrames', animations } }
+        // 存到模块级，供后续下载/入库
+        ;(pPipe as any)._pipeline={ names, fps, animations, mf, fw, fh, perRow }
+        status.textContent='✅ 处理完成：'+frames.length+' 帧（'+fw+'×'+fh+'）→ '+names[0]+' ~ '+names[names.length-1]+'；预览精灵表，可下载/入库。'
+        toast(status,'处理完成：'+frames.length+' 帧，命名 '+prefix+'_0~'+prefix+'_'+(frames.length-1), true)
+        setProg(100); setTimeout(()=>setProg(0),1200)
+      }catch(e:any){ status.textContent='处理失败：'+String(e.message||e).slice(0,80); status.style.color='#e74c3c'; setProg(0) }
+    })
+
+    // 预览动画（点击预览画布播放）
+    canvas.addEventListener('click', ()=>{ if(!frames.length) return; cancelAnimationFrame(animId); let idx=0; let lastT=performance.now(); const tick=(now:number)=>{ if(now-lastT>=1000/(parseInt(fpsEl.value)||8)){ drawPreview(idx); idx=(idx+1)%frames.length; lastT=now } animId=requestAnimationFrame(tick) }; animId=requestAnimationFrame(tick); setTimeout(()=>cancelAnimationFrame(animId),4000) })
+
+    // 下载全部：逐帧命名 PNG + SpriteFrames.json + .tres + 精灵表
+    pPipe.querySelector('#pp-dl')!.addEventListener('click', async ()=>{
+      if(!frames.length) return toast(status,'请先处理',false)
+      const pipe=pPipe as any; const { names, fps, animations, mf, fw, fh, perRow }=pipe._pipeline||{ names:buildFrameNaming(nameEl.value.trim()||'frame',frames.length), fps:parseInt(fpsEl.value)||8, animations:[{ name:'default', frames:frames.map((_,i)=>i), speed:parseInt(fpsEl.value)||8, loop:true }], mf:null, fw:frames[0].width, fh:frames[0].height, perRow:frames.length }
+      // 逐帧下载（旧版字符为 dataURL 也可）
+      for(let i=0;i<frames.length;i++){ const a=document.createElement('a'); a.href=frames[i].toDataURL(); a.download=names[i]; a.click(); await new Promise(r=>setTimeout(r,120)) }
+      const sheetBuf=sheet||packRow(frames)
+      const sa=document.createElement('a'); sa.href=sheetBuf.toDataURL(); sa.download=(nameEl.value.trim()||'walk')+'_spritesheet.png'; sa.click()
+      if(mf){ const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const bu=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=bu; b.download='SpriteFrames.json'; b.click(); setTimeout(()=>URL.revokeObjectURL(bu),3000) }
+      const ts=Date.now(); const ga=document.createElement('a'); ga.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildSpriteFramesTres((nameEl.value.trim()||'walk')+'_spritesheet.png', perRow, animations, fw, fh)); ga.download='SpriteFrames_'+ts+'.tres'; ga.click()
+      toast(status,'已下载 '+frames.length+' 帧 + 精灵表 + SpriteFrames', true)
+    })
+
+    // 全部入库
+    pPipe.querySelector('#pp-save')!.addEventListener('click', async ()=>{
+      if(!frames.length) return toast(status,'请先处理',false)
+      const sheetBuf=sheet||packRow(frames); const fw=frames[0].width, fh=frames[0].height, fps=parseInt(fpsEl.value)||8, perRow=frames.length
+      const id=await addToLibrary('spritesheet','流水线 '+new Date().toLocaleTimeString(), sheetBuf.toDataURL(), { cols:perRow, rows:1, fps, frameW:fw, frameH:fh, frames:frames.length, dirRows:false, dirNames:'' })
+      toast(status,'已入库 '+id, true)
+    })
+
+    pPipe.querySelector('#pp-clear')!.addEventListener('click', ()=>{
+      importedFiles=[]; rawFrames=[]; frames=[]; sheet=null; framesEl.innerHTML=''; packPrev.innerHTML='<span class="gas-note">等待处理</span>'
+      const g=canvas.getContext('2d')!; g.clearRect(0,0,canvas.width,canvas.height)
+      status.textContent='已清空'
     })
   })()
 
@@ -1776,7 +2492,7 @@ function mockImage(prompt:string, opts:any): string {
     pForge.querySelector('#f-ref')!.addEventListener('change', (e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
       const reader=new FileReader()
-      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓') }
+      reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); const del=document.createElement('button'); del.type='button'; del.textContent='✕ 删除'; del.style.cssText='margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:#2c313d;color:#e74c3c;cursor:pointer;display:block'; del.onclick=(e:any)=>{ e.stopPropagation(); refUrl=''; refPreview.innerHTML='<span class="gas-note">未添加</span>'; toast(status,'参考图已删除') }; refPreview.appendChild(del); toast(status,'参考图已添加 ✓') }
       reader.readAsDataURL(f)
     })
     // 批量队列：并发控制 + 失败重试 + 进度 + 可停止
@@ -2113,7 +2829,7 @@ function mockImage(prompt:string, opts:any): string {
     pMap.querySelector('#map-ref')!.addEventListener('change', (e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
       const reader=new FileReader()
-      reader.onload=()=>{ mapRefUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=mapRefUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓') }
+      reader.onload=()=>{ mapRefUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=mapRefUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); const del=document.createElement('button'); del.type='button'; del.textContent='✕ 删除'; del.style.cssText='margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:#2c313d;color:#e74c3c;cursor:pointer;display:block'; del.onclick=(e:any)=>{ e.stopPropagation(); mapRefUrl=''; refPreview.innerHTML='<span class="gas-note">未添加</span>'; toast(status,'参考图已删除') }; refPreview.appendChild(del); toast(status,'参考图已添加 ✓') }
       reader.readAsDataURL(f)
     })
     pMap.querySelector('#map-gen')!.addEventListener('click', async()=>{
