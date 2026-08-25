@@ -212,6 +212,7 @@ function buildStudio(): HTMLElement {
             <div style="flex:1"><label class="gas-label">列 (cols)</label><input class="gas-input" id="s-cols" type="number" value="4" min="1" max="16"></div>
             <div style="flex:1"><label class="gas-label">行 (rows)</label><input class="gas-input" id="s-rows" type="number" value="2" min="1" max="16"></div>
             <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="s-fps" type="number" value="8" min="1" max="24"></div>
+            <div style="flex:1"><label class="gas-label">边界微剪(px)</label><input class="gas-input" id="s-crop" type="number" value="2" min="0" max="32"></div>
           </div>
           <div class="gas-row" style="margin-top:8px;align-items:center">
             <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="s-dir-rows"> 行 = 方向（导出命名动画）</label>
@@ -1391,12 +1392,15 @@ function mockImage(prompt:string, opts:any): string {
         colsEl.value=String(grid.cols); rowsEl.value=String(grid.rows)
       }
       const cols=grid.cols, rows=grid.rows
+      const crop=parseInt((pSheet.querySelector('#s-crop') as HTMLInputElement)?.value||'0')||0
+      const cCrop=Math.max(0,Math.min(crop, Math.floor(img.width/cols/2)-1))
+      const rCrop=Math.max(0,Math.min(crop, Math.floor(img.height/rows/2)-1))
       frames=[]; framesEl.innerHTML=''
-      const fw=Math.max(1,Math.floor(img.width/cols)), fh=Math.max(1,Math.floor(img.height/rows))
+      const fw=Math.max(1,Math.floor(img.width/cols)-2*cCrop), fh=Math.max(1,Math.floor(img.height/rows)-2*rCrop)
       // 原图 canvas
       const tmp=document.createElement('canvas'); tmp.width=img.width; tmp.height=img.height; tmp.getContext('2d')!.drawImage(img,0,0)
       for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-        const fc=document.createElement('canvas'); fc.width=fw; fc.height=fh; fc.getContext('2d')!.drawImage(tmp, c*fw, r*fh, fw, fh, 0,0,fw,fh)
+        const fc=document.createElement('canvas'); fc.width=fw; fc.height=fh; fc.getContext('2d')!.drawImage(tmp, c*(fw+2*cCrop)+cCrop, r*(fh+2*rCrop)+rCrop, fw, fh, 0,0,fw,fh)
         frames.push(fc)
         const thumb=document.createElement('div'); thumb.className='gas-thumb'; thumb.appendChild(fc); const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+frames.length+'</span><span>'+fw+'×'+fh+'</span>'; thumb.appendChild(meta)
         framesEl.appendChild(thumb)
