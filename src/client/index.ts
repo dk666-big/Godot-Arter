@@ -246,6 +246,13 @@ function buildStudio(): HTMLElement {
         </div>
       </div>
       <div class="gas-grid" id="s-frames"></div>
+      <div class="gas-row" style="margin-top:10px;align-items:center">
+        <span class="gas-note" id="s-selinfo" style="flex:1">点击缩略图选中帧 → 微调该帧四边裁剪（去除残留，如邻帧法杖尖端）</span>
+        <span class="gas-note">上</span><input class="gas-input" id="s-mt" type="number" value="0" min="0" max="96" style="width:56px">
+        <span class="gas-note">下</span><input class="gas-input" id="s-mb" type="number" value="0" min="0" max="96" style="width:56px">
+        <span class="gas-note">左</span><input class="gas-input" id="s-ml" type="number" value="0" min="0" max="96" style="width:56px">
+        <span class="gas-note">右</span><input class="gas-input" id="s-mr" type="number" value="0" min="0" max="96" style="width:56px">
+      </div>
     </div>
   `)
 
@@ -1240,6 +1247,10 @@ function mockImage(prompt:string, opts:any): string {
     const promptEl= pSheet.querySelector('#s-prompt') as HTMLTextAreaElement
     let frames: HTMLCanvasElement[]=[]; let animId=0; let packCanvas: HTMLCanvasElement|null=null
     let sheetRefUrl=''
+    // 逐帧微调裁剪：帧来源信息 + 每帧四边额外裁剪量
+    let srcInfo:any=null
+    let frameOffs:{t:number;b:number;l:number;r:number}[]=[]
+    let selF=-1
     const sRefInput=pSheet.querySelector('#s-ref') as HTMLInputElement
     const sRefPreview=pSheet.querySelector('#s-ref-preview') as HTMLElement
 
@@ -1403,12 +1414,50 @@ function mockImage(prompt:string, opts:any): string {
         const fc=document.createElement('canvas'); fc.width=fw; fc.height=fh; fc.getContext('2d')!.drawImage(tmp, c*(fw+2*cCrop)+cCrop, r*(fh+2*rCrop)+rCrop, fw, fh, 0,0,fw,fh)
         frames.push(fc)
         const thumb=document.createElement('div'); thumb.className='gas-thumb'; thumb.appendChild(fc); const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+frames.length+'</span><span>'+fw+'×'+fh+'</span>'; thumb.appendChild(meta)
+        const fIdx=frames.length-1
+        thumb.onclick=()=>selectF(fIdx)
         framesEl.appendChild(thumb)
       }
+      // 记录源图信息用于逐帧微调
+      srcInfo={ tmp, cols, rows, xOf:(c:number)=>c*(fw+2*cCrop)+cCrop, yOf:(r:number)=>r*(fh+2*rCrop)+rCrop, baseW:fw, baseH:fh }
+      frameOffs=frames.map(()=>({t:0,b:0,l:0,r:0})); selF=-1
+      const selInfo=pSheet.querySelector('#s-selinfo') as HTMLElement; if(selInfo) selInfo.textContent='点击缩略图选中帧 → 微调该帧四边裁剪(去除残留法杖等)'
       // 预览第一帧（整数倍缩放居中,清晰无拖影）
       if(frames[0]){ canvas.width=288; canvas.height=288; drawFrame(canvas, 0) }
       pushHistory({ kind:'spritesheet', file:file.name, cols, rows, count:frames.length })
       toast(status, '已切片 '+frames.length+' 帧 ('+fw+'×'+fh+')'+(grid.conf? grid.how==='布局'? ' · 按「序列布局」切分 '+cols+'×'+rows : ' · 智能检测('+grid.how+') '+cols+'×'+rows : ' · 未检出自动网格,按当前行列切分(可改列×行,或在「序列布局」直接选网格重切,如 横向单行 8 帧)'))
+    }
+
+    // ---- 逐帧微调裁剪（去除残留：如邻帧法杖尖端混入本帧）----
+    function reRenderFrame(idx:number){
+      if(!srcInfo||!frameOffs[idx]) return
+      const o=frameOffs[idx]; const f=frames[idx]; if(!f) return
+      const sx=srcInfo.xOf(idx%srcInfo.cols)+o.l, sy=srcInfo.yOf(Math.floor(idx/srcInfo.cols))+o.t
+      const w=Math.max(4, srcInfo.baseW-o.l-o.r), h=Math.max(4, srcInfo.baseH-o.t-o.b)
+      const fc=document.createElement('canvas'); fc.width=w; fc.height=h
+      const g=fc.getContext('2d')!; g.imageSmoothingEnabled=false
+      g.drawImage(srcInfo.tmp, sx, sy, w, h, 0,0,w,h)
+      frames[idx]=fc
+      const thumbs=[...framesEl.querySelectorAll('.gas-thumb')] as HTMLElement[]
+      const tb=thumbs[idx]; if(!tb) return
+      tb.innerHTML=''; tb.appendChild(fc)
+      const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+(idx+1)+'</span><span>'+w+'×'+h+'</span>'; tb.appendChild(meta)
+      if(idx===0){ canvas.width=288; canvas.height=288; drawFrame(canvas,0) }
+      if(selInfo2) selInfo2.textContent='已微调第 '+(idx+1)+' 帧（左'+o.l+' 右'+o.r+' 上'+o.t+' 下'+o.b+'）—— 播放/打包/导出均按微调后帧'
+    }
+    const selInfo2=pSheet.querySelector('#s-selinfo') as HTMLElement
+    function selectF(idx:number){
+      selF=idx
+      ;[...framesEl.querySelectorAll('.gas-thumb')].forEach((t:any,i:number)=>{ t.style.outline = i===idx?'2px solid #ffd76a':'' })
+      const o=frameOffs[idx]||{t:0,b:0,l:0,r:0}
+      for(const [k,id2] of [['t','#s-mt'],['b','#s-mb'],['l','#s-ml'],['r','#s-mr']] as const){ const el=pSheet.querySelector(id2) as HTMLInputElement; if(el) el.value=String((o as any)[k]||0) }
+      if(selInfo2) selInfo2.textContent='已选中第 '+(idx+1)+' 帧：调整下方数值微调该帧四边裁剪'
+    }
+    for(const [k,id2] of [['t','#s-mt'],['b','#s-mb'],['l','#s-ml'],['r','#s-mr']] as const){
+      pSheet.querySelector(id2)!.addEventListener('input', (e:any)=>{
+        const v=parseInt(e.target.value)||0
+        if(selF>=0&&frameOffs[selF]){ (frameOffs[selF] as any)[k]=Math.max(0,Math.min(96,v)); reRenderFrame(selF) }
+      })
     }
 
     drop.addEventListener('click', ()=> fileInput.click())
