@@ -160,9 +160,9 @@ function buildStudio(): HTMLElement {
       <div class="gas-row">
         <div style="flex:1">
           <label class="gas-label">角色描述 Prompt</label>
-          <textarea class="gas-textarea" id="c-prompt" placeholder="例：像素风 32px 冒险家少女，红斗篷，Q版，三视图，正面/侧面/背面，白色背景"></textarea>
+          <textarea class="gas-textarea" id="c-prompt" style="min-height:92px" placeholder="角色描述（支持换行书写长提示词）。例：像素风 32px 冒险家少女，红斗篷，Q版，三视图，正面/侧面/背面，白色背景"></textarea>
           <div class="gas-row" style="margin-top:8px">
-            <div style="flex:1"><label class="gas-label">风格</label><select class="gas-select" id="c-style"><option value="pixel32">像素 32px</option><option value="pixel16">像素 16px</option><option value="chibi">Q版 Chibi</option><option value="anime">二次元立绘</option><option value="real">写实</option></select></div>
+            <div style="flex:1"><label class="gas-label">风格</label><select class="gas-select" id="c-style"><option value="pixel32">像素 32px</option><option value="pixel16">像素 16px</option><option value="chibi">Q版 Chibi</option><option value="anime">二次元立绘</option><option value="real">写实</option><option value="free">🎨 自由风格（完全按提示词）</option></select></div>
             <div style="flex:1"><label class="gas-label">视图</label><select class="gas-select" id="c-view"><option value="single">单视图</option><option value="tri">三视图 (前/侧/后)</option><option value="dir8">八方向</option></select></div>
             <div style="flex:1"><label class="gas-label">提供商</label><select class="gas-select" id="c-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select><select class="gas-select" id="c-model-sel" style="display:none;margin-top:6px"></select></div>
           </div>
@@ -221,16 +221,25 @@ function buildStudio(): HTMLElement {
             <button class="gas-btn" id="s-slice">🔪 切片</button>
             <button class="gas-btn ghost" id="s-pack">📦 打包成表</button>
             <button class="gas-btn ghost" id="s-animate">▶ 播放</button>
+            <button class="gas-btn ghost" id="s-zoom">⛶ 全屏预览</button>
             <button class="gas-btn orange" id="s-export">⬇ 导出 Godot</button>
               <button class="gas-btn ghost" id="s-save">📥 入库</button>
           </div>
-          <label class="gas-label">AI 生成序列（BYOK）</label>
-          <div class="gas-row"><input class="gas-input" id="s-prompt" placeholder="例：像素小骑士 奔跑 8帧 横向序列，透明背景"><div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="s-provider"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="s-model-sel" style="display:none;margin-top:4px"></select></div><button class="gas-btn" id="s-gen">生成</button></div>
+          <label class="gas-label">AI 生成序列（BYOK · 支持角色参考图，生成后自动智能切分）</label>
+          <textarea class="gas-textarea" id="s-prompt" style="min-height:68px" placeholder="只描述动作即可（配合左下方参考图），支持换行书写长提示词。例：像素小骑士 奔跑 8 帧 横向序列，侧面视角，透明背景"></textarea>
+          <div class="gas-row" style="margin-top:8px">
+            <label class="gas-label" style="margin:0">序列布局</label>
+            <select class="gas-select" id="s-layout" style="flex:1"><option value="auto">✨ 智能自动切分（推荐）</option><option value="single">横向单行（8帧）</option><option value="2x4">2 行 × 4 列（8帧）</option><option value="4x2">4 行 × 2 列（8帧）</option><option value="tri">三视图 前/侧/后（3帧）</option><option value="dir8">八方向（2 行 × 4 列）</option></select>
+            <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="s-ref" accept="image/*" hidden>📁 角色参考图</label>
+            <div id="s-ref-preview" class="gas-preview tiled" style="min-height:44px;max-height:56px;flex:0 0 76px;padding:4px"><span class="gas-note">无</span></div>
+            <div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="s-provider"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="s-model-sel" style="display:none;margin-top:4px"></select></div>
+            <button class="gas-btn" id="s-gen">✨ 生成并切分</button>
+          </div>
           <div class="gas-note" id="s-status"></div>
         </div>
-        <div style="width:260px">
-          <label class="gas-label">预览动画</label>
-          <div class="gas-preview tiled" id="s-preview"><canvas class="gas-canvas" id="s-canvas" width="128" height="128"></canvas></div>
+        <div style="width:300px">
+          <label class="gas-label">预览动画（可点「⛶ 放大」撑满全屏）</label>
+          <div class="gas-preview tiled" id="s-preview"><canvas class="gas-canvas" id="s-canvas" width="288" height="288"></canvas></div>
           <label class="gas-label">打包结果</label>
           <div class="gas-preview" id="s-pack-preview"><span class="gas-note">等待打包</span></div>
         </div>
@@ -257,7 +266,7 @@ function buildStudio(): HTMLElement {
         </div>
       </div>
       <div class="gas-row" style="margin-top:8px">
-        <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option></select>
+        <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option><option value="free">🎨 自由（完全按提示词）</option></select>
         <div style="flex:1;display:flex;flex-direction:column"><select class="gas-select" id="f-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select><select class="gas-select" id="f-model-sel" style="display:none;margin-top:4px"></select></div>
         <button class="gas-btn" id="f-batch">⚡ 批量生成</button>
       </div>
@@ -335,7 +344,7 @@ function buildStudio(): HTMLElement {
             </select>
             <div class="gas-note" id="map-mode-tip" style="margin-top:4px">🌍 完整大地图：AI 直接生成一张可用的无缝大地图，适合做场景背景/整图导入；也可以后续切成 TileSet。</div>
             <div class="gas-row" style="margin-top:8px">
-              <input class="gas-input" id="map-prompt" placeholder="例：俯视像素草原村庄大地图，有道路/河流/树木，暗色风格，无缝平铺，无UI">
+              <textarea class="gas-textarea" id="map-prompt" style="min-height:58px" placeholder="例：俯视像素草原村庄大地图，有道路/河流/树木，暗色风格，无缝平铺，无UI（支持换行书写长提示词）"></textarea>
               <select class="gas-select" id="map-provider" style="flex:0 0 128px"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="map-model-sel" style="display:none;margin-top:4px;flex:0 0 128px"></select>
               <button class="gas-btn" id="map-gen">✨ AI 生成</button>
               <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="map-file" accept="image/*" hidden>📁 上传</label>
@@ -434,7 +443,7 @@ function buildStudio(): HTMLElement {
         <div style="flex:1">
           <label class="gas-label">场景描述 Prompt（可选；留空则用上传 / 本地演示底图）</label>
           <div class="gas-row">
-            <input class="gas-input" id="sc-prompt" placeholder="例：像素风山间小镇，40x40 俯视">
+            <textarea class="gas-textarea" id="sc-prompt" style="min-height:58px" placeholder="例：像素风山间小镇，40x40 俯视（支持换行书写长提示词）"></textarea>
             <div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="sc-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select><select class="gas-select" id="sc-model-sel" style="display:none;margin-top:4px"></select></div>
             <button class="gas-btn" id="sc-gen">✨ 生成场景</button>
             <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="sc-upload" accept="image/*" hidden>📁 上传场景图</label>
@@ -1173,7 +1182,8 @@ function mockImage(prompt:string, opts:any): string {
       const bg=(pChar.querySelector('#c-bg') as HTMLInputElement)?.value||'#ffffff'
       const bgTrans=(pChar.querySelector('#c-bg-trans') as HTMLInputElement)?.checked===true
       const bgSuffix= bgTrans ? ', transparent background, PNG, no background' : ', solid '+bg+' background'
-      const fullPrompt = view==='tri' ? prompt+' , three views front side back, character sheet'+bgSuffix : view==='dir8' ? prompt+' , 8 directional sprites'+bgSuffix : prompt + (style.startsWith('pixel')?' , pixel art, '+style:' , '+style) + bgSuffix
+      const styleSuffix= style==='free' ? '' : (style.startsWith('pixel')?' , pixel art, '+style:' , '+style)
+      const fullPrompt = view==='tri' ? prompt+' , three views front side back, character sheet'+bgSuffix : view==='dir8' ? prompt+' , 8 directional sprites'+bgSuffix : prompt + styleSuffix + bgSuffix
       setProg(20); status.textContent='生成中… ('+prov+')'; (pChar.querySelector('#c-gen') as HTMLButtonElement).disabled=true
       try{
         const url=await callImageGen(fullPrompt, prov, { style, view, size:'1024x1024', bg, bgTrans, model: (pChar.querySelector('#c-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl || undefined })
@@ -1226,16 +1236,80 @@ function mockImage(prompt:string, opts:any): string {
     const ctx2= canvas.getContext('2d')!
     const framesEl= pSheet.querySelector('#s-frames') as HTMLElement
     const status= pSheet.querySelector('#s-status') as HTMLElement
-    const promptEl= pSheet.querySelector('#s-prompt') as HTMLInputElement
+    const promptEl= pSheet.querySelector('#s-prompt') as HTMLTextAreaElement
     let frames: HTMLCanvasElement[]=[]; let animId=0; let packCanvas: HTMLCanvasElement|null=null
+    let sheetRefUrl=''
+    const sRefInput=pSheet.querySelector('#s-ref') as HTMLInputElement
+    const sRefPreview=pSheet.querySelector('#s-ref-preview') as HTMLElement
 
     function loadImage(src:string):Promise<HTMLImageElement>{ return new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src }) }
 
+    // 智能缝线检测：扫描行列“能量缝”（透明间隔），自动推导网格，解决 AI 序列错位/拖影
+    function detectGrid(img:HTMLImageElement):{cols:number;rows:number;conf:number}{
+      const w=img.naturalWidth||img.width, h=img.naturalHeight||img.height
+      const manualC=parseInt(colsEl.value)||1, manualR=parseInt(rowsEl.value)||1
+      if(w<8||h<8) return { cols:manualC, rows:manualR, conf:0 }
+      const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d')!; g.drawImage(img,0,0)
+      const d=g.getImageData(0,0,w,h).data
+      const colE=new Float32Array(w), rowE=new Float32Array(h)
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=(y*w+x)*4; if(d[i+3]/255>0.06){ colE[x]++; rowE[y]++ } }
+      const colAvg=colE.reduce((a,b)=>a+b,0)/w, rowAvg=rowE.reduce((a,b)=>a+b,0)/h
+      const colSeams=[0], rowSeams=[0]
+      for(let x=1;x<w;x++) if(colE[x]<colAvg*0.18) colSeams.push(x)
+      for(let y=1;y<h;y++) if(rowE[y]<rowAvg*0.18) rowSeams.push(y)
+      const gapMode=(seams:number[], total:number)=>{
+        if(seams.length<3) return 0
+        // 按连续缝分组（相邻差≤2 视为同一条缝带），每组取中心作为代表缝
+        const groups:number[][]=[]; let cur=[seams[0]]
+        for(let i=1;i<seams.length;i++){ if(seams[i]-seams[i-1]<=2) cur.push(seams[i]); else { groups.push(cur); cur=[seams[i]] } }
+        groups.push(cur)
+        const reps=groups.map(g=>Math.round((g[0]+g[g.length-1])/2))
+        if(reps.length<3) return 0
+        const gaps:number[]=[]
+        for(let i=1;i<reps.length;i++){ const gap=reps[i]-reps[i-1]; if(gap>=8&&gap<=total*0.6) gaps.push(gap) }
+        if(!gaps.length) return 0
+        const cnt=new Map<number,number>(); for(const gp of gaps) cnt.set(gp,(cnt.get(gp)||0)+1)
+        let best=0,bn=0; for(const [gp,n] of cnt) if(n>bn){bn=n;best=gp}
+        return best
+      }
+      const fw=gapMode([...colSeams.filter(s=>s<w-1), w-1], w)
+      const fh=gapMode([...rowSeams.filter(s=>s<h-1), h-1], h)
+      const cols=fw>0? Math.max(1,Math.round(w/fw)):0
+      const rows=fh>0? Math.max(1,Math.round(h/fh)):0
+      const conf=(cols>0&&rows>0&&cols*rows>1&&cols<=32&&rows<=32)?1:0
+      return { cols: conf? cols:manualC, rows: conf? rows:manualR, conf }
+    }
+    // 把一帧按整数倍缩放居中画到画布（nearest，消除模糊/拖影观感）
+    function drawFrame(cvs:HTMLCanvasElement, idx:number){
+      const g=cvs.getContext('2d')!; const f=frames[idx]; if(!f) return
+      const W=cvs.width, H=cvs.height
+      g.imageSmoothingEnabled=false; g.clearRect(0,0,W,H)
+      const s=Math.max(1, Math.floor(Math.min(W/f.width, H/f.height)))
+      const dw=f.width*s, dh=f.height*s
+      g.drawImage(f, (W-dw)>>1, (H-dh)>>1, dw, dh)
+    }
+    function zoomPreview(){
+      if(!frames.length) return toast(status,'无帧可播放',false)
+      const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px'
+      const cv=document.createElement('canvas'); cv.width=900; cv.height=675; cv.style.cssText='image-rendering:pixelated;max-width:92vw;max-height:82vh;width:auto;height:auto;background:#141822'
+      ov.appendChild(cv)
+      const tip=document.createElement('div'); tip.style.cssText='color:#a6b0c0;font-size:12px'; tip.textContent='点击任意处关闭 · '+fpsEl.value+' FPS'
+      ov.appendChild(tip)
+      let rid=0, idx=0; const fps=parseInt(fpsEl.value)||8; let last=performance.now()
+      const loop=(now:number)=>{ if(now-last>1000/fps){ drawFrame(cv, idx); idx=(idx+1)%frames.length; last=now } rid=requestAnimationFrame(loop) }
+      rid=requestAnimationFrame(loop)
+      ov.onclick=()=>{ cancelAnimationFrame(rid); ov.remove() }
+      document.body.appendChild(ov)
+    }
+
     async function sliceFromFile(file:File){
       const url=URL.createObjectURL(file); const img=await loadImage(url)
-      const cols=parseInt(colsEl.value)||4, rows=parseInt(rowsEl.value)||1
+      // 智能切分：自动检测行列（AI 序列帧有透明间隔也能切准，消除前一帧拖影）
+      const grid=detectGrid(img)
+      colsEl.value=String(grid.cols); rowsEl.value=String(grid.rows)
+      const cols=grid.cols, rows=grid.rows
       frames=[]; framesEl.innerHTML=''
-      const fw=Math.floor(img.width/cols), fh=Math.floor(img.height/rows)
+      const fw=Math.max(1,Math.floor(img.width/cols)), fh=Math.max(1,Math.floor(img.height/rows))
       // 原图 canvas
       const tmp=document.createElement('canvas'); tmp.width=img.width; tmp.height=img.height; tmp.getContext('2d')!.drawImage(img,0,0)
       for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
@@ -1244,10 +1318,10 @@ function mockImage(prompt:string, opts:any): string {
         const thumb=document.createElement('div'); thumb.className='gas-thumb'; thumb.appendChild(fc); const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+frames.length+'</span><span>'+fw+'×'+fh+'</span>'; thumb.appendChild(meta)
         framesEl.appendChild(thumb)
       }
-      // 预览第一帧
-      if(frames[0]){ canvas.width=frames[0].width; canvas.height=frames[0].height; ctx2.imageSmoothingEnabled=false; ctx2.clearRect(0,0,canvas.width,canvas.height); ctx2.drawImage(frames[0],0,0) }
+      // 预览第一帧（整数倍缩放居中,清晰无拖影）
+      if(frames[0]){ canvas.width=288; canvas.height=288; drawFrame(canvas, 0) }
       pushHistory({ kind:'spritesheet', file:file.name, cols, rows, count:frames.length })
-      toast(status, '已切片 '+frames.length+' 帧 ('+fw+'×'+fh+')')
+      toast(status, '已切片 '+frames.length+' 帧 ('+fw+'×'+fh+')'+(grid.conf?' · 智能检测行列 '+cols+'×'+rows:''))
     }
 
     drop.addEventListener('click', ()=> fileInput.click())
@@ -1269,10 +1343,17 @@ function mockImage(prompt:string, opts:any): string {
       let idx=0; const fps=parseInt(fpsEl.value)||8; cancelAnimationFrame(animId)
       let last=performance.now()
       const loop=(now:number)=>{
-        if(now-last>1000/fps){ ctx2.clearRect(0,0,canvas.width,canvas.height); ctx2.drawImage(frames[idx],0,0); idx=(idx+1)%frames.length; last=now }
+        if(now-last>1000/fps){ drawFrame(canvas, idx); idx=(idx+1)%frames.length; last=now }
         animId=requestAnimationFrame(loop)
       }; animId=requestAnimationFrame(loop)
       setTimeout(()=>cancelAnimationFrame(animId), 4000)
+    })
+    pSheet.querySelector('#s-zoom')!.addEventListener('click', zoomPreview)
+    sRefInput.addEventListener('change', (e:any)=>{
+      const f=e.target.files?.[0]; if(!f) return
+      const reader=new FileReader()
+      reader.onload=()=>{ sheetRefUrl=reader.result as string; sRefPreview.innerHTML=''; const im=document.createElement('img'); im.src=sheetRefUrl; im.style.maxWidth='100%'; im.style.maxHeight='48px'; im.style.imageRendering='pixelated'; sRefPreview.appendChild(im); toast(status,'角色参考图已添加 ✓ 生成时按该角色绘制动作') }
+      reader.readAsDataURL(f)
     })
     pSheet.querySelector('#s-export')!.addEventListener('click', ()=>{
       if(!packCanvas) return toast(status,'请先打包',false)
@@ -1313,7 +1394,18 @@ function mockImage(prompt:string, opts:any): string {
       pSheet.querySelector('#s-gen')!.addEventListener('click', async()=>{
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'输入序列描述',false)
       const prov=(pSheet.querySelector('#s-provider') as HTMLSelectElement)?.value || 'mock'
-      try{ const url=await callImageGen(prompt+' , sprite sheet, transparent background', prov as any, { size:'1024x512', model: (pSheet.querySelector('#s-model-sel') as HTMLSelectElement)?.value||undefined }); const img=await loadImage(url); const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0); c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) }) }catch(e:any){ toast(status,String(e.message),false) }
+      const layout=(pSheet.querySelector('#s-layout') as HTMLSelectElement)?.value||'auto'
+      const LAYOUT_HINT:Record<string,string>={ auto:'', single:', 8 frames, single horizontal row, left to right', '2x4':', 8 frames, 2 rows 4 columns, left to right then next row', '4x2':', 8 frames, 4 rows 2 columns, left to right then next row', tri:', three views side by side, front side back, 3 frames', dir8:', 8 directional sprites, 2 rows 4 columns: down/up row then left/right row' }
+      const LAYOUT_GRID:Record<string,[number,number]>={ single:[8,1], '2x4':[4,2], '4x2':[2,4], tri:[3,1], dir8:[4,2] }
+      toast(status,'序列生成中…（请稍候，生成后自动切分）')
+      try{
+        const url=await callImageGen(prompt + ' , sprite sheet, transparent background, same character across all frames' + (LAYOUT_HINT[layout]||''), prov as any, { size:'1024x512', model: (pSheet.querySelector('#s-model-sel') as HTMLSelectElement)?.value||undefined, reference: sheetRefUrl || undefined })
+        const img=await loadImage(url)
+        // 按所选布局预置行列；若选「智能」则由 sliceFromFile 自动检测
+        if(layout!=='auto'){ const gc=LAYOUT_GRID[layout]?.[0]||8, gr=LAYOUT_GRID[layout]?.[1]||1; colsEl.value=String(gc); rowsEl.value=String(gr) }
+        const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0)
+        c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) })
+      }catch(e:any){ toast(status,String(e.message),false) }
     })
   })()
 
@@ -1341,7 +1433,9 @@ function mockImage(prompt:string, opts:any): string {
       grid.innerHTML=''; let done=0
       for(const line of lines){
         try{
-          const url=await callImageGen(line + ' , game asset, centered'+bgSuffix, prov, { style: (pForge.querySelector('#f-style') as HTMLSelectElement).value, bg, bgTrans, model: (pForge.querySelector('#f-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl || undefined })
+          const styleSel=(pForge.querySelector('#f-style') as HTMLSelectElement).value
+          const styleHint = styleSel==='free' ? '' : styleSel==='icon' ? ', game asset icon, 64px, centered' : styleSel==='pixel' ? ', pixel art game asset, centered' : ', special effect, centered'
+          const url=await callImageGen(line + ' , game asset' + styleHint + bgSuffix, prov, { style: styleSel, bg, bgTrans, model: (pForge.querySelector('#f-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl || undefined })
           const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
           pushHistory({ kind:'asset', prompt:line, url })
         }catch(e:any){ const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+String(e.message).slice(0,30); grid.appendChild(err) }

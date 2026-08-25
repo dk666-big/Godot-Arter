@@ -90,10 +90,10 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    // 页面路由
+    // 页面路由（no-store：更新后强制拿到最新版，避免缓存旧页面）
     if (p === '/' || p === '/game-art-studio' || p === '/index.html') {
       const html = await readFile(path.join(ROOT, 'public', 'index.html'))
-      res.writeHead(200, { 'content-type': MIME['.html'] })
+      res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-store' })
       res.end(html)
       return
     }
