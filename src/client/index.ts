@@ -188,6 +188,7 @@ function buildStudio(): HTMLElement {
             <button class="gas-btn ghost" id="c-dl" style="flex:1">⬇ PNG</button>
             <button class="gas-btn ghost" id="c-save">📥 入库</button>
               <button class="gas-btn ghost" id="c-to-sheet">→ 序列帧</button>
+              <button class="gas-btn ghost" id="c-to-sheet-auto" title="角色→序列帧→切片→打包→导出 SpriteFrames 一次跑完">⚡ 一键流水线</button>
           </div>
         </div>
       </div>
@@ -277,6 +278,7 @@ function buildStudio(): HTMLElement {
         <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option><option value="free">🎨 自由（完全按提示词）</option></select>
         <div style="flex:1;display:flex;flex-direction:column"><select class="gas-select" id="f-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select><select class="gas-select" id="f-model-sel" style="display:none;margin-top:4px"></select></div>
         <button class="gas-btn" id="f-batch">⚡ 批量生成</button>
+        <button class="gas-btn ghost" id="f-stop" disabled>⏹ 停止</button>
       </div>
       <div class="gas-row" style="margin-top:8px;align-items:center">
         <label class="gas-label" style="margin:0">背景色</label>
@@ -492,6 +494,7 @@ function buildStudio(): HTMLElement {
           <div class="gas-row" style="margin-top:8px">
             <button class="gas-btn" id="e-manifest">📄 生成 manifest.json</button>
             <button class="gas-btn ghost" id="e-zip">📦 打包下载</button>
+            <button class="gas-btn ghost" id="e-proj" title="生成 Godot 4 像素风 project.godot 默认过滤片段（粘贴到项目根目录 project.godot）">⚙️ 像素设置</button>
             <button class="gas-btn ghost" id="e-clear">清空历史</button>
           </div>
           <div class="gas-note" style="margin-top:8px">将导出的 <span class="gas-kbd">assets/</span> 解压到 Godot 项目 <span class="gas-kbd">res://</span>，对应文档：<a href="https://docs.godotengine.org/zh-cn/4.x/classes/class_tileset.html" target="_blank" style="color:var(--accent2)">TileSet</a> · <a href="https://docs.godotengine.org/zh-cn/4.x/classes/class_spriteframes.html" target="_blank" style="color:var(--accent2)">SpriteFrames</a></div>
@@ -673,6 +676,17 @@ const pPost=mkPanel('post', `
   const pushHistory=(item:any)=>{ const h=getHistory(); h.unshift({ ...item, at:new Date().toISOString() }); localStorage.setItem(LS_HISTORY, JSON.stringify(h.slice(0,100))); refreshExportList() }
   const getKeys=():any=>{ try{ return JSON.parse(localStorage.getItem(LS)||'{}')}catch{return{}} }
   function toast(el:HTMLElement, msg:string, ok=true){ el.textContent=msg; el.style.color=ok?'#2ecc71':'#e74c3c'; setTimeout(()=>el.textContent='',3000) }
+  // 轮询等待某个条件成立（用于异步流程步骤之间，如等待切片/打包完成）
+  function waitUntil(fn:()=>boolean, timeout=15000, step=120): Promise<void>{
+    return new Promise((resolve,reject)=>{
+      const t0=Date.now()
+      const timer=setInterval(()=>{
+        let ok=false; try{ ok=fn() }catch{}
+        if(ok){ clearInterval(timer); resolve() }
+        else if(Date.now()-t0>timeout){ clearInterval(timer); reject(new Error('等待超时')) }
+      }, step)
+    })
+  }
 
   // ---- 素材总管：本地 IndexedDB 素材库 ----
   const DB_NAME='godot-arter-assets'
@@ -709,6 +723,90 @@ const pPost=mkPanel('post', `
       const a=document.createElement('a'); a.href=target; a.download=filename; document.body.appendChild(a); a.click(); a.remove()
     }catch{ window.open(url,'_blank') }
   }
+
+  // —— 零依赖 ZIP 写入器（STORE 无压缩）：配合一键「打包下载」生成可解压的 Godot 资源包 ——
+  interface ZipEntry { name:string; data:Uint8Array }
+  const crc32Table=(()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0 } return t })()
+  function crc32(data:Uint8Array): number {
+    let c=0xFFFFFFFF
+    for(let i=0;i<data.length;i++) c=(crc32Table[(c^data[i])&0xFF]^(c>>>8))>>>0
+    return (c^0xFFFFFFFF)>>>0
+  }
+  function buildZipStore(entries:ZipEntry[]): Blob {
+    const enc=new TextEncoder()
+    const chunks:Uint8Array[]=[]
+    const central:Uint8Array[]=[]
+    let offset=0
+    for(const e of entries){
+      const name=enc.encode(e.name)
+      const crc=crc32(e.data)
+      const size=e.data.length
+      const local=new Uint8Array(30+name.length)
+      const lv=new DataView(local.buffer)
+      lv.setUint32(0,0x04034b50,true)            // local file header signature
+      lv.setUint16(4,20,true)                     // version needed
+      lv.setUint16(6,0x0800,true)                 // general purpose bit 11: UTF-8 filename
+      lv.setUint16(8,0,true)                      // method: store
+      lv.setUint16(10,0,true)                     // mod time
+      lv.setUint16(12,0x21,true)                  // mod date (1980-01-01)
+      lv.setUint32(14,crc,true)
+      lv.setUint32(18,size,true)                  // compressed size (= size)
+      lv.setUint32(22,size,true)                  // uncompressed size
+      lv.setUint16(26,name.length,true)
+      lv.setUint16(28,0,true)                     // extra len
+      local.set(name,30)
+      chunks.push(local, e.data)
+      // central directory entry
+      const c=new Uint8Array(46+name.length)
+      const cv=new DataView(c.buffer)
+      cv.setUint32(0,0x02014b50,true)             // central file header signature
+      cv.setUint16(4,20,true)                     // version made by
+      cv.setUint16(6,20,true)                     // version needed
+      cv.setUint16(8,0x0800,true)                 // UTF-8
+      cv.setUint16(10,0,true)                     // method: store
+      cv.setUint16(12,0,true)                     // mod time
+      cv.setUint16(14,0x21,true)                  // mod date
+      cv.setUint32(16,crc,true)
+      cv.setUint32(20,size,true)                  // compressed
+      cv.setUint32(24,size,true)                  // uncompressed
+      cv.setUint16(28,name.length,true)
+      cv.setUint16(30,0,true)                     // extra len
+      cv.setUint16(32,0,true)                     // comment len
+      cv.setUint16(34,0,true)                     // disk number
+      cv.setUint16(36,0,true)                     // internal attrs
+      cv.setUint32(38,0,true)                     // external attrs
+      cv.setUint32(42,offset,true)                // local header offset
+      c.set(name,46)
+      central.push(c)
+      offset += local.length + e.data.length
+    }
+    let centralSize=0; for(const c of central) centralSize+=c.length
+    const end=new Uint8Array(22)
+    const ev=new DataView(end.buffer)
+    ev.setUint32(0,0x06054b50,true)               // end of central directory signature
+    ev.setUint16(4,0,true)                        // disk number
+    ev.setUint16(6,0,true)                        // disk with central dir
+    ev.setUint16(8,entries.length,true)           // entries on this disk
+    ev.setUint16(10,entries.length,true)          // total entries
+    ev.setUint32(12,centralSize,true)
+    ev.setUint32(16,offset,true)                  // central dir offset
+    ev.setUint16(20,0,true)                       // comment len
+    return new Blob([...chunks, ...central, end],{type:'application/zip'})
+  }
+  // 从 data:/blob:/http URL 转字节数组，供打包使用
+  async function urlToBytes(url:string): Promise<{bytes:Uint8Array; mime:string; ext:string}> {
+    let blob:Blob|null=null; let mime=''
+    if(/^data:/i.test(url)){ blob=dataUrlToBlob(url); mime=blob.type }
+    else if(/^https?:/i.test(url)){
+      if(isHostedEnv()){ try{ const r=await fetch(url); if(r.ok) blob=await r.blob() }catch{} }
+      if(!blob){ try{ const r2=await fetch('/game-art-studio/api/proxy-image?url='+encodeURIComponent(url)); if(r2.ok) blob=await r2.blob() }catch{} }
+    }
+    if(!blob){ const r=await fetch(url); blob=await r.blob() }
+    mime=blob.type||mime
+    const bytes=new Uint8Array(await blob.arrayBuffer())
+    const ext=/webp/i.test(mime)?'.webp':/jpe?g/i.test(mime)?'.jpg':/gif/i.test(mime)?'.gif':/svg/i.test(mime)?'.svg':/avif/i.test(mime)?'.avif': '.png'
+    return { bytes, mime, ext }
+  }
   const LS_CUSTOM_LIBS='dsh-game-art-studio:customLibs'
   const getCustomLibs=():any[]=>{ try{ const a=JSON.parse(localStorage.getItem(LS_CUSTOM_LIBS)||'[]'); return Array.isArray(a)?a:[] }catch{ return [] } }
   const saveCustomLibs=(list:any[])=> localStorage.setItem(LS_CUSTOM_LIBS, JSON.stringify(list))
@@ -739,6 +837,23 @@ const pPost=mkPanel('post', `
     L.push('animations = ['+animStr+']')
     return L.join('\n')
   }
+  // 由素材网格元数据构建 SpriteFrames 动画数组（复用序列帧导出逻辑，供导出中心打包时自动生成 .tres）
+  function buildAnimationsFromMeta(meta:any){
+    const fps=meta.fps||8, perRow=meta.cols||1, frameCount=meta.frames||0
+    if(meta.dirRows && perRow>0 && meta.dirNames){
+      const names=String(meta.dirNames).split(',').map(s=>s.trim()).filter(Boolean)
+      const rows=Math.max(1,Math.ceil(frameCount/perRow))
+      const animations:any[]=[]
+      for(let r=0;r<rows;r++){
+        const name=names[r]||('row'+r)
+        const fr=[]; for(let c=0;c<perRow;c++){ const idx=r*perRow+c; if(idx<frameCount) fr.push(idx) }
+        animations.push({ name, frames:fr, speed:fps, loop:true })
+      }
+      if(animations.length && animations[0].frames.length){ animations.push({ name:'stand', frames:[animations[0].frames[0]], speed:fps, loop:false }) }
+      return animations
+    }
+    return [{ name:'default', frames: Array.from({length:frameCount},(_,i)=>i), speed:fps }]
+  }
   function buildTileSetTres(pngName:string, cols:number, rows:number, tileSize:number): string {
     const L:string[]=[]
     L.push('[gd_resource type="TileSet" load_steps=3 format=3]')
@@ -763,13 +878,25 @@ const pPost=mkPanel('post', `
     scene:{label:'场景库',prefix:'SCENE'},
     post:{label:'后处理库',prefix:'POST'},
   }
+  // 素材 kind → Godot res://assets/ 子目录映射（用于一键打包导出的目录归类）
+  const KIND_TO_GODOT_DIR:Record<string,string> = {
+    character:'characters',
+    spritesheet:'spritesheets',
+    asset:'icons',
+    matting:'textures',
+    post:'textures',
+    tile:'tilesets',
+    map:'maps',
+    scene:'scenes',
+  }
   let refreshAssetManagerGlobal: (()=>void)|null = null
-  async function addToLibrary(kind:string, name:string, url:string): Promise<string>{
+  async function addToLibrary(kind:string, name:string, url:string, meta?:any): Promise<string>{
     const def=allLibDefs()[kind]||allLibDefs().asset||{ label:'素材库', prefix:'ASSET' }
     const all=await idbGetAll()
     const count=all.filter(a=>a.kind===kind).length+1
     const id=def.prefix+'-'+String(count).padStart(4,'0')
-    const item={ id, kind, name:name||def.label+' #'+count, url, createdAt:Date.now() }
+    const item:any={ id, kind, name:name||def.label+' #'+count, url, createdAt:Date.now() }
+    if(meta) item.meta=meta
     await idbPut(item)
     try{ refreshAssetManagerGlobal?.() }catch{}
     return id
@@ -1231,6 +1358,51 @@ function mockImage(prompt:string, opts:any): string {
         toast(status,'送至序列帧失败：'+String(e.message||e).slice(0,80), false)
       }
     })
+    // ⚡ 一键流水线：角色 → 序列帧 → 切片 → 打包 → 导出 SpriteFrames（一次跑完）
+    pChar.querySelector('#c-to-sheet-auto')!.addEventListener('click', async ()=>{
+      const btn=pChar.querySelector('#c-to-sheet-auto') as HTMLButtonElement
+      if(btn.disabled) return
+      btn.disabled=true; btn.textContent='⏳ 流水线进行中…'
+      const sStatus=pSheet.querySelector('#s-status') as HTMLElement
+      try{
+        // 1. 确保有角色图
+        if(!lastUrl){
+          toast(status,'正在生成角色…')
+          const prompt=(pChar.querySelector('#c-prompt') as HTMLTextAreaElement).value.trim()
+          if(!prompt){ throw new Error('请先填写角色描述') }
+          const style=(pChar.querySelector('#c-style') as HTMLSelectElement).value
+          const view=(pChar.querySelector('#c-view') as HTMLSelectElement).value
+          const bg=(pChar.querySelector('#c-bg') as HTMLInputElement)?.value||'#ffffff'
+          const bgTrans=(pChar.querySelector('#c-bg-trans') as HTMLInputElement)?.checked===true
+          const prov=(pChar.querySelector('#c-provider') as HTMLSelectElement)?.value||'mock'
+          lastUrl=await callImageGen(prompt, prov as any, { style, view, bg, bgTrans, model:(pChar.querySelector('#c-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl||undefined })
+        }
+        // 2. 送入序列帧
+        switchTab('sheet')
+        const sFileInput=pSheet.querySelector('#s-file') as HTMLInputElement
+        const r=await fetch(lastUrl); if(!r.ok) throw new Error('图片下载失败 HTTP '+r.status)
+        const blob=await r.blob()
+        const file=new File([blob],'character.png',{type:blob.type||'image/png'})
+        const dt=new DataTransfer(); dt.items.add(file); sFileInput.files=dt.files
+        sFileInput.dispatchEvent(new Event('change',{bubbles:true}))
+        // 3. 等待切片完成（帧缩略图出现）
+        if(sStatus) sStatus.textContent='⏳ 正在切片…'
+        await waitUntil(()=> (pSheet.querySelector('#s-frames') as HTMLElement).children.length>0, 20000)
+        // 4. 打包
+        if(sStatus) sStatus.textContent='⏳ 正在打包…'
+        ;(pSheet.querySelector('#s-pack') as HTMLButtonElement).click()
+        await new Promise(r=>setTimeout(r,300))
+        // 5. 导出
+        if(sStatus) sStatus.textContent='⏳ 正在导出…'
+        ;(pSheet.querySelector('#s-export') as HTMLButtonElement).click()
+        if(sStatus) sStatus.textContent='✓ 流水线完成：已切片→打包→导出 SpriteFrames'
+        toast(sStatus,'✓ 一键流水线完成', true)
+      }catch(e:any){
+        toast(sStatus||status,'流水线失败：'+String(e.message||e).slice(0,80), false)
+      }finally{
+        btn.disabled=false; btn.textContent='⚡ 一键流水线'
+      }
+    })
   })()
 
   // ---- Sheet logic ----
@@ -1377,6 +1549,35 @@ function mockImage(prompt:string, opts:any): string {
       const dw=f.width*s, dh=f.height*s
       g.drawImage(f, (W-dw)>>1, (H-dh)>>1, dw, dh)
     }
+    // 自动清除邻帧渗漏：保留最大连通主体，清除贴边的孤立碎片（邻帧手臂/武器尖端）。
+    // 帧尺寸保持不变 → 打包/导出/逐帧微调裁剪仍以统一帧大小工作。
+    function cleanFrameBleed(cvs:HTMLCanvasElement){
+      const W=cvs.width, H=cvs.height, N=W*H
+      if(N<1) return
+      const g=cvs.getContext('2d')!; const img=g.getImageData(0,0,W,H); const d=img.data
+      const op=new Uint8Array(N)
+      for(let i=0;i<N;i++) op[i]=d[i*4+3]>=8?1:0
+      const label=new Int32Array(N).fill(-1)
+      const sizes:number[]=[]; const edge:boolean[]=[]; const stack:number[]=[]; let comps=0
+      const near=(p:number)=>{ const x=p%W, y=(p/W)|0; const q:number[]=[]
+        if(x>0)q.push(p-1); if(x<W-1)q.push(p+1); if(y>0)q.push(p-W); if(y<H-1)q.push(p+W); return q }
+      for(let s=0;s<N;s++){
+        if(!op[s]||label[s]!==-1) continue
+        const cid=comps++; let sz=0, ed=false
+        stack.length=0; stack.push(s); label[s]=cid
+        while(stack.length){
+          const p=stack.pop()!; const x=p%W, y=(p/W)|0; sz++
+          if(x===0||y===0||x===W-1||y===H-1) ed=true
+          for(const q of near(p)) if(op[q]&&label[q]===-1){ label[q]=cid; stack.push(q) }
+        }
+        sizes.push(sz); edge.push(ed)
+      }
+      let main=0; for(let i=1;i<comps;i++) if(sizes[i]>sizes[main]) main=i
+      const mainSize=sizes[main]
+      let changed=false
+      for(let s=0;s<N;s++){ const cid=label[s]; if(cid!==-1&&cid!==main&&edge[cid]&&sizes[cid]<mainSize){ const i=s*4; if(d[i+3]!==0){ d[i+3]=0; changed=true } } }
+      if(changed) g.putImageData(img,0,0)
+    }
     function zoomPreview(){
       if(!frames.length) return toast(status,'无帧可播放',false)
       const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px'
@@ -1412,6 +1613,8 @@ function mockImage(prompt:string, opts:any): string {
       const tmp=document.createElement('canvas'); tmp.width=img.width; tmp.height=img.height; tmp.getContext('2d')!.drawImage(img,0,0)
       for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
         const fc=document.createElement('canvas'); fc.width=fw; fc.height=fh; fc.getContext('2d')!.drawImage(tmp, c*(fw+2*cCrop)+cCrop, r*(fh+2*rCrop)+rCrop, fw, fh, 0,0,fw,fh)
+        // 自动清除邻帧渗漏（保留主体,清除贴边孤立碎片），帧尺寸保持不变
+        cleanFrameBleed(fc)
         frames.push(fc)
         const thumb=document.createElement('div'); thumb.className='gas-thumb'; thumb.appendChild(fc); const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML='<span>#'+frames.length+'</span><span>'+fw+'×'+fh+'</span>'; thumb.appendChild(meta)
         const fIdx=frames.length-1
@@ -1437,6 +1640,7 @@ function mockImage(prompt:string, opts:any): string {
       const fc=document.createElement('canvas'); fc.width=w; fc.height=h
       const g=fc.getContext('2d')!; g.imageSmoothingEnabled=false
       g.drawImage(srcInfo.tmp, sx, sy, w, h, 0,0,w,h)
+      cleanFrameBleed(fc)
       frames[idx]=fc
       const thumbs=[...framesEl.querySelectorAll('.gas-thumb')] as HTMLElement[]
       const tb=thumbs[idx]; if(!tb) return
@@ -1532,8 +1736,15 @@ function mockImage(prompt:string, opts:any): string {
     })
     pSheet.querySelector('#s-save')!.addEventListener('click', async()=>{
         if(!packCanvas) return toast(status,'请先打包成表',false)
-        const id=await addToLibrary('spritesheet','序列帧 '+new Date().toLocaleTimeString(),packCanvas.toDataURL())
-        toast(status,'已入库 '+id)
+        // 记录网格元数据，供导出中心打包时自动生成同名 .tres
+        const perRow=parseInt(colsEl.value)||frames.length||1
+        const fps=parseInt(fpsEl.value)||8
+        const dirRows=(pSheet.querySelector('#s-dir-rows') as HTMLInputElement)?.checked===true
+        const dirNames=(pSheet.querySelector('#s-dir-names') as HTMLInputElement)?.value||''
+        const w=frames[0]?.width||packCanvas.width, h=frames[0]?.height||packCanvas.height
+        const meta={ cols:perRow, rows:Math.max(1,Math.ceil(frames.length/perRow)), fps, frameW:w, frameH:h, frames:frames.length, dirRows, dirNames }
+        const id=await addToLibrary('spritesheet','序列帧 '+new Date().toLocaleTimeString(),packCanvas.toDataURL(),meta)
+        toast(status,'已入库 '+id+(meta?`（网格 ${meta.cols}×${meta.rows}，导出中心可自动生成 .tres）`:''))
       })
       pSheet.querySelector('#s-gen')!.addEventListener('click', async()=>{
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'输入序列描述',false)
@@ -1568,26 +1779,51 @@ function mockImage(prompt:string, opts:any): string {
       reader.onload=()=>{ refUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=refUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); toast(status,'参考图已添加 ✓') }
       reader.readAsDataURL(f)
     })
+    // 批量队列：并发控制 + 失败重试 + 进度 + 可停止
+    let forgeStop=false
     pForge.querySelector('#f-batch')!.addEventListener('click', async()=>{
       const lines=ta.value.split('\n').map(s=>s.trim()).filter(Boolean); if(!lines.length) return toast(status,'请输入 Prompt',false)
       const prov=provEl.value
       const bg=(pForge.querySelector('#f-bg') as HTMLInputElement)?.value||'#ffffff'
       const bgTrans=(pForge.querySelector('#f-bg-trans') as HTMLInputElement)?.checked===true
       const bgSuffix= bgTrans ? ', transparent background, PNG, no background' : ', solid '+bg+' background'
-      grid.innerHTML=''; let done=0
-      for(const line of lines){
-        try{
-          const styleSel=(pForge.querySelector('#f-style') as HTMLSelectElement).value
-          const styleHint = styleSel==='free' ? '' : styleSel==='icon' ? ', game asset icon, 64px, centered' : styleSel==='pixel' ? ', pixel art game asset, centered' : ', special effect, centered'
-          const url=await callImageGen(line + ' , game asset' + styleHint + bgSuffix, prov, { style: styleSel, bg, bgTrans, model: (pForge.querySelector('#f-model-sel') as HTMLSelectElement)?.value||undefined, reference: refUrl || undefined })
-          const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
-          pushHistory({ kind:'asset', prompt:line, url })
-        }catch(e:any){ const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+String(e.message).slice(0,30); grid.appendChild(err) }
-        done++; prog.style.width=Math.round(done/lines.length*100)+'%'
+      const styleSel=(pForge.querySelector('#f-style') as HTMLSelectElement).value
+      const styleHint = styleSel==='free' ? '' : styleSel==='icon' ? ', game asset icon, 64px, centered' : styleSel==='pixel' ? ', pixel art game asset, centered' : ', special effect, centered'
+      const model=(pForge.querySelector('#f-model-sel') as HTMLSelectElement)?.value||undefined
+      const batchBtn=pForge.querySelector('#f-batch') as HTMLButtonElement
+      const stopBtn=pForge.querySelector('#f-stop') as HTMLButtonElement
+      const CONCURRENCY=2, RETRY=2
+      grid.innerHTML=''; forgeStop=false
+      batchBtn.disabled=true; stopBtn.disabled=false
+      let done=0
+      const jobs=lines.map(line=>({ line }))
+      const queue=[...jobs]
+      const worker=async ()=>{
+        while(queue.length && !forgeStop){
+          const job=queue.shift()!; const { line }=job
+          let url='', ok=false
+          for(let attempt=0; attempt<=RETRY && !forgeStop; attempt++){
+            try{
+              url=await callImageGen(line + ' , game asset' + styleHint + bgSuffix, prov, { style: styleSel, bg, bgTrans, model, reference: refUrl || undefined })
+              ok=true; break
+            }catch(e){ if(attempt>=RETRY) { /* last failure below */ } }
+          }
+          if(ok){
+            const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
+            pushHistory({ kind:'asset', prompt:line, url })
+          }else{
+            const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+line.slice(0,20); grid.appendChild(err)
+          }
+          done++; prog.style.width=Math.round(done/lines.length*100)+'%'
+        }
       }
-      toast(status,'批量完成 '+done+'/'+lines.length)
+      await Promise.all(Array.from({length: Math.min(CONCURRENCY, lines.length)}, worker))
+      batchBtn.disabled=false; stopBtn.disabled=true
+      toast(status, forgeStop?('已停止 '+done+'/'+lines.length):('批量完成 '+done+'/'+lines.length))
+      prog.style.width= forgeStop ? '0%' : Math.round(done/lines.length*100)+'%'
       setTimeout(()=>prog.style.width='0%',1000)
     })
+    pForge.querySelector('#f-stop')!.addEventListener('click', ()=>{ forgeStop=true; toast(status,'正在停止队列…') })
     pForge.querySelector('#f-clear')!.addEventListener('click', ()=> grid.innerHTML='')
       pForge.querySelector('#f-save-all')!.addEventListener('click', async()=>{
         const imgs=[...grid.querySelectorAll('img')] as HTMLImageElement[]; if(!imgs.length) return toast(status,'无素材可入库',false)
@@ -2641,6 +2877,99 @@ function mockImage(prompt:string, opts:any): string {
   })
   main.querySelector('#e-clear')?.addEventListener('click', ()=>{ localStorage.removeItem(LS_HISTORY); refreshExportList(); const pre=main.querySelector('#e-preview') as HTMLElement; if(pre) pre.style.display='none' })
   main.querySelector('#e-dump')?.addEventListener('click', ()=>{ const pre=main.querySelector('#e-preview') as HTMLElement; pre.style.display='block'; pre.textContent= 'localStorage '+LS_HISTORY+':\\n'+ (localStorage.getItem(LS_HISTORY)||'[]').slice(0,2000) })
+  // 一键打包下载：把素材库（IndexedDB）打包成映射 Godot res://assets/ 的 ZIP
+  async function exportGodotZip(){
+    const pre=main.querySelector('#e-preview') as HTMLElement; const statusEl=pre; const setStatus=(m:string,c='#6ea6d1')=>{ statusEl.style.display='block'; statusEl.textContent=m; statusEl.style.color=c }
+    const all=await idbGetAll()
+    if(!all.length){ setStatus('素材库为空 — 先去各工坊生成并「📥 入库」后再打包', '#e74c3c'); toast(pre,'素材库为空',false); return }
+    setStatus('正在打包 '+all.length+' 个素材…')
+    const entries:ZipEntry[]=[]
+    const manifestAssets:any[]=[]
+    const counts:Record<string,number>={}
+    let pngCount=0, done=0
+    for(const item of all){
+      try{
+        const { bytes, ext }=await urlToBytes(item.url)
+        const dir=KIND_TO_GODOT_DIR[item.kind] || ('custom/'+(item.kind||'other'))
+        const safeName=(item.id||('asset_'+pngCount)).replace(/[^A-Za-z0-9._-]/g,'_')
+        const entryName='assets/'+dir+'/'+safeName+ext
+        entries.push({ name:entryName, data:bytes })
+        // 带网格元数据的序列帧：自动生成同名 .tres（与 .png 同目录，Godot 拖入即用）
+        let tresPath=''
+        if(item.kind==='spritesheet' && item.meta?.cols && item.meta.frameW){
+          const tresName='assets/'+dir+'/'+safeName+'.tres'
+          const anims=buildAnimationsFromMeta(item.meta)
+          const tresText=buildSpriteFramesTres(safeName+'.png', item.meta.cols, anims, item.meta.frameW, item.meta.frameH)
+          entries.push({ name:tresName, data:new TextEncoder().encode(tresText) })
+          tresPath=tresName
+        }
+        manifestAssets.push({ id:item.id, kind:item.kind, name:item.name, path:entryName, tres: tresPath||undefined })
+        counts[item.kind]=(counts[item.kind]||0)+1
+        pngCount++
+      }catch(e){ /* 单个素材读取失败则跳过，不阻塞整体打包 */ }
+      done++; if(done%20===0) setStatus('正在打包… '+done+'/'+all.length)
+    }
+    if(!entries.length){ setStatus('没有可打包的图片素材','#e74c3c'); return }
+    // manifest.json：基于真实素材库而非历史
+    const manifest={ project:(main.querySelector('#e-name') as HTMLInputElement).value||'MyGodotGame', godot:'4.2', generated_at:new Date().toISOString(), counts, assets:manifestAssets, structure:{ 'res://assets/characters/':'角色', 'res://assets/spritesheets/':'序列帧', 'res://assets/tilesets/':'瓦片', 'res://assets/icons/':'道具', 'res://assets/textures/':'抠图/后处理', 'res://assets/maps/':'大地图', 'res://assets/scenes/':'场景', 'res://assets/custom/':'自定义包' } }
+    entries.push({ name:'manifest.json', data:new TextEncoder().encode(JSON.stringify(manifest,null,2)) })
+    const readme=`Godot-Arter 资源包 — 解压到 Godot 项目 res:// 即用
+========================================================
+
+目录结构与 res://assets/ 对应 Godot 素材目录建议：
+  assets/characters/    角色立绘 / 三视图
+  assets/spritesheets/  序列帧 + SpriteFrames.tres（各模块导出时生成）
+  assets/tilesets/      瓦片 + TileSet.tres
+  assets/icons/         道具 / UI 图标
+  assets/textures/      抠图 / 后处理
+  assets/maps/          大地图
+  assets/scenes/        场景
+  assets/custom/        自定义包
+
+像素素材推荐导入设置（Godot 导入面板 / Import 标签）：
+  · Compress > Mode = Lossless  （像素风推荐无损，避免压缩瑕疵）
+  · Mipmaps > Generate = Off    （2D 默认不建议开 mipmap）
+  · Process > Fix Alpha Border = On （修复透明边缘虚边，推荐保留）
+
+
+【Godot 4 像素风 · 全局默认过滤】把下面片段粘贴到项目根目录 project.godot 的 [rendering] 段（无则该段则新建）：
+[rendering]
+textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样，像素图不模糊
+; 说明：Godot 4 起纹理过滤已从 .import 文件移出，改为 CanvasItem 属性 + 此项目级默认值。
+
+官方文档：
+  · 2D 精灵动画  https://docs.godotengine.org/zh-cn/4.x/tutorials/2d/2d_sprite_animation.html
+  · SpriteFrames https://docs.godotengine.org/zh-cn/4.x/classes/class_spriteframes.html
+  · TileSet      https://docs.godotengine.org/zh-cn/4.x/classes/class_tileset.html
+  · 导入图像     https://docs.godotengine.org/zh-cn/4.x/tutorials/assets/importing_images.html
+
+生成时间：${new Date().toLocaleString()}    共 ${manifestAssets.length} 个素材
+`
+    entries.push({ name:'README-导入说明.txt', data:new TextEncoder().encode(readme) })
+    const zipBlob=buildZipStore(entries)
+    const zipName=((main.querySelector('#e-name') as HTMLInputElement).value||'MyGodotGame')+'_godot_package.zip'
+    await downloadUrl(URL.createObjectURL(zipBlob), zipName)
+    setStatus('✓ 已打包 '+manifestAssets.length+' 个素材 → '+zipName)
+    toast(pre,'已打包 '+manifestAssets.length+' 个素材到 '+zipName,true)
+  }
+  main.querySelector('#e-zip')?.addEventListener('click', ()=>exportGodotZip())
+  // ⚙️ 生成 Godot 4 像素风默认过滤片段（粘贴到 project.godot 的 [rendering] 段）
+  const PIXEL_SNIPPET = `; Godot 4 像素风默认过滤片段 — 粘贴到项目根目录 project.godot 的 [rendering] 段（无该段则新建）
+; 说明：Godot 4 起纹理 filter 已从 .import 文件移出，改为 CanvasItem 属性 + 项目级默认值。
+[rendering]
+textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样，像素图不模糊
+
+; 各素材在 Import 面板按需设置的像素推荐值：
+;   Compress > Mode = Lossless      (像素风推荐无损，避免压缩瑕疵)
+;   Mipmaps > Generate = Off        (2D 默认不建议开 mipmap)
+;   Process > Fix Alpha Border = On (修复透明边缘虚边，推荐保留)
+`
+  main.querySelector('#e-proj')?.addEventListener('click', ()=>{
+    const pre=main.querySelector('#e-preview') as HTMLElement; pre.style.display='block'; pre.textContent=PIXEL_SNIPPET
+    const blob=new Blob([PIXEL_SNIPPET],{type:'text/plain'}); const url=URL.createObjectURL(blob)
+    const a=document.createElement('a'); a.href=url; a.download='godot_pixel_settings.cfg'; a.click()
+    toast(pre,'已下载 godot_pixel_settings.cfg — 粘贴到 project.godot 的 [rendering] 段即生效', true)
+  })
 
   return root
 }
