@@ -1495,10 +1495,12 @@ const pPost=mkPanel('post', `
     if(opts.model) fd.append('model', opts.model)
     fd.append('n','1')
     fd.append('size', opts.size||'1024x1024')
-    const r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+key }, body:fd })
+    fd.append('response_format','b64_json')   // 图生图也优先要 base64，摆脱跨域远程 URL
+    let r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+key }, body:fd })
+    if(r.status===400||r.status===422){ fd.delete('response_format'); r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+key }, body:fd }) }
     if(!r.ok) throw new Error('Edits '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
     const j=await r.json()
-    const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url
+    const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url || j.output?.[0]?.url
     if(!url) throw new Error('Edits 未返回图片 URL')
     return await toLocalBlobUrl(url)
   }
@@ -1732,7 +1734,18 @@ function mockImage(prompt:string, opts:any): string {
     const sRefInput=pSheet.querySelector('#s-ref') as HTMLInputElement
     const sRefPreview=pSheet.querySelector('#s-ref-preview') as HTMLElement
 
-    function loadImage(src:string):Promise<HTMLImageElement>{ return new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src }) }
+    function loadImage(src:string):Promise<HTMLImageElement>{
+      return new Promise((res,rej)=>{
+        const tryLoad=(cors:boolean)=>{
+          const im=new Image()
+          if(/^https?:/i.test(src)) im.crossOrigin=cors?'anonymous':''
+          im.onload=()=>res(im)
+          im.onerror=()=>{ if(cors){ tryLoad(false) } else rej(new Error('图片加载失败（跨域被拦截，建议用 node server.mjs 本地服务打开）')) }
+          im.src=src
+        }
+        tryLoad(true)
+      })
+    }
 
     // 智能网格检测(三层递进):①透明缝 ②亮度差分边界(紧贴网格) ③投影自相关周期(带留白)
     function detectGrid(img:HTMLImageElement):{cols:number;rows:number;conf:number;how:string}{
@@ -2072,12 +2085,24 @@ function mockImage(prompt:string, opts:any): string {
       toast(status,'序列生成中…（请稍候，生成后自动切分）')
       try{
         const url=await callImageGen(prompt + ' , sprite sheet, transparent background, same character across all frames' + SEPARATION + (LAYOUT_HINT[layout]||''), prov as any, { size:'1024x512', model: (pSheet.querySelector('#s-model-sel') as HTMLSelectElement)?.value||undefined, reference: sheetRefUrl || undefined })
+        if(!url) throw new Error('生成接口未返回图片')
         const img=await loadImage(url)
         // 按所选布局预置行列；若选「智能」则由 sliceFromFile 自动检测
         if(layout!=='auto'){ const gc=LAYOUT_GRID[layout]?.[0]||8, gr=LAYOUT_GRID[layout]?.[1]||1; colsEl.value=String(gc); rowsEl.value=String(gr) }
-        const c=document.createElement('canvas'); c.width=img.width; c.height=img.height; c.getContext('2d')!.drawImage(img,0,0)
-        c.toBlob(b=>{ if(!b) return; const f=new File([b],'ai-sheet.png',{type:'image/png'}); const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) })
-      }catch(e:any){ toast(status,String(e.message),false) }
+        const c=document.createElement('canvas'); c.width=img.naturalWidth||img.width; c.height=img.naturalHeight||img.height
+        c.getContext('2d')!.imageSmoothingEnabled=false; c.getContext('2d')!.drawImage(img,0,0)
+        // 用 toDataURL → dataUrlToBlob 同步转 blob，绕开 toBlob 异步回调可能吞错的问题
+        const dataUrl=c.toDataURL('image/png')
+        const b=dataUrlToBlob(dataUrl)
+        const f=new File([b],'ai-sheet.png',{type:'image/png'})
+        const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files
+        sliceFromFile(f)
+        toast(status,'AI 序列已生成并自动切分（'+img.naturalWidth+'×'+img.naturalHeight+'）', true)
+      }catch(e:any){
+        const _s = (e&&(e.message||e)) ? String(e.message||e) : String(e)
+        console.error('[s-gen] AI 生成失败', e)
+        status.textContent='❌ 生成失败：'+_s.slice(0,160); status.style.color='#e74c3c'
+      }
     })
   })()
   // ---- 单帧动画工作区（分治策略）----
@@ -2098,7 +2123,7 @@ function mockImage(prompt:string, opts:any): string {
     let refUrl=''
     let animId=0
 
-    const loadImage=(src:string):Promise<HTMLImageElement>=> new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src })
+    const loadImage=(src:string):Promise<HTMLImageElement>=> new Promise((res,rej)=>{ const im=new Image(); if(/^https?:/i.test(src)) im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src })
     const setProg=(p:number)=> prog.style.width=p+'%'
     const drawFrame=(cvs:HTMLCanvasElement, idx:number)=>{
       const g=cvs.getContext('2d')!; const f=frames[idx]||rawFrames[idx]; if(!f) return
@@ -2376,7 +2401,7 @@ function mockImage(prompt:string, opts:any): string {
     let frames: HTMLCanvasElement[]=[]      // 对齐后的帧
     let sheet: HTMLCanvasElement|null=null  // 精灵表
     let animId=0
-    const loadImage=(src:string):Promise<HTMLImageElement>=> new Promise((res,rej)=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src })
+    const loadImage=(src:string):Promise<HTMLImageElement>=> new Promise((res,rej)=>{ const im=new Image(); if(/^https?:/i.test(src)) im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=rej; im.src=src })
     const setProg=(p:number)=> prog.style.width=p+'%'
     const imgToCanvas=(img:HTMLImageElement)=>{ const c=blankCanvas(img.naturalWidth||img.width, img.naturalHeight||img.height); const g=c.getContext('2d')!; g.imageSmoothingEnabled=false; g.drawImage(img,0,0); return c }
     const drawPreview=(idx=0)=>{ const g=canvas.getContext('2d')!; const f=frames[idx]; if(!f) return; canvas.width=288; canvas.height=288; g.imageSmoothingEnabled=false; g.clearRect(0,0,288,288); const s=Math.max(1,Math.floor(Math.min(288/f.width,288/f.height))); const dw=f.width*s, dh=f.height*s; g.drawImage(f,(288-dw)>>1,(288-dh)>>1,dw,dh) }
