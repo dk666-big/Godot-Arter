@@ -1767,12 +1767,19 @@
 					ov.onclick = () => { cancelAnimationFrame(rid); ov.remove(); };
 					document.body.appendChild(ov);
 				}
-				async function sliceFromFile(file) {
+				async function sliceFromFile(file, presetGrid) {
 					const img = await loadImage(URL.createObjectURL(file));
-					// 智能切分：自动检测行列（AI 序列帧有透明间隔也能切准，消除前一帧拖影）
-					const grid = detectGrid(img);
-					colsEl.value = String(grid.cols);
-					rowsEl.value = String(grid.rows);
+					// 智能切分：自动检测行列；若提供了「序列布局」则直接按该网格切分（不再用检测覆盖）
+					let grid;
+					if (presetGrid) {
+						colsEl.value = String(presetGrid[0]);
+						rowsEl.value = String(presetGrid[1]);
+						grid = { cols: presetGrid[0], rows: presetGrid[1], conf: 1, how: "布局" };
+					} else {
+						grid = detectGrid(img);
+						colsEl.value = String(grid.cols);
+						rowsEl.value = String(grid.rows);
+					}
 					const cols = grid.cols, rows = grid.rows;
 					frames = [];
 					framesEl.innerHTML = "";
@@ -1808,7 +1815,7 @@
 						rows,
 						count: frames.length
 					});
-					toast(status, "已切片 " + frames.length + " 帧 (" + fw + "×" + fh + ")" + (grid.conf ? " · 智能检测(" + grid.how + ") " + cols + "×" + rows : " · 未检出自动网格,按当前行列切分(可手动改列×行后重切)"));
+					toast(status, "已切片 " + frames.length + " 帧 (" + fw + "×" + fh + ")" + (grid.conf ? (grid.how === "布局" ? " · 按「序列布局」切分 " + cols + "×" + rows : " · 智能检测(" + grid.how + ") " + cols + "×" + rows) : " · 未检出自动网格,按当前行列切分(可改列×行,或在「序列布局」直接选网格重切,如 横向单行 8 帧)"));
 				}
 				drop.addEventListener("click", () => fileInput.click());
 				drop.addEventListener("dragover", (e) => {
@@ -1834,6 +1841,14 @@
 					const f = fileInput.files?.[0];
 					if (!f) return toast(status, "请先上传图片", false);
 					sliceFromFile(f);
+				});
+				// 序列布局＝直接生效的切分网格：选「横向单行/2×4/…」后立即按该网格重切
+				const LAYOUT_GRID_MAP = { single: [8, 1], "2x4": [4, 2], "4x2": [2, 4], tri: [3, 1], dir8: [4, 2] };
+				pSheet.querySelector("#s-layout").addEventListener("change", () => {
+					const v = pSheet.querySelector("#s-layout").value;
+					const f = fileInput.files?.[0];
+					if (v === "auto" || !f) return;
+					sliceFromFile(f, LAYOUT_GRID_MAP[v] || [8, 1]);
 				});
 				pSheet.querySelector("#s-pack").addEventListener("click", () => {
 					if (!frames.length) return toast(status, "无帧可打包", false);

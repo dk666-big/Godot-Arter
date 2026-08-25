@@ -1379,11 +1379,17 @@ function mockImage(prompt:string, opts:any): string {
       document.body.appendChild(ov)
     }
 
-    async function sliceFromFile(file:File){
+    async function sliceFromFile(file:File, presetGrid?:[number,number]){
       const url=URL.createObjectURL(file); const img=await loadImage(url)
-      // 智能切分：自动检测行列（AI 序列帧有透明间隔也能切准，消除前一帧拖影）
-      const grid=detectGrid(img)
-      colsEl.value=String(grid.cols); rowsEl.value=String(grid.rows)
+      // 智能切分：自动检测行列；若提供了「序列布局」则直接按该网格切分（不再用检测覆盖）
+      let grid:any
+      if(presetGrid){
+        colsEl.value=String(presetGrid[0]); rowsEl.value=String(presetGrid[1])
+        grid={ cols:presetGrid[0], rows:presetGrid[1], conf:1, how:'布局' }
+      }else{
+        grid=detectGrid(img)
+        colsEl.value=String(grid.cols); rowsEl.value=String(grid.rows)
+      }
       const cols=grid.cols, rows=grid.rows
       frames=[]; framesEl.innerHTML=''
       const fw=Math.max(1,Math.floor(img.width/cols)), fh=Math.max(1,Math.floor(img.height/rows))
@@ -1398,7 +1404,7 @@ function mockImage(prompt:string, opts:any): string {
       // 预览第一帧（整数倍缩放居中,清晰无拖影）
       if(frames[0]){ canvas.width=288; canvas.height=288; drawFrame(canvas, 0) }
       pushHistory({ kind:'spritesheet', file:file.name, cols, rows, count:frames.length })
-      toast(status, '已切片 '+frames.length+' 帧 ('+fw+'×'+fh+')'+(grid.conf?' · 智能检测('+grid.how+') '+cols+'×'+rows:' · 未检出自动网格,按当前行列切分(可手动改列×行后重切)'))
+      toast(status, '已切片 '+frames.length+' 帧 ('+fw+'×'+fh+')'+(grid.conf? grid.how==='布局'? ' · 按「序列布局」切分 '+cols+'×'+rows : ' · 智能检测('+grid.how+') '+cols+'×'+rows : ' · 未检出自动网格,按当前行列切分(可改列×行,或在「序列布局」直接选网格重切,如 横向单行 8 帧)'))
     }
 
     drop.addEventListener('click', ()=> fileInput.click())
@@ -1407,6 +1413,14 @@ function mockImage(prompt:string, opts:any): string {
     drop.addEventListener('drop', e=>{ e.preventDefault(); const f=(e.dataTransfer?.files?.[0]); if(f) { const dt=new DataTransfer(); dt.items.add(f); fileInput.files=dt.files; sliceFromFile(f) }})
     fileInput.addEventListener('change', ()=>{ const f=fileInput.files?.[0]; if(f) sliceFromFile(f) })
     pSheet.querySelector('#s-slice')!.addEventListener('click', ()=>{ const f=fileInput.files?.[0]; if(!f) return toast(status,'请先上传图片',false); sliceFromFile(f) })
+    // 序列布局＝直接生效的切分网格：选「横向单行/2×4/…」后立即按该网格重切
+    const LAYOUT_GRID_MAP:Record<string,[number,number]>={ single:[8,1], '2x4':[4,2], '4x2':[2,4], tri:[3,1], dir8:[4,2] }
+    pSheet.querySelector('#s-layout')!.addEventListener('change', ()=>{
+      const v=(pSheet.querySelector('#s-layout') as HTMLSelectElement).value
+      const f=fileInput.files?.[0]
+      if(v==='auto' || !f) return
+      void sliceFromFile(f, LAYOUT_GRID_MAP[v]||[8,1])
+    })
     pSheet.querySelector('#s-pack')!.addEventListener('click', ()=>{
       if(!frames.length) return toast(status,'无帧可打包',false)
       const cols=frames.length; const w=frames[0].width, h=frames[0].height
