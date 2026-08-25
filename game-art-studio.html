@@ -1609,34 +1609,30 @@
 						im.src = src;
 					});
 				}
-				// 智能缝线检测：扫描行列“能量缝”（透明间隔），自动推导网格，解决 AI 序列错位/拖影
+				// 智能网格检测（三层递进）：①透明缝 ②亮度差分边界（紧贴网格） ③投影自相关周期（带留白）
 				function detectGrid(img) {
 					const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
 					const manualC = parseInt(colsEl.value) || 1, manualR = parseInt(rowsEl.value) || 1;
-					if (w < 8 || h < 8) return { cols: manualC, rows: manualR, conf: 0 };
+					if (w < 8 || h < 8) return { cols: manualC, rows: manualR, conf: 0, how: "" };
 					const c = document.createElement("canvas");
 					c.width = w;
 					c.height = h;
 					const g = c.getContext("2d");
 					g.drawImage(img, 0, 0);
 					const d = g.getImageData(0, 0, w, h).data;
-					const colE = new Float32Array(w), rowE = new Float32Array(h);
-					for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; if (d[i + 3] / 255 > 0.06) { colE[x]++; rowE[y]++; } }
-					const colAvg = colE.reduce((a, b) => a + b, 0) / w, rowAvg = rowE.reduce((a, b) => a + b, 0) / h;
-					const colSeams = [0], rowSeams = [0];
-					for (let x = 1; x < w; x++) if (colE[x] < colAvg * 0.18) colSeams.push(x);
-					for (let y = 1; y < h; y++) if (rowE[y] < rowAvg * 0.18) rowSeams.push(y);
-					const gapMode = (seams, total) => {
-						if (seams.length < 3) return 0;
-						// 按连续缝分组（相邻差≤2 视为同一条缝带），每组取中心作为代表缝
-						const groups = [];
-						let cur = [seams[0]];
-						for (let i = 1; i < seams.length; i++) { if (seams[i] - seams[i - 1] <= 2) cur.push(seams[i]); else { groups.push(cur); cur = [seams[i]]; } }
-						groups.push(cur);
-						const reps = groups.map((g) => Math.round((g[0] + g[g.length - 1]) / 2));
-						if (reps.length < 3) return 0;
+					const colA = new Float32Array(w), rowA = new Float32Array(h);
+					const colL = new Float32Array(w), rowL = new Float32Array(h);
+					for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+						const i = (y * w + x) * 4;
+						const a = d[i + 3] / 255;
+						const L = a * (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255;
+						colA[x] += a; rowA[y] += a; colL[x] += L; rowL[y] += L;
+					}
+					// 段间距众数（输入为若干“锚点”位置）
+					const spacingMode = (pts, total, minGap = 8) => {
+						if (pts.length < 3) return 0;
 						const gaps = [];
-						for (let i = 1; i < reps.length; i++) { const gap = reps[i] - reps[i - 1]; if (gap >= 8 && gap <= total * 0.6) gaps.push(gap); }
+						for (let i = 1; i < pts.length; i++) { const gap = pts[i] - pts[i - 1]; if (gap >= minGap && gap <= total * 0.6) gaps.push(gap); }
 						if (!gaps.length) return 0;
 						const cnt = new Map();
 						for (const gp of gaps) cnt.set(gp, (cnt.get(gp) || 0) + 1);
@@ -1644,12 +1640,96 @@
 						for (const [gp, n] of cnt) if (n > bn) { bn = n; best = gp; }
 						return best;
 					};
-					const fw = gapMode([...colSeams.filter((s) => s < w - 1), w - 1], w);
-					const fh = gapMode([...rowSeams.filter((s) => s < h - 1), h - 1], h);
-					const cols = fw > 0 ? Math.max(1, Math.round(w / fw)) : 0;
-					const rows = fh > 0 ? Math.max(1, Math.round(h / fh)) : 0;
-					const conf = (cols > 0 && rows > 0 && cols * rows > 1 && cols <= 32 && rows <= 32) ? 1 : 0;
-					return { cols: conf ? cols : manualC, rows: conf ? rows : manualR, conf };
+					// ① 透明缝：按连续缝分组取中心
+					const seamMode = (seams, total) => {
+						if (seams.length < 3) return 0;
+						const groups = [];
+						let cur = [seams[0]];
+						for (let i = 1; i < seams.length; i++) { if (seams[i] - seams[i - 1] <= 2) cur.push(seams[i]); else { groups.push(cur); cur = [seams[i]]; } }
+						groups.push(cur);
+						const reps = groups.map((gr) => Math.round((gr[0] + gr[gr.length - 1]) / 2));
+						return spacingMode(reps, total);
+					};
+					// ② 亮度差分边界：紧贴网格的帧边界处亮度突变
+					const diffBoundaries = (proj, total, axis) => {
+						const diff = new Float32Array(total);
+						if (axis === "x") {
+							for (let y = 0; y < h; y++) { let prev = 0; for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; const L = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255; if (x > 0) diff[x] += Math.abs(L - prev); prev = L; } }
+						} else {
+							for (let x = 0; x < w; x++) { let prev = 0; for (let y = 0; y < h; y++) { const i = (y * w + x) * 4; const L = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255; if (y > 0) diff[y] += Math.abs(L - prev); prev = L; } }
+						}
+						const mean = diff.reduce((a, b) => a + b, 0) / total;
+						const pts = [0];
+						for (let p = 2; p < total - 2; p++) {
+							if (diff[p] >= diff[p - 1] && diff[p] >= diff[p + 1] && diff[p] >= diff[p - 2] && diff[p] >= diff[p + 2] && diff[p] > Math.max(0.4, mean * 2)) pts.push(p);
+						}
+						pts.push(total - 1);
+						// 从边界点推导帧宽：全量 + 隔一取奇/偶 三种采样，优选举类“能整除总长”的众数
+						const modeOf = (arr) => { if (!arr.length) return [0, 0]; const cnt = new Map(); for (const g of arr) cnt.set(g, (cnt.get(g) || 0) + 1); let best = 0, bn = 0; for (const [g, n] of cnt) if (n > bn) { bn = n; best = g; } return [best, bn]; };
+						const lists = [];
+						const core = pts.slice(1, -1);
+						lists.push(core);
+						lists.push(core.filter((_, i) => i % 2 === 0));
+						lists.push(core.filter((_, i) => i % 2 === 1));
+						let bestM = 0, bestScore = -1;
+						for (const L of lists) {
+							const gaps = [];
+							for (let i = 1; i < L.length; i++) { const gap = L[i] - L[i - 1]; if (gap >= 8 && gap <= total * 0.6) gaps.push(gap); }
+							const m = modeOf(gaps)[0];
+							if (m <= 0) continue;
+							const d = Math.round(total / m);
+							const err = Math.abs(total / m - d);
+							const score = (err < 0.02 ? 100 : 0) + modeOf(gaps)[1] * 5;
+							if (score > bestScore) { bestScore = score; bestM = m; }
+						}
+						return bestM;
+					};
+					// ③ 投影自相关：带留白的周期图，周期=帧宽
+					const periodOf = (proj, total) => {
+						const mean = proj.reduce((a, b) => a + b, 0) / total;
+						const q = [];
+						for (let i = 0; i < total; i++) q.push(proj[i] - mean);
+						const maxLag = Math.min(total >> 1, 640);
+						const vals = new Float32Array(maxLag + 1);
+						for (let lag = 8; lag <= maxLag; lag++) { let s = 0; for (let i = 0; i + lag < total; i++) s += q[i] * q[i + lag]; vals[lag] = s / (total - lag); }
+						let best = 0, bv = -Infinity;
+						for (let lag = 8; lag <= maxLag; lag++) if (vals[lag] > bv) { bv = vals[lag]; best = lag; }
+						if (best < 8 || bv <= 0) return 0;
+						const dbl = best * 2 <= maxLag ? vals[best * 2] : bv;
+						if (dbl < bv * 0.5) return 0;
+						return best;
+					};
+					let fw = 0, howC = "";
+					const colMean = colA.reduce((a, b) => a + b, 0) / w, rowMean = rowA.reduce((a, b) => a + b, 0) / h;
+					// 归一化平均不透明度(0..1)：列合计/h、行合计/w
+					const colOpa = colMean / h, rowOpa = rowMean / w;
+					const opaque = colOpa > 0.98 && rowOpa > 0.98;
+					if (!opaque) {
+						const cs = [0];
+						for (let x = 1; x < w; x++) if (colA[x] < colMean * 0.18) cs.push(x);
+						fw = seamMode([...cs.filter((s) => s < w - 1), w - 1], w);
+						if (fw > 0) howC = "缝线";
+					}
+					if (!fw) { const fb = diffBoundaries(colL, w, "x"); if (fb > 0) { fw = fb; howC = "边界"; } }
+					if (!fw) { const fp = periodOf(colL, w); if (fp > 0) { fw = fp; howC = "周期"; } }
+					if (!fw) { const m = colL.reduce((a, b) => a + b, 0) / w; const v = colL.reduce((a, b) => a + (b - m) * (b - m), 0) / w; if (m > 0 && v / (m * m) < 0.001) { fw = w; howC = "均匀"; } }
+					let fh = 0, howR = "";
+					if (!opaque) {
+						const rs = [0];
+						for (let y = 1; y < h; y++) if (rowA[y] < rowMean * 0.18) rs.push(y);
+						fh = seamMode([...rs.filter((s) => s < h - 1), h - 1], h);
+						if (fh > 0) howR = "缝线";
+					}
+					if (!fh) { const fb = diffBoundaries(rowL, h, "y"); if (fb > 0) { fh = fb; howR = "边界"; } }
+					if (!fh) { const fp = periodOf(rowL, h); if (fp > 0) { fh = fp; howR = "周期"; } }
+					if (!fh) { const m = rowL.reduce((a, b) => a + b, 0) / h; const v = rowL.reduce((a, b) => a + (b - m) * (b - m), 0) / h; if (m > 0 && v / (m * m) < 0.001) { fh = h; howR = "均匀"; } }
+					if (fw > 0 && fh > 0) {
+						const cols = Math.max(1, Math.round(w / fw)), rows = Math.max(1, Math.round(h / fh));
+						if (cols <= 64 && rows <= 64 && cols * rows <= 512 && cols * rows >= 1 && fw >= 12 && fh >= 12) {
+							return { cols, rows, conf: 1, how: (howC || howR || "自动") };
+						}
+					}
+					return { cols: manualC, rows: manualR, conf: 0, how: "" };
 				}
 				// 把一帧按整数倍缩放居中画到画布（nearest，消除模糊/拖影观感）
 				function drawFrame(cvs, idx) {
@@ -1728,7 +1808,7 @@
 						rows,
 						count: frames.length
 					});
-					toast(status, "已切片 " + frames.length + " 帧 (" + fw + "×" + fh + ")" + (grid.conf ? " · 智能检测行列 " + cols + "×" + rows : ""));
+					toast(status, "已切片 " + frames.length + " 帧 (" + fw + "×" + fh + ")" + (grid.conf ? " · 智能检测(" + grid.how + ") " + cols + "×" + rows : " · 未检出自动网格,按当前行列切分(可手动改列×行后重切)"));
 				}
 				drop.addEventListener("click", () => fileInput.click());
 				drop.addEventListener("dragover", (e) => {
