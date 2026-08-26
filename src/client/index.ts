@@ -811,6 +811,14 @@ function buildStudio(): HTMLElement {
       <div class="gas-note" id="keys-status" style="margin-top:8px;color:#2ecc71;display:none;">✓ 已保存到本地</div>
     </div>
     <div class="gas-card">
+      <h4>🌐 免费网页版入口 — 点击跳转，自行登录使用</h4>
+      <div class="gas-note">直接打开 Gemini / ChatGPT 官方网页版，登录后即可对话或生成。工坊只做跳转，如需在工坊内调用生图 API，请使用上方 Key 或下方自定义供应商。</div>
+      <div class="gas-row" style="margin-top:8px">
+        <button class="gas-btn" id="web-gemini" style="flex:1">🌐 打开 Gemini 网页版</button>
+        <button class="gas-btn" id="web-chatgpt" style="flex:1">🌐 打开 ChatGPT 网页版</button>
+      </div>
+    </div>
+    <div class="gas-card">
       <h4>🔌 第三方 API 路由预设 — 自定义供应商</h4>
       <div class="gas-note">在这里添加你自己的第三方图像生成 API。添加后会自动出现在「角色 / 序列帧 / 素材 / 大地图」的提供商下拉框中，选择即可调用。<br>支持三类兼容协议：<span class="gas-kbd">OpenAI 兼容</span> / <span class="gas-kbd">Stability 风格</span> / <span class="gas-kbd">SiliconFlow 风格</span>。</div>
       <div class="gas-divider"></div>
@@ -864,6 +872,10 @@ function buildStudio(): HTMLElement {
   setTimeout(loadKeys,0)
   pPreset.querySelector('#save-keys')!.addEventListener('click', saveKeys)
   pPreset.querySelector('#clear-keys')!.addEventListener('click', ()=>{ localStorage.removeItem(LS); loadKeys() })
+  // 免费网页版快捷入口：点击跳转到官方网页版，自行登录使用
+  const openWebPanel=(kind:string)=>{ const url= kind==='gemini' ? 'https://gemini.google.com' : 'https://chatgpt.com'; window.open(url,'_blank') }
+  pPreset.querySelector('#web-gemini')!.addEventListener('click', ()=> openWebPanel('gemini'))
+  pPreset.querySelector('#web-chatgpt')!.addEventListener('click', ()=> openWebPanel('chatgpt'))
 
   // 后处理工坊
     // 素材总管
@@ -1640,7 +1652,7 @@ const pPost=mkPanel('post', `
   const modelSelSyncs: (()=>void)[] = []
 
   function providerOptionHtml(): string {
-    const built='<option value="mock">本地演示(无Key)</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option>'
+    const built='<option value="mock">本地演示(无Key)</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="web:gemini">🌐 Gemini 网页版</option><option value="web:chatgpt">🌐 ChatGPT 网页版</option>'
     const customs=getCustomProviders().map(p=>`<option value="custom:${p.id}">🔌 ${p.name.replace(/[<>"']/g,'')}</option>`).join('')
     return built+customs
   }
@@ -1938,6 +1950,11 @@ const pPost=mkPanel('post', `
   async function callImageGen(prompt:string, provider:string, opts:any={}): Promise<string> {
     const keys=getKeys()
     const ref=opts.reference
+    // 免费网页版入口：不调 API，直接打开对应官方网页版让用户自行登录使用
+    if(provider.startsWith('web:')){
+      openWebPanel(provider.slice(4))
+      return mockImage(prompt+' [已打开 '+provider.slice(4)+' 网页版]', opts)
+    }
     // 本地 mock：用 canvas 生成占位图，保证无 Key 也能演示
     if(provider==='mock') return mockImage(prompt, opts)
 
