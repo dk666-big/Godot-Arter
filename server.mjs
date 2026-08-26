@@ -16,7 +16,7 @@
  *    使「序列帧切片 / 一键下载 / 无缝地图平铺」等需要读像素的操作用远程图也能工作
  */
 import http from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -79,6 +79,127 @@ async function serveStatic(relPath, res) {
   res.end(buf)
 }
 
+/* ================= 网页联动（浏览器扩展） ================= */
+const WEB_LINK_ASSET_DIR = path.join(ROOT, 'assets', 'generated')
+const WEB_LINK_META_FILE = path.join(ROOT, 'data', 'generated_assets.json')
+const pendingPrompts = new Map() // site -> { site, prompt, from, at }
+
+function webLinkCors(res) {
+  res.setHeader('access-control-allow-origin', '*')
+  res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS')
+  res.setHeader('access-control-allow-headers', 'content-type')
+}
+
+function sendJson(res, status, obj) {
+  webLinkCors(res)
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+  res.end(JSON.stringify(obj))
+}
+
+async function readBody(req, limitBytes = 40 * 1024 * 1024) {
+  const chunks = []
+  let total = 0
+  for await (const c of req) {
+    total += c.length
+    if (total > limitBytes) throw new Error('body too large')
+    chunks.push(c)
+  }
+  return Buffer.concat(chunks).toString('utf-8')
+}
+
+async function readMeta() {
+  try {
+    const list = JSON.parse(await readFile(WEB_LINK_META_FILE, 'utf-8'))
+    return Array.isArray(list) ? list : []
+  } catch {
+    return []
+  }
+}
+
+async function handleWebLink(url, req, res) {
+  const p = url.pathname
+  if (req.method === 'OPTIONS') {
+    webLinkCors(res)
+    res.writeHead(204)
+    res.end()
+    return
+  }
+  try {
+    if (req.method === 'POST' && p === '/api/web-link/prompt') {
+      const body = JSON.parse((await readBody(req)) || '{}')
+      const site = body.site === 'gemini' ? 'gemini' : 'chatgpt'
+      const prompt = String(body.prompt || '').slice(0, 20000)
+      if (!prompt) return sendJson(res, 400, { ok: false, error: 'empty prompt' })
+      pendingPrompts.set(site, { site, prompt, from: String(body.from || 'studio'), at: Date.now() })
+      return sendJson(res, 200, { ok: true, site })
+    }
+    if (req.method === 'GET' && p === '/api/web-link/prompt') {
+      const site = url.searchParams.get('site') === 'gemini' ? 'gemini' : 'chatgpt'
+      const pending = pendingPrompts.get(site) || null
+      if (pending && url.searchParams.get('consume') === '1') pendingPrompts.delete(site)
+      return sendJson(res, 200, { ok: true, pending })
+    }
+    if (req.method === 'POST' && p === '/api/web-link/save') {
+      const body = JSON.parse((await readBody(req)) || '{}')
+      const b64 = String(body.imageBase64 || '').replace(/^data:[^;]+;base64,/, '')
+      if (!b64) return sendJson(res, 400, { ok: false, error: 'no imageBase64' })
+      let buf
+      try {
+        buf = Buffer.from(b64, 'base64')
+      } catch {
+        return sendJson(res, 400, { ok: false, error: 'bad base64' })
+      }
+      if (!buf.length) return sendJson(res, 400, { ok: false, error: 'bad base64' })
+      const mime = String(body.mime || 'image/png')
+      const ext = /webp/i.test(mime) ? '.webp' : /jpe?g/i.test(mime) ? '.jpg' : /gif/i.test(mime) ? '.gif' : '.png'
+      await mkdir(WEB_LINK_ASSET_DIR, { recursive: true })
+      await mkdir(path.dirname(WEB_LINK_META_FILE), { recursive: true })
+      const meta = await readMeta()
+      const now = new Date()
+      const day = String(now.getFullYear()) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0')
+      const seq = meta.filter((m) => String(m.file || '').startsWith(day + '_')).length + 1
+      const file = day + '_' + String(seq).padStart(3, '0') + ext
+      await writeFile(path.join(WEB_LINK_ASSET_DIR, file), buf)
+      const rec = {
+        id: 'w' + now.getTime().toString(36) + Math.random().toString(36).slice(2, 6),
+        file,
+        rel: 'assets/generated/' + file,
+        site: body.site === 'gemini' ? 'gemini' : 'chatgpt',
+        prompt: String(body.prompt || '').slice(0, 4000),
+        sourceUrl: String(body.sourceUrl || '').slice(0, 500),
+        bytes: buf.length,
+        at: now.getTime(),
+      }
+      meta.push(rec)
+      await writeFile(WEB_LINK_META_FILE, JSON.stringify(meta, null, 2))
+      return sendJson(res, 200, { ok: true, ...rec })
+    }
+    if (req.method === 'GET' && p === '/api/web-link/assets') {
+      const after = Number(url.searchParams.get('after') || 0)
+      const meta = await readMeta()
+      return sendJson(res, 200, { ok: true, items: meta.filter((m) => Number(m.at) > after) })
+    }
+    if (req.method === 'GET' && p === '/api/web-link/status') {
+      const meta = await readMeta()
+      return sendJson(res, 200, { ok: true, app: 'godot-arter', pending: [...pendingPrompts.keys()], saved: meta.length })
+    }
+    return sendJson(res, 404, { ok: false, error: 'unknown route' })
+  } catch (e) {
+    return sendJson(res, 500, { ok: false, error: String((e && e.message) || e).slice(0, 200) })
+  }
+}
+
+async function serveGeneratedAsset(rel, res) {
+  const safe = path.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, '')
+  const file = path.join(WEB_LINK_ASSET_DIR, safe)
+  const buf = await readFile(file)
+  const ext = path.extname(file).toLowerCase()
+  webLinkCors(res)
+  res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': 'no-store' })
+  res.end(buf)
+}
+/* ===================== 网页联动结束 ===================== */
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', 'http://localhost')
@@ -87,6 +208,18 @@ const server = http.createServer(async (req, res) => {
     // 图片代理（客户端 toLocalBlobUrl 的托管兜底路径）
     if (p === '/game-art-studio/api/proxy-image' || p === '/api/proxy-image') {
       await handleProxy(url, res)
+      return
+    }
+
+    // 网页联动 API（浏览器扩展：提示词中转 / 图片保存 / 新素材查询）
+    if (p.startsWith('/api/web-link')) {
+      await handleWebLink(url, req, res)
+      return
+    }
+
+    // 网页联动生成的素材文件（工坊收件箱与扩展预览用）
+    if (p.startsWith('/assets/generated/')) {
+      await serveGeneratedAsset(p.slice('/assets/generated/'.length), res)
       return
     }
 

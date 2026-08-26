@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { width: 300px; margin: 0; padding: 14px; font: 12px/1.7 monospace; background: #2a2119; color: #efe6d0; }
+  h3 { margin: 0 0 8px; font-size: 13px; color: #f5cf6b; }
+  label { display: flex; gap: 6px; align-items: center; margin: 6px 0; cursor: pointer; }
+  input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; background: #201812; border: 2px solid #594c39; color: #efe6d0; font: inherit; }
+  button { margin-top: 8px; width: 100%; padding: 7px; font: 700 12px monospace; background: #e8a33d; color: #1a1408; border: 2px solid #594c39; cursor: pointer; }
+  #status { margin-top: 8px; min-height: 32px; color: #9a8f7a; }
+  .ok { color: #7cbf5a; } .bad { color: #d9536f; }
+</style>
+</head>
+<body>
+  <h3>🎮 Godot-Arter 网页联动</h3>
+  <label>联动服务地址</label>
+  <input type="text" id="server" value="http://127.0.0.1:3080">
+  <label><input type="checkbox" id="autofill"> 自动填入提示词（不自动发送）</label>
+  <label><input type="checkbox" id="saveBtn"> 生成图旁显示「💾 Godot-Arter」按钮</label>
+  <button id="test">🔍 测试连接</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

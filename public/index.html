@@ -781,6 +781,14 @@ function buildStudio() {
         <button class="gas-btn" id="web-gemini" style="flex:1">\u{1F310} \u6253\u5F00 Gemini \u7F51\u9875\u7248</button>
         <button class="gas-btn" id="web-chatgpt" style="flex:1">\u{1F310} \u6253\u5F00 ChatGPT \u7F51\u9875\u7248</button>
       </div>
+      <div class="gas-divider"></div>
+      <h4>🔗 网页联动 — 浏览器扩展（ChatGPT / Gemini）</h4>
+      <div class="gas-note">安装项目 <span class="gas-kbd">extension/</span> 目录下的浏览器扩展后（Chrome / Edge 开发者模式加载，见 extension/安装说明.md）：<br>① 点上方按钮（或在工坊中选「🌐 网页版」供应商生成）→ 扩展把提示词<b>自动填入网页对话框</b>——只填入、不自动发送，检查后手动点发送；<br>② 网页生成图片后点图片旁「💾 Godot-Arter」按钮 → 自动保存到 <span class="gas-kbd">assets/generated/</span> 并记录到 <span class="gas-kbd">data/generated_assets.json</span>；工坊页面会自动把它<b>导入素材库</b>（含提示词/来源/时间）。<br>未安装扩展时自动退化为「复制提示词到剪贴板，手动粘贴」。</div>
+      <div class="gas-row" style="margin-top:8px">
+        <button class="gas-btn ghost" id="web-link-test" style="flex:1">🔍 测试联动服务</button>
+        <button class="gas-btn ghost" id="web-link-inbox" style="flex:1">📥 检查网页收件箱</button>
+      </div>
+      <div class="gas-note" id="web-link-status" style="margin-top:6px"></div>
     </div>
     <div class="gas-card">
       <h4>\u{1F50C} \u7B2C\u4E09\u65B9 API \u8DEF\u7531\u9884\u8BBE \u2014 \u81EA\u5B9A\u4E49\u4F9B\u5E94\u5546</h4>
@@ -846,12 +854,69 @@ function buildStudio() {
     localStorage.removeItem(LS);
     loadKeys();
   });
-  const openWebPanel = (kind) => {
+  /* ---- 网页联动（浏览器扩展）客户端 ---- */
+  const WEB_LINK_BASE = /^https?:$/.test(location.protocol) ? location.origin : "";
+  function webToast(msg, ok) {
+    if (ok === void 0) ok = true;
+    let el = document.getElementById("gas-web-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "gas-web-toast";
+      el.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:2147483647;max-width:430px;padding:10px 14px;font-size:12px;line-height:1.6;border:3px solid #594c39;background:#38302a;color:#efe6d0;box-shadow:4px 4px 0 rgba(0,0,0,.45);display:none;font-family:inherit;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.borderColor = ok ? "#7cbf5a" : "#d9536f";
+    el.style.display = "block";
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.style.display = "none", 5e3);
+  }
+  async function webLinkPushPrompt(kind, prompt) {
+    if (!WEB_LINK_BASE || !prompt) return false;
+    try {
+      const r = await fetch(WEB_LINK_BASE + "/api/web-link/prompt", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: kind, prompt, from: "studio" }) });
+      const j = await r.json();
+      return !!j.ok;
+    } catch {
+      return false;
+    }
+  }
+  const openWebPanel = async (kind, prompt) => {
     const url = kind === "gemini" ? "https://gemini.google.com" : "https://chatgpt.com";
+    if (prompt) {
+      const pushed = await webLinkPushPrompt(kind, prompt);
+      if (pushed) {
+        webToast("🔗 提示词已发送到联动服务 — 装有扩展的浏览器会自动填入 " + (kind === "gemini" ? "Gemini" : "ChatGPT") + " 对话框（不会自动发送）");
+      } else {
+        try {
+          await navigator.clipboard.writeText(prompt);
+          webToast("📋 联动服务不可用，提示词已复制到剪贴板 — 打开网页后手动粘贴");
+        } catch {
+          webToast("⚠️ 提示词未能复制，请手动复制后粘贴到网页", false);
+        }
+      }
+    }
     window.open(url, "_blank");
   };
   pPreset.querySelector("#web-gemini").addEventListener("click", () => openWebPanel("gemini"));
   pPreset.querySelector("#web-chatgpt").addEventListener("click", () => openWebPanel("chatgpt"));
+  pPreset.querySelector("#web-link-test").addEventListener("click", async () => {
+    const st = pPreset.querySelector("#web-link-status");
+    if (!WEB_LINK_BASE) {
+      st.textContent = "⚠️ 当前以 file:// 直开，联动服务不可用 — 请用 node server.mjs 后经 http://127.0.0.1:3080 访问";
+      st.style.color = "var(--warn)";
+      return;
+    }
+    try {
+      const j = await (await fetch(WEB_LINK_BASE + "/api/web-link/status")).json();
+      st.textContent = "✅ 联动服务在线 · 已保存 " + j.saved + " 张网页素材" + (j.pending && j.pending.length ? " · 待取提示词: " + j.pending.join("/") : "");
+      st.style.color = "var(--ok)";
+    } catch {
+      st.textContent = "❌ 联动服务未连接（server.mjs 未运行？）";
+      st.style.color = "var(--pink)";
+    }
+  });
+  pPreset.querySelector("#web-link-inbox").addEventListener("click", () => webLinkCheckInbox(0, true));
   const pAsset = mkPanel("asset", `
       <div class="gas-card">
         <h4>\u{1F4DA} \u7D20\u6750\u603B\u7BA1 \u2014 \u5168\u7BA1\u7EBF\u7D20\u6750\u5E93</h4>
@@ -2420,7 +2485,7 @@ function buildStudio() {
     const keys = getKeys();
     const ref = opts.reference;
     if (provider.startsWith("web:")) {
-      openWebPanel(provider.slice(4));
+      openWebPanel(provider.slice(4), prompt2);
       return mockImage(prompt2 + " [\u5DF2\u6253\u5F00 " + provider.slice(4) + " \u7F51\u9875\u7248]", opts);
     }
     if (provider === "mock") return mockImage(prompt2, opts);
@@ -5965,6 +6030,64 @@ function buildStudio() {
     list.innerHTML = h.slice(0, 12).map((x, i) => `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px dashed #3a3f47"><span style="color:#6ea6d1">#${i + 1}</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.kind} \xB7 ${(x.prompt || x.file || "").slice(0, 24)}</span><span style="font-size:10px;color:#9aa0a6">${new Date(x.at).toLocaleTimeString()}</span></div>`).join("");
   }
   setTimeout(refreshExportList, 500);
+  /* ---- 网页联动收件箱：自动导入扩展保存的素材 ---- */
+  const WEB_INBOX_LS = "dsh-game-art-studio:webInboxAt";
+  async function webLinkCheckInbox(after, manual) {
+    if (!WEB_LINK_BASE) {
+      if (manual) webToast("⚠️ file:// 模式下网页收件箱不可用（需 node server.mjs 本地服务）", false);
+      return;
+    }
+    try {
+      const since = after != null ? after : Number(localStorage.getItem(WEB_INBOX_LS) || 0);
+      const j = await (await fetch(WEB_LINK_BASE + "/api/web-link/assets?after=" + since)).json();
+      const items = (j && j.items) || [];
+      let imported = 0;
+      let maxAt = since;
+      for (const rec of items) {
+        if (Number(rec.at) > maxAt) maxAt = Number(rec.at);
+        let exist = false;
+        try {
+          const all = await idbGetAll();
+          exist = all.some((a) => a.id === "WEB-" + rec.id);
+        } catch {
+        }
+        if (exist) continue;
+        try {
+          const blob = await (await fetch(WEB_LINK_BASE + "/" + rec.rel)).blob();
+          const dataUrl = await new Promise((res2, rej2) => {
+            const fr = new FileReader();
+            fr.onload = () => res2(fr.result);
+            fr.onerror = rej2;
+            fr.readAsDataURL(blob);
+          });
+          await idbPut({
+            id: "WEB-" + rec.id,
+            kind: "asset",
+            name: ((rec.prompt ? rec.prompt.slice(0, 20) : rec.file) + " (" + (rec.site === "gemini" ? "Gemini" : "ChatGPT") + ")"),
+            url: dataUrl,
+            createdAt: Number(rec.at),
+            meta: { source: "web:" + rec.site, prompt: rec.prompt || "", file: rec.rel, sourceUrl: rec.sourceUrl || "" }
+          });
+          imported++;
+        } catch {
+        }
+      }
+      if (maxAt > since) localStorage.setItem(WEB_INBOX_LS, String(maxAt));
+      if (imported) {
+        if (typeof refreshAssetManagerGlobal === "function") refreshAssetManagerGlobal();
+        webToast("📥 已从网页联动收件箱导入 " + imported + " 张素材到素材库");
+      } else if (manual) {
+        webToast(items.length ? "✅ 没有需要新导入的素材（已存在）" : "✅ 收件箱为空 — 在 ChatGPT/Gemini 网页点「💾 Godot-Arter」保存后会自动出现在素材库");
+      }
+    } catch {
+      if (manual) webToast("❌ 联动服务未连接（server.mjs 未运行？）", false);
+    }
+  }
+  if (WEB_LINK_BASE) {
+    if (!localStorage.getItem(WEB_INBOX_LS)) localStorage.setItem(WEB_INBOX_LS, String(Date.now()));
+    setTimeout(() => webLinkCheckInbox(), 2500);
+    setInterval(() => webLinkCheckInbox(), 8e3);
+  }
   main.querySelector("#e-manifest")?.addEventListener("click", () => {
     const h = getHistory();
     const mf = { project: main.querySelector("#e-name").value, godot: "4.2", generated_at: (/* @__PURE__ */ new Date()).toISOString(), counts: h.reduce((a2, c) => {

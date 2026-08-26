@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Godot-Arter 网页联动",
+  "version": "1.0.0",
+  "description": "Godot-Arter 工坊联动：提示词自动填入 ChatGPT/Gemini（不自动发送）+ 生成图一键保存到素材库",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://chatgpt.com/*",
+    "https://gemini.google.com/*",
+    "https://oaiusercontent.com/*",
+    "https://*.oaiusercontent.com/*",
+    "https://*.oaistatic.com/*",
+    "https://lh3.googleusercontent.com/*",
+    "https://*.googleusercontent.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://gemini.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "Godot-Arter 网页联动" }
+}

@@ -102,6 +102,18 @@ Use the **API Presets** tab to add your own third-party route:
 - Cloud sync / shareable presets
 - Community prompt gallery
 
+## 🔗 网页联动（ChatGPT / Gemini 浏览器扩展）
+
+不想配 API Key？可以把 ChatGPT / Gemini 网页版当作免费生图后端：
+
+1. 启动本地服务：`node server.mjs`
+2. 在 Chrome / Edge 开发者模式加载 `extension/` 目录（详见 extension/安装说明.md）
+3. 工坊里选「🌐 网页版」供应商点生成（或点「打开网页版」按钮）→ 扩展把提示词**自动填入网页对话框**（只填入、不自动发送）
+4. 网页生成图片后点图片旁「💾 Godot-Arter」→ 自动落盘到 `assets/generated/` 并记录 `data/generated_assets.json`
+5. 工坊页面的「网页收件箱」自动把新素材导入素材库（带提示词 / 来源 / 时间元数据）
+
+未安装扩展时自动退化为「复制提示词到剪贴板，手动粘贴」。
+
 ## 📄 License
 
 This project is open source under the **BSD-3-Clause** license.
