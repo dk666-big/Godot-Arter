@@ -77,7 +77,15 @@ function buildStudio(): HTMLElement {
     transition:filter .12s, color .12s, transform .08s; }
   .gas-top-btn:hover{ filter:brightness(1.15); color:var(--text); }
   .gas-top-btn:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--shadow); }
-  .gas-top-btn.active{ color:var(--accent2); border-color:var(--accent); }
+  .gas-theme-sel{ margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .gas-theme-opt{ display:flex; align-items:center; gap:5px; background:var(--hover); border:3px solid var(--border);
+    color:var(--muted); padding:5px 9px; font-size:11px; cursor:pointer; box-shadow:3px 3px 0 var(--shadow);
+    transition:filter .12s, color .12s, transform .08s; }
+  .gas-theme-opt:hover{ filter:brightness(1.15); color:var(--text); }
+  .gas-theme-opt:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--shadow); }
+  .gas-theme-opt .tico{ font-size:13px; }
+  .gas-theme-opt .tlabel{ white-space:nowrap; }
+  .gas-theme-opt.active{ background:var(--accent); color:#1a1408; border-color:var(--border); font-weight:700; }
   /* Layout */
   .gas-shell{ display:flex; flex:1; min-height:0; position:relative; z-index:0; }
   .gas-nav{ width:236px; flex:0 0 236px; background:var(--panel); border-right:4px solid var(--border);
@@ -162,7 +170,7 @@ function buildStudio(): HTMLElement {
   header.className = 'gas-header'
   header.innerHTML = `<div class="gas-logo">G</div>
     <div class="gas-title">游戏美术工坊 <span style="font-weight:400;color:#6ea6d1;">· Godot Ready</span><small>角色 · 序列帧 · 素材 · 抠图 · 无缝大地图 — BYOK · 一键导出 Godot 4.x</small></div>
-    <button class="gas-top-btn" id="btn-theme" title="切换主题 (深色/浅色/跟随系统)" style="margin-left:auto;">🌓</button>
+    <div class="gas-theme-sel" id="theme-sel" title="选择主题">
     <div class="gas-badge">DOCS <b>Godot 4.2</b> · <span style="color:#2ecc71;">● 就绪</span></div>`
   root.appendChild(header)
 
@@ -3807,35 +3815,47 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
   })
 
 
-  // ---- Theme engine (dark / light / system) ----
+  // ---- Theme engine (dark / light / system) - direct selector ----
   const THEME_KEY = 'gas-theme'
   const THEME_ORDER = ['dark','light','system']
-  const themeIcon = (mode)=> mode==='light' ? '☀️' : (mode==='dark' ? '🌙' : '⚡')
+  const THEME_META = {
+    dark:   { icon:'🌙', label:'深色' },
+    light:  { icon:'☀️', label:'浅色' },
+    system: { icon:'⚡', label:'系统' },
+  }
   function resolveTheme(mode){
     if(mode === 'system'){
       return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark'
     }
-    return mode
+    return mode || 'dark'
   }
-  function delItem(k){ try{ localStorage.removeItem(k) }catch{} }
+  function currentMode(){ try{ const v=localStorage.getItem(THEME_KEY); return THEME_ORDER.indexOf(v)>=0 ? v : 'dark' }catch{ return 'dark' } }
   function applyTheme(mode){
     root.dataset.theme = resolveTheme(mode)
-    const btn = root.querySelector('#btn-theme')
-    if(btn){ btn.textContent = themeIcon(mode); btn.title = '切换主题：' + (mode==='light'?'浅色':(mode==='dark'?'深色':'跟随系统')) }
-    if(mode === 'system'){ delItem(THEME_KEY) } else { try{ localStorage.setItem(THEME_KEY, mode) }catch{} }
+    try{ localStorage.setItem(THEME_KEY, mode) }catch{}
+    // mark active segment
+    root.querySelectorAll('#theme-sel .gas-theme-opt').forEach(o=>{
+      o.classList.toggle('active', o.dataset.mode===mode)
+    })
   }
-  const savedTheme = (()=>{ try{ return localStorage.getItem(THEME_KEY) }catch{ return null } })()
-  applyTheme(savedTheme || 'dark')
-  const themeBtn = root.querySelector('#btn-theme')
-  if(themeBtn) themeBtn.onclick = ()=>{
-    const cur = (()=>{ try{ return localStorage.getItem(THEME_KEY) }catch{ return null } })() || 'dark'
-    let next = THEME_ORDER[(THEME_ORDER.indexOf(cur)+1)%THEME_ORDER.length]
-    applyTheme(next)
+  // build the 3-way selector
+  const themeSel = root.querySelector('#theme-sel')
+  if(themeSel){
+    THEME_ORDER.forEach(mode=>{
+      const b=document.createElement('button')
+      b.className='gas-theme-opt'
+      b.dataset.mode=mode
+      b.title='主题：' + THEME_META[mode].label
+      b.innerHTML = '<span class="tico">' + THEME_META[mode].icon + '</span><span class="tlabel">' + THEME_META[mode].label + '</span>'
+      b.onclick=()=>applyTheme(mode)
+      themeSel.appendChild(b)
+    })
   }
+  const initialMode = currentMode()
+  applyTheme(initialMode)
   if(window.matchMedia) try{
     window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()=>{
-      const cur = (()=>{ try{ return localStorage.getItem(THEME_KEY) }catch{ return null } })()
-      if(cur === null) applyTheme('system')
+      if(currentMode() === 'system') applyTheme('system')
     })
   }catch{}
 

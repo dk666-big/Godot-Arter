@@ -54,7 +54,15 @@ function buildStudio() {
     transition:filter .12s, color .12s, transform .08s; }
   .gas-top-btn:hover{ filter:brightness(1.15); color:var(--text); }
   .gas-top-btn:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--shadow); }
-  .gas-top-btn.active{ color:var(--accent2); border-color:var(--accent); }
+  .gas-theme-sel{ margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .gas-theme-opt{ display:flex; align-items:center; gap:5px; background:var(--hover); border:3px solid var(--border);
+    color:var(--muted); padding:5px 9px; font-size:11px; cursor:pointer; box-shadow:3px 3px 0 var(--shadow);
+    transition:filter .12s, color .12s, transform .08s; }
+  .gas-theme-opt:hover{ filter:brightness(1.15); color:var(--text); }
+  .gas-theme-opt:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--shadow); }
+  .gas-theme-opt .tico{ font-size:13px; }
+  .gas-theme-opt .tlabel{ white-space:nowrap; }
+  .gas-theme-opt.active{ background:var(--accent); color:#1a1408; border-color:var(--border); font-weight:700; }
   /* Layout */
   .gas-shell{ display:flex; flex:1; min-height:0; position:relative; z-index:0; }
   .gas-nav{ width:236px; flex:0 0 236px; background:var(--panel); border-right:4px solid var(--border);
@@ -137,7 +145,7 @@ function buildStudio() {
   header.className = "gas-header";
   header.innerHTML = `<div class="gas-logo">G</div>
     <div class="gas-title">\u6E38\u620F\u7F8E\u672F\u5DE5\u574A <span style="font-weight:400;color:#6ea6d1;">\xB7 Godot Ready</span><small>\u89D2\u8272 \xB7 \u5E8F\u5217\u5E27 \xB7 \u7D20\u6750 \xB7 \u62A0\u56FE \xB7 \u65E0\u7F1D\u5927\u5730\u56FE \u2014 BYOK \xB7 \u4E00\u952E\u5BFC\u51FA Godot 4.x</small></div>
-    <button class="gas-top-btn" id="btn-theme" title="\u5207\u6362\u4E3B\u9898 (\u6DF1\u8272/\u6D45\u8272/\u8DDF\u968F\u7CFB\u7EDF)" style="margin-left:auto;">\u{1F313}</button>
+    <div class="gas-theme-sel" id="theme-sel" title="\u9009\u62E9\u4E3B\u9898">
     <div class="gas-badge">DOCS <b>Godot 4.2</b> \xB7 <span style="color:#2ecc71;">\u25CF \u5C31\u7EEA</span></div>`;
   root.appendChild(header);
   const tabDefs = [
@@ -5428,65 +5436,52 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest \u90BB\u8FD1\u
   });
   const THEME_KEY = "gas-theme";
   const THEME_ORDER = ["dark", "light", "system"];
-  const themeIcon = (mode) => mode === "light" ? "\u2600\uFE0F" : mode === "dark" ? "\u{1F319}" : "\u26A1";
+  const THEME_META = {
+    dark: { icon: "\u{1F319}", label: "\u6DF1\u8272" },
+    light: { icon: "\u2600\uFE0F", label: "\u6D45\u8272" },
+    system: { icon: "\u26A1", label: "\u7CFB\u7EDF" }
+  };
   function resolveTheme(mode) {
     if (mode === "system") {
       return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
     }
-    return mode;
+    return mode || "dark";
   }
-  function delItem(k) {
+  function currentMode() {
     try {
-      localStorage.removeItem(k);
+      const v = localStorage.getItem(THEME_KEY);
+      return THEME_ORDER.indexOf(v) >= 0 ? v : "dark";
     } catch {
+      return "dark";
     }
   }
   function applyTheme(mode) {
     root.dataset.theme = resolveTheme(mode);
-    const btn = root.querySelector("#btn-theme");
-    if (btn) {
-      btn.textContent = themeIcon(mode);
-      btn.title = "\u5207\u6362\u4E3B\u9898\uFF1A" + (mode === "light" ? "\u6D45\u8272" : mode === "dark" ? "\u6DF1\u8272" : "\u8DDF\u968F\u7CFB\u7EDF");
-    }
-    if (mode === "system") {
-      delItem(THEME_KEY);
-    } else {
-      try {
-        localStorage.setItem(THEME_KEY, mode);
-      } catch {
-      }
-    }
-  }
-  const savedTheme = (() => {
     try {
-      return localStorage.getItem(THEME_KEY);
+      localStorage.setItem(THEME_KEY, mode);
     } catch {
-      return null;
     }
-  })();
-  applyTheme(savedTheme || "dark");
-  const themeBtn = root.querySelector("#btn-theme");
-  if (themeBtn) themeBtn.onclick = () => {
-    const cur = (() => {
-      try {
-        return localStorage.getItem(THEME_KEY);
-      } catch {
-        return null;
-      }
-    })() || "dark";
-    let next = THEME_ORDER[(THEME_ORDER.indexOf(cur) + 1) % THEME_ORDER.length];
-    applyTheme(next);
-  };
+    root.querySelectorAll("#theme-sel .gas-theme-opt").forEach((o) => {
+      o.classList.toggle("active", o.dataset.mode === mode);
+    });
+  }
+  const themeSel = root.querySelector("#theme-sel");
+  if (themeSel) {
+    THEME_ORDER.forEach((mode) => {
+      const b = document.createElement("button");
+      b.className = "gas-theme-opt";
+      b.dataset.mode = mode;
+      b.title = "\u4E3B\u9898\uFF1A" + THEME_META[mode].label;
+      b.innerHTML = '<span class="tico">' + THEME_META[mode].icon + '</span><span class="tlabel">' + THEME_META[mode].label + "</span>";
+      b.onclick = () => applyTheme(mode);
+      themeSel.appendChild(b);
+    });
+  }
+  const initialMode = currentMode();
+  applyTheme(initialMode);
   if (window.matchMedia) try {
     window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
-      const cur = (() => {
-        try {
-          return localStorage.getItem(THEME_KEY);
-        } catch {
-          return null;
-        }
-      })();
-      if (cur === null) applyTheme("system");
+      if (currentMode() === "system") applyTheme("system");
     });
   } catch {
   }
