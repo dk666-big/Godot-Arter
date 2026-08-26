@@ -148,6 +148,7 @@ function buildStudio(): HTMLElement {
   .gas-preview{ background:var(--thumbb); border:3px solid var(--border); border-radius:0; padding:14px; display:grid; place-items:center; min-height:180px; max-height:280px; position:relative; overflow:hidden; box-shadow:3px 3px 0 var(--shadow); }
   .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0); background-size:20px 20px; }
   .gas-canvas{ max-width:100%; max-height:180px; width:auto; height:auto; image-rendering: pixelated; border-radius:0; display:block; }
+  .gas-preview img, .gas-canvas, .gas-preview canvas{ cursor:zoom-in; }
   .gas-map-viewport{ width:100%; height:400px; overflow:auto; background:var(--thumbb); border:3px solid var(--border); border-radius:0; padding:0; position:relative; box-shadow:inset 3px 3px 0 var(--shadow); }
   .gas-map-viewport img{ display:block; image-rendering: pixelated; max-width:none; cursor:grab; }
   .gas-kbd{ background:var(--inputb); border:3px solid var(--border); border-bottom-width:5px; padding:1px 6px; font-size:10px; color:var(--muted); }
@@ -3922,6 +3923,18 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
   }
   // expose for panel code
   ;(root as any).openAssetLightbox = openAssetLightbox
+
+  // ---- Global preview click-to-zoom (works for any module's preview) ----
+  root.addEventListener('click', (e:any)=>{
+    const t = e.target as HTMLElement
+    let url:string = '', title:string = ''
+    if(t instanceof HTMLImageElement){ url = t.currentSrc || t.src; title = t.alt || (t as any).dataset?.name || '' }
+    else if(t instanceof HTMLCanvasElement){ try{ url = (t as HTMLCanvasElement).toDataURL('image/png') }catch{} }
+    if(!url) return
+    if(t.closest('button, select, a, [data-no-zoom]')) return
+    if(t.closest('#al-grid')) return   // asset manager handles its own click
+    openAssetLightbox(url, title, '')
+  })
 
   return root
 }
