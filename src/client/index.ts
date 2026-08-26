@@ -664,37 +664,37 @@ function buildStudio(): HTMLElement {
     <div class="gas-card">
       <h4>🧩 元素提取 — 自动框选独立元素 / 点选 / 拖拽 / 保存素材</h4>
       <div class="gas-row">
-        <div style="flex:1">
-          <div style="border:1.5px dashed var(--border); border-radius:8px; padding:14px; text-align:center; background:#1a1e20; cursor:pointer" id="x-drop">
-            <div style="font-size:22px">🗺️</div><div class="gas-note">上传一张地图或含多元素的图片（PNG/JPG）<br>点击或拖拽</div>
+        <div style="flex:1.2">
+          <label class="gas-label">上传地图 / 多元素图（点击或拖拽）</label>
+          <div style="border:1.5px dashed var(--border); border-radius:8px; padding:10px; text-align:center; background:#1a1e20; cursor:pointer" id="x-drop">
+            <div style="font-size:18px">🗺️</div><div class="gas-note">拖拽或点击上传 PNG/JPG</div>
             <input type="file" id="x-file" accept="image/*" hidden>
           </div>
+          <div class="gas-preview tiled" id="x-preview" style="min-height:140px;margin-top:8px"><span class="gas-note">上传后在这里显示原图</span></div>
+        </div>
+        <div style="flex:1">
           <label class="gas-label">提取方式</label>
-          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（本地连通域分割）</option><option value="point">🖱️ 点选单个元素（点图上某个元素，自动框出它）</option></select>
-          <div class="gas-note" id="x-mode-tip" style="margin-top:4px">自动模式：一键把图里独立元素全部框出；像素风/色块分明效果最好。</div>
+          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（先自动去背景再分割）</option><option value="point">🖱️ 点选单个元素（点原图某元素，自动框出它）</option><option value="ai">🌐 AI 分割（SAM，需联网+Key）</option></select>
+          <div class="gas-note" id="x-mode-tip" style="margin-top:4px">自动模式：先识别背景色并擦除，再对前景做连通域分割，框出每个独立元素。</div>
           <div class="gas-row" style="margin-top:8px">
             <label class="gas-label" style="margin:0">容差</label>
-            <input class="gas-input" id="x-tol" type="range" min="5" max="120" value="32" style="flex:1">
-            <span class="gas-pill" id="x-tol-v">32</span>
+            <input class="gas-input" id="x-tol" type="range" min="5" max="200" value="48" style="flex:1">
+            <span class="gas-pill" id="x-tol-v">48</span>
             <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="x-min" checked> 忽略过小碎片</label>
           </div>
           <div class="gas-row" style="margin-top:8px">
             <button class="gas-btn" id="x-run">🔍 自动提取</button>
             <button class="gas-btn ghost" id="x-clear">↺ 清空</button>
             <button class="gas-btn orange" id="x-save-all" disabled>📥 全部入库</button>
-          </div>
-          <div class="gas-note" id="x-status"></div>
-          <div class="gas-note" style="margin-top:6px">💡 提取出的每个元素在右侧编辑区可自由拖动、点击选中；点「✕」可移除。可单个/全部保存为素材或下载。</div>
-        </div>
-        <div style="width:320px">
-          <label class="gas-label">提取编辑区（拖动 / 选中 / 保存）</label>
-          <div class="gas-extract-stage" id="x-stage"><span class="gas-note">先上传图片并提取</span></div>
-          <div class="gas-row" style="margin-top:6px">
-            <button class="gas-btn ghost" id="x-save-sel" disabled>📥 保存选中为素材</button>
+            <button class="gas-btn ghost" id="x-save-sel" disabled>📥 保存选中</button>
             <button class="gas-btn ghost" id="x-dl-sel" disabled>⬇ 下载选中</button>
           </div>
+          <div class="gas-note" id="x-status"></div>
         </div>
       </div>
+      <div class="gas-divider"></div>
+      <label class="gas-label">提取结果（可拖动 / 点击选中 / ✕ 移除 / 保存）</label>
+      <div class="gas-extract-grid" id="x-stage"><span class="gas-note">先上传图片并「🔍 自动提取」</span></div>
     </div>
   `)
 
@@ -937,13 +937,13 @@ const pPost=mkPanel('post', `
     let elements: any[]=[]
     let selected=-1
     tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
-    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：一键把图里独立元素全部框出；像素风/色块分明效果最好。' : '点选模式：在原图上点击某个元素，自动框出它。')
+    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：先识别背景并擦除，再对前景做连通域分割，框出每个独立元素。' : modeEl.value==='point' ? '点选模式：点击原图上某个元素，自动框出它。' : 'AI 模式：预留 SAM 分割接口，接入模型后可按物体语义分割；当前可先用自动/点选。')
     drop.addEventListener('click', ()=> fileInput.click())
     drop.addEventListener('dragover', e=>{e.preventDefault(); drop.style.borderColor='#478cbf'})
     drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
     drop.addEventListener('drop', e=>{ e.preventDefault(); const f=e.dataTransfer?.files?.[0]; if(f) handle(f) })
     fileInput.addEventListener('change', ()=>{ const f=fileInput.files?.[0]; if(f) handle(f) })
-    function drawProgress(msg){ if(statusEl) statusEl.textContent=msg }
+    function drawProgress(msg, warn=false){ if(statusEl){ statusEl.textContent=msg; statusEl.style.color = warn ? 'var(--warn)' : 'var(--muted)' } }
     function resetStage(){ stage.innerHTML='<span class="gas-note">先上传图片并提取</span>' }
     function splitElements(won,hon,data,tol,minArea){
       const labels=new Int32Array(won*hon); labels.fill(-1)
@@ -990,18 +990,22 @@ const pPost=mkPanel('post', `
     function highlightSel(){ stage.querySelectorAll('.gas-extract-item').forEach((w:any)=> w.classList.toggle('sel', Number(w.dataset.idx)===selected)) }
     function rebuildStage(){
       stage.innerHTML=''
-      if(!elements.length){ stage.innerHTML='<span class="gas-note">暂无提取元素，先「🔍 自动提取」</span>'; return }
-      const stw=stage.clientWidth||320, sth=stage.clientHeight||260
+      if(!elements.length){ stage.innerHTML='<span class="gas-note">先上传图片并「🔍 自动提取」</span>'; return }
       elements.forEach((el,i)=>{
-        const wrap=document.createElement('div'); wrap.className='gas-extract-item'; wrap.dataset.idx=String(i)
-        wrap.style.left=Math.min((10+i*30), Math.max(0,stw-90))+'px'; wrap.style.top=Math.min((10+i*24), Math.max(0,sth-90))+'px'
-        wrap.style.width=Math.min(110, el.w)+'px'; wrap.style.height=Math.min(110, el.h)+'px'
-        const img=document.createElement('img'); img.src=el.img.toDataURL(); wrap.appendChild(img)
-        const tag=document.createElement('span'); tag.className='gas-extract-tag'; tag.textContent='#'+(i+1); wrap.appendChild(tag)
-        const del=document.createElement('button'); del.className='gas-extract-del'; del.textContent='✕'; wrap.appendChild(del)
-        wrap.addEventListener('mousedown',(e)=>{ selected=i; highlightSel(); startDrag(e,wrap,i) })
+        const cell=document.createElement('div'); cell.className='gas-extract-cell'; cell.dataset.idx=String(i)
+        const box=document.createElement('div'); box.className='gas-extract-item'
+        const img=document.createElement('img'); img.src=el.img.toDataURL(); box.appendChild(img)
+        const tag=document.createElement('span'); tag.className='gas-extract-tag'; tag.textContent='#'+(i+1)+' · '+el.w+'×'+el.h; box.appendChild(tag)
+        const del=document.createElement('button'); del.className='gas-extract-del'; del.textContent='✕'; box.appendChild(del)
+        box.addEventListener('mousedown',(e)=>{ selected=i; highlightSel(); startDrag(e,box,i) })
         del.addEventListener('click',(e)=>{ e.stopPropagation(); elements.splice(i,1); rebuildStage(); updateSel() })
-        stage.appendChild(wrap)
+        cell.appendChild(box)
+        // 下方也放独立的保存/下载小按钮
+        const act=document.createElement('div'); act.className='gas-extract-actions'
+        const sa=document.createElement('button'); sa.className='gas-btn ghost'; sa.textContent='📥 保存'; sa.onclick=()=>{ void saveElements([elements[i]]) }
+        const dl=document.createElement('button'); dl.className='gas-btn ghost'; dl.textContent='⬇'; dl.onclick=()=>{ downloadUrl(elements[i].img.toDataURL(), elements[i].name+'.png') }
+        act.append(sa,dl); cell.appendChild(act)
+        stage.appendChild(cell)
       })
       updateSel()
     }
@@ -1016,18 +1020,62 @@ const pPost=mkPanel('post', `
       const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await new Promise(r=>img.onload=r)
       srcCanvas=document.createElement('canvas'); srcCanvas.width=img.naturalWidth; srcCanvas.height=img.naturalHeight
       srcCanvas.getContext('2d')!.drawImage(img,0,0)
+      // 在上传框显示原图缩略
+      const pv=pExt.querySelector('#x-preview') as HTMLElement; if(pv){ pv.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; im.style.maxHeight='220px'; im.style.imageRendering='pixelated'; pv.appendChild(im) }
       elements=[]; selected=-1; resetStage()
-      drawProgress('已加载 '+img.naturalWidth+'×'+img.naturalHeight+'，点「🔍 自动提取」或切点选模式点元素。')
+      drawProgress('已加载 '+img.naturalWidth+'×'+img.naturalHeight+'，点「🔍 自动提取」。')
+    }
+    // 采样四边背景色（可能多个），返回主背景色数组
+    function sampleBg(d, w, h){
+      const bg:any={}
+      const edge=Math.max(1, Math.min(4, Math.floor(Math.min(w,h)*0.02)))
+      const add=(x,y)=>{ if(x<0||y<0||x>=w||y>=h) return; const i=(y*w+x)*4; const k=String(((d[i]>>3)<<6)|((d[i+1]>>3)<<3)|(d[i+2]>>3)); if(!bg[k]) bg[k]={n:0,r:0,g:0,b:0}; const b=bg[k]; b.n++; b.r+=d[i]; b.g+=d[i+1]; b.b+=d[i+2] }
+      for(let x=0;x<w;x++){ add(x,0); add(x,h-1); add(x,edge-1); add(x,h-edge) }
+      for(let y=0;y<h;y++){ add(0,y); add(w-1,y); add(edge-1,y); add(w-edge,y) }
+      const arr=Object.values(bg).sort((a:any,b:any)=>b.n-a.n)
+      return arr.slice(0,4).map((b:any)=>({ r:b.r/b.n, g:b.g/b.n, b:b.b/b.n }))
+    }
+    // 把与四边背景色相近的像素设为透明（去背景）
+    function removeBg(d, w, h, bgList, T){
+      const bgd=bgList.map((c:any)=> Math.sqrt(c.r*c.r+c.g*c.g+c.b*c.b))
+      let removed=0
+      for(let i=0;i<d.length;i+=4){
+        let isBg=false
+        for(const c of bgList){
+          const dist=Math.sqrt((d[i]-c.r)*(d[i]-c.r)+(d[i+1]-c.g)*(d[i+1]-c.g)+(d[i+2]-c.b)*(d[i+2]-c.b))
+          if(dist<T){ isBg=true; break }
+        }
+        if(isBg){ d[i+3]=0; removed++ }
+      }
+      return removed
     }
     async function doAuto(){
       if(!srcCanvas) return drawProgress('请先上传图片')
-      drawProgress('正在分析…'); await new Promise(r=>setTimeout(r,30))
-      const g=srcCanvas.getContext('2d')!; const id=g.getImageData(0,0,srcCanvas.width,srcCanvas.height); const data=id.data
-      const T=parseInt(tolEl.value)||32; const minArea=minEl.checked? Math.max(8, (srcCanvas.width*srcCanvas.height)*0.0004):0
-      const boxes=splitElements(srcCanvas.width,srcCanvas.height,data,T,minArea)
+      drawProgress('正在分析背景并分割…'); await new Promise(r=>setTimeout(r,30))
+      const w=srcCanvas.width, h=srcCanvas.height
+      const g=srcCanvas.getContext('2d')!; const id=g.getImageData(0,0,w,h); const d=id.data
+      // 1) 先做一次基于 alpha 的原生分割（若图原本就带透明背景）
+      const boxes0=splitElements(w,h,d,parseInt(tolEl.value)||48, minEl.checked? Math.max(5,(w*h)*0.0002):0)
+      // 2) 若图完全透明背景（alpha 普遍为 0/255），直接用它；否则先自动去背景再分割
+      // 检查当前是否已有透明（alpha<250 的像素比例）
+      let anyTransparent=false, opaqueCount=0, total=w*h
+      for(let i=3;i<d.length;i+=4){ if(d[i]<250){ anyTransparent=true; break } }
+      let boxes
+      if(anyTransparent){
+        boxes=boxes0
+      } else {
+        const bgList=sampleBg(d,w,h)
+        const Tbg=Math.max(24, parseInt(tolEl.value)||48)
+        const removed=removeBg(d,w,h,bgList,Tbg)
+        if(removed < total*0.5){
+          drawProgress('⚠️ 背景色不单一或难以识别（仅移除 '+removed+' 像素）。已尝试分割前景，但效果可能不理想；建议像素风/纯色背景图。', true)
+        }
+        g.putImageData(id,0,0)
+        boxes=splitElements(w,h,d,parseInt(tolEl.value)||48, minEl.checked? Math.max(5,(w*h)*0.0002):0)
+      }
       boxes.sort((a,b)=>b.count-a.count)
       elements=boxes.map((b,i)=>({x:b.x,y:b.y,w:b.w,h:b.h,img:cropElement(b),name:'ELEMENT-'+(i+1)}))
-      drawProgress('自动提取完成：'+elements.length+' 个独立元素。可在右侧拖动、选中保存。')
+      drawProgress('自动提取完成：'+elements.length+' 个独立元素。可在下方结果区拖动、选中保存。')
       rebuildStage()
     }
     function doPoint(x,y){
