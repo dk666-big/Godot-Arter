@@ -199,6 +199,7 @@ function buildStudio(): HTMLElement {
     { id:'pipe', label:'素材流水线', icon:'🚀', group:'处理' },
     { id:'sheet', label:'序列帧', icon:'🎞️', group:'处理' },
     { id:'matting', label:'智能抠图', icon:'✂️', group:'处理' },
+    { id:'extract', label:'元素提取', icon:'🧩', group:'处理' },
     { id:'post', label:'后处理', icon:'✨', group:'处理' },
     { id:'map', label:'无缝大地图', icon:'🗺️', group:'地图' },
     { id:'asset', label:'素材总管', icon:'📚', group:'系统' },
@@ -658,6 +659,45 @@ function buildStudio(): HTMLElement {
       </div>
     `)
 // SCENE — 天气 × 日夜（功能借鉴 romestead_weather_free：天气参数库 + 程序化覆盖层渲染）
+  // ELEMENT EXTRACTOR
+  const pExtract=mkPanel('extract', `
+    <div class="gas-card">
+      <h4>🧩 元素提取 — 自动框选独立元素 / 点选 / 拖拽 / 保存素材</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <div style="border:1.5px dashed var(--border); border-radius:8px; padding:14px; text-align:center; background:#1a1e20; cursor:pointer" id="x-drop">
+            <div style="font-size:22px">🗺️</div><div class="gas-note">上传一张地图或含多元素的图片（PNG/JPG）<br>点击或拖拽</div>
+            <input type="file" id="x-file" accept="image/*" hidden>
+          </div>
+          <label class="gas-label">提取方式</label>
+          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（本地连通域分割）</option><option value="point">🖱️ 点选单个元素（点图上某个元素，自动框出它）</option></select>
+          <div class="gas-note" id="x-mode-tip" style="margin-top:4px">自动模式：一键把图里独立元素全部框出；像素风/色块分明效果最好。</div>
+          <div class="gas-row" style="margin-top:8px">
+            <label class="gas-label" style="margin:0">容差</label>
+            <input class="gas-input" id="x-tol" type="range" min="5" max="120" value="32" style="flex:1">
+            <span class="gas-pill" id="x-tol-v">32</span>
+            <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="x-min" checked> 忽略过小碎片</label>
+          </div>
+          <div class="gas-row" style="margin-top:8px">
+            <button class="gas-btn" id="x-run">🔍 自动提取</button>
+            <button class="gas-btn ghost" id="x-clear">↺ 清空</button>
+            <button class="gas-btn orange" id="x-save-all" disabled>📥 全部入库</button>
+          </div>
+          <div class="gas-note" id="x-status"></div>
+          <div class="gas-note" style="margin-top:6px">💡 提取出的每个元素在右侧编辑区可自由拖动、点击选中；点「✕」可移除。可单个/全部保存为素材或下载。</div>
+        </div>
+        <div style="width:320px">
+          <label class="gas-label">提取编辑区（拖动 / 选中 / 保存）</label>
+          <div class="gas-extract-stage" id="x-stage"><span class="gas-note">先上传图片并提取</span></div>
+          <div class="gas-row" style="margin-top:6px">
+            <button class="gas-btn ghost" id="x-save-sel" disabled>📥 保存选中为素材</button>
+            <button class="gas-btn ghost" id="x-dl-sel" disabled>⬇ 下载选中</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `)
+
   const pScene=mkPanel('scene', `
     <div class="gas-card">
       <h4>🌦️ 场景工坊 — 天气 × 日夜 实时预览</h4>
@@ -869,8 +909,8 @@ const pPost=mkPanel('post', `
     </div>
   `)
 
-  ;[pChar,pSeq,pPipe,pSheet,pForge,pMat,pMap,pScene,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
-  panels['character']=pChar; panels['seq']=pSeq; panels['pipe']=pPipe; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
+  ;[pChar,pSeq,pPipe,pSheet,pForge,pMat,pExtract,pMap,pScene,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
+  panels['character']=pChar; panels['seq']=pSeq; panels['pipe']=pPipe; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['extract']=pExtract; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
 
   function switchTab(id:string){
     active=id
@@ -878,8 +918,138 @@ const pPost=mkPanel('post', `
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
-    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', seq:'单帧动画：AI 逐张画单角色，代码自动裁白边/脚底对齐/横排拼接，从根源消除邻帧串位', pipe:'素材流水线：批量导入帧/整表，一键完成 切→去背→脚部对齐→命名→导出 SpriteFrames，产出 Godot 直接可用动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
+    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', seq:'单帧动画：AI 逐张画单角色，代码自动裁白边/脚底对齐/横排拼接，从根源消除邻帧串位', pipe:'素材流水线：批量导入帧/整表，一键完成 切→去背→脚部对齐→命名→导出 SpriteFrames，产出 Godot 直接可用动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', extract:'元素提取：上传地图/多元素图，自动框出独立元素或点选单个，拖拽后保存为素材', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
     if(tip) tip.textContent=tips[id]||''
+  }
+
+
+  // ---- 元素提取器 logic ----
+  {
+    const pExt = pExtract
+    const drop=pExt.querySelector('#x-drop'), fileInput=pExt.querySelector('#x-file') as HTMLInputElement
+    const modeEl=pExt.querySelector('#x-mode') as HTMLSelectElement, modeTip=pExt.querySelector('#x-mode-tip') as HTMLElement
+    const tolEl=pExt.querySelector('#x-tol') as HTMLInputElement, tolV=pExt.querySelector('#x-tol-v') as HTMLElement
+    const minEl=pExt.querySelector('#x-min') as HTMLInputElement
+    const runBtn=pExt.querySelector('#x-run'), statusEl=pExt.querySelector('#x-status') as HTMLElement
+    const stage=pExt.querySelector('#x-stage') as HTMLElement, clearBtn=pExt.querySelector('#x-clear')
+    const saveAllBtn=pExt.querySelector('#x-save-all') as HTMLButtonElement, saveSelBtn=pExt.querySelector('#x-save-sel') as HTMLButtonElement, dlSelBtn=pExt.querySelector('#x-dl-sel') as HTMLButtonElement
+    let srcCanvas: HTMLCanvasElement|null=null
+    let elements: any[]=[]
+    let selected=-1
+    tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
+    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：一键把图里独立元素全部框出；像素风/色块分明效果最好。' : '点选模式：在原图上点击某个元素，自动框出它。')
+    drop.addEventListener('click', ()=> fileInput.click())
+    drop.addEventListener('dragover', e=>{e.preventDefault(); drop.style.borderColor='#478cbf'})
+    drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
+    drop.addEventListener('drop', e=>{ e.preventDefault(); const f=e.dataTransfer?.files?.[0]; if(f) handle(f) })
+    fileInput.addEventListener('change', ()=>{ const f=fileInput.files?.[0]; if(f) handle(f) })
+    function drawProgress(msg){ if(statusEl) statusEl.textContent=msg }
+    function resetStage(){ stage.innerHTML='<span class="gas-note">先上传图片并提取</span>' }
+    function splitElements(won,hon,data,tol,minArea){
+      const labels=new Int32Array(won*hon); labels.fill(-1)
+      const boxes:any[]=[]; let lab=0; const stack:number[]=[]
+      for(let sy=0;sy<hon;sy++) for(let sx=0;sx<won;sx++){
+        const si=sy*won+sx
+        if(labels[si]<0 && data[si*4+3]>8){
+          const sr=data[si*4],sg=data[si*4+1],sb=data[si*4+2]
+          let minX=sx,maxX=sx,minY=sy,maxY=sy,count=0
+          labels[si]=lab; stack.length=0; stack.push(si)
+          while(stack.length){
+            const idx=stack.pop()!; const yy=(idx/won)|0, xx=idx%won; count++
+            if(xx<minX)minX=xx; if(xx>maxX)maxX=xx; if(yy<minY)minY=yy; if(yy>maxY)maxY=yy
+            const nb=[[xx+1,yy],[xx-1,yy],[xx,yy+1],[xx,yy-1]]
+            for(const [nx,ny] of nb){
+              if(nx<0||ny<0||nx>=won||ny>=hon) continue
+              const ni=ny*won+nx
+              if(labels[ni]<0 && data[ni*4+3]>8){
+                const dr=data[ni*4]-sr,dg=data[ni*4+1]-sg,db=data[ni*4+2]-sb
+                if(Math.sqrt(dr*dr+dg*dg+db*db)<=tol){ labels[ni]=lab; stack.push(ni) }
+              }
+            }
+          }
+          if(count>=minArea) boxes.push({x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1,count})
+          lab++
+        }
+      }
+      return boxes
+    }
+    function cropElement(box){
+      const c=document.createElement('canvas'); c.width=box.w; c.height=box.h
+      const g=c.getContext('2d')!; g.drawImage(srcCanvas!, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h)
+      const id=g.getImageData(0,0,box.w,box.h); const d=id.data
+      const T=parseInt(tolEl.value)||32
+      let br=0,bg=0,bb=0,n=0
+      for(let x=0;x<box.w;x++){ for(const y of [0,box.h-1]){ const i=(y*box.w+x)*4; br+=d[i];bg+=d[i+1];bb+=d[i+2];n++ } }
+      for(let y=0;y<box.h;y++){ for(const x of [0,box.w-1]){ const i=(y*box.w+x)*4; br+=d[i];bg+=d[i+1];bb+=d[i+2];n++ } }
+      br/=n; bg/=n; bb/=n
+      for(let i=0;i<d.length;i+=4){ const dist=Math.sqrt((d[i]-br)**2+(d[i+1]-bg)**2+(d[i+2]-bb)**2); if(dist<T) d[i+3]=0 }
+      g.putImageData(id,0,0)
+      return c
+    }
+    function updateSel(){ const has=selected>=0&&selected<elements.length; saveSelBtn.disabled=!has; dlSelBtn.disabled=!has; saveAllBtn.disabled=!elements.length }
+    function highlightSel(){ stage.querySelectorAll('.gas-extract-item').forEach((w:any)=> w.classList.toggle('sel', Number(w.dataset.idx)===selected)) }
+    function rebuildStage(){
+      stage.innerHTML=''
+      if(!elements.length){ stage.innerHTML='<span class="gas-note">暂无提取元素，先「🔍 自动提取」</span>'; return }
+      const stw=stage.clientWidth||320, sth=stage.clientHeight||260
+      elements.forEach((el,i)=>{
+        const wrap=document.createElement('div'); wrap.className='gas-extract-item'; wrap.dataset.idx=String(i)
+        wrap.style.left=Math.min((10+i*30), Math.max(0,stw-90))+'px'; wrap.style.top=Math.min((10+i*24), Math.max(0,sth-90))+'px'
+        wrap.style.width=Math.min(110, el.w)+'px'; wrap.style.height=Math.min(110, el.h)+'px'
+        const img=document.createElement('img'); img.src=el.img.toDataURL(); wrap.appendChild(img)
+        const tag=document.createElement('span'); tag.className='gas-extract-tag'; tag.textContent='#'+(i+1); wrap.appendChild(tag)
+        const del=document.createElement('button'); del.className='gas-extract-del'; del.textContent='✕'; wrap.appendChild(del)
+        wrap.addEventListener('mousedown',(e)=>{ selected=i; highlightSel(); startDrag(e,wrap,i) })
+        del.addEventListener('click',(e)=>{ e.stopPropagation(); elements.splice(i,1); rebuildStage(); updateSel() })
+        stage.appendChild(wrap)
+      })
+      updateSel()
+    }
+    function startDrag(e,wrap,i){
+      e.preventDefault()
+      const st=stage.getBoundingClientRect(); const ox=e.clientX-wrap.getBoundingClientRect().left, oy=e.clientY-wrap.getBoundingClientRect().top
+      const move=(ev)=>{ let nx=ev.clientX-st.left-ox, ny=ev.clientY-st.top-oy; nx=Math.max(0,Math.min(nx,st.width-wrap.offsetWidth)); ny=Math.max(0,Math.min(ny,st.height-wrap.offsetHeight)); wrap.style.left=nx+'px'; wrap.style.top=ny+'px' }
+      const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up) }
+      window.addEventListener('mousemove',move); window.addEventListener('mouseup',up)
+    }
+    async function handle(file:File){
+      const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await new Promise(r=>img.onload=r)
+      srcCanvas=document.createElement('canvas'); srcCanvas.width=img.naturalWidth; srcCanvas.height=img.naturalHeight
+      srcCanvas.getContext('2d')!.drawImage(img,0,0)
+      elements=[]; selected=-1; resetStage()
+      drawProgress('已加载 '+img.naturalWidth+'×'+img.naturalHeight+'，点「🔍 自动提取」或切点选模式点元素。')
+    }
+    async function doAuto(){
+      if(!srcCanvas) return drawProgress('请先上传图片')
+      drawProgress('正在分析…'); await new Promise(r=>setTimeout(r,30))
+      const g=srcCanvas.getContext('2d')!; const id=g.getImageData(0,0,srcCanvas.width,srcCanvas.height); const data=id.data
+      const T=parseInt(tolEl.value)||32; const minArea=minEl.checked? Math.max(8, (srcCanvas.width*srcCanvas.height)*0.0004):0
+      const boxes=splitElements(srcCanvas.width,srcCanvas.height,data,T,minArea)
+      boxes.sort((a,b)=>b.count-a.count)
+      elements=boxes.map((b,i)=>({x:b.x,y:b.y,w:b.w,h:b.h,img:cropElement(b),name:'ELEMENT-'+(i+1)}))
+      drawProgress('自动提取完成：'+elements.length+' 个独立元素。可在右侧拖动、选中保存。')
+      rebuildStage()
+    }
+    function doPoint(x,y){
+      if(!srcCanvas) return drawProgress('请先上传图片')
+      const T=parseInt(tolEl.value)||32; const w=srcCanvas.width,h=srcCanvas.height
+      if(x<0||y<0||x>=w||y>=h) return
+      const g=srcCanvas.getContext('2d')!; const id=g.getImageData(0,0,w,h); const data=id.data
+      const hit=splitElements(w,h,data,T,0).filter(b=> x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h)
+      if(!hit.length) return drawProgress('该点未命中元素，请点在元素上')
+      const b=hit[0]; const el={x:b.x,y:b.y,w:b.w,h:b.h,img:cropElement(b),name:'ELEMENT-'+(elements.length+1)}
+      elements.push(el); selected=elements.length-1; drawProgress('已框出元素 #'+(selected+1)+'（'+b.w+'×'+b.h+'）'); rebuildStage()
+    }
+    runBtn.addEventListener('click', ()=>{ if(modeEl.value==='auto') doAuto(); else drawProgress('点选模式：请在上方原图点击要提取的元素') })
+    clearBtn.addEventListener('click', ()=>{ elements=[]; selected=-1; rebuildStage(); updateSel(); drawProgress('已清空') })
+    saveAllBtn.addEventListener('click', ()=>{ void saveElements(elements) })
+    saveSelBtn.addEventListener('click', ()=>{ if(selected>=0) void saveElements([elements[selected]]) })
+    dlSelBtn.addEventListener('click', ()=>{ const el=(selected>=0?elements[selected]:(elements[0]||null)); if(el) downloadUrl(el.img.toDataURL(), el.name+'.png') })
+    async function saveElements(list:any[]){ for(const el of list){ await addToLibrary('extract', el.name, el.img.toDataURL()) } drawProgress('已保存 '+list.length+' 个元素到素材库') }
+    // 点选模式：在编辑区/原图点击
+    drop.addEventListener('click', ()=>{})
+    stage.addEventListener('mousedown', (e)=>{ if(modeEl.value==='point' && srcCanvas){ } })
+    resetStage(); updateSel()
   }
 
   // ---- Helpers ----

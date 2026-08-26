@@ -172,6 +172,7 @@ function buildStudio() {
     { id: "pipe", label: "\u7D20\u6750\u6D41\u6C34\u7EBF", icon: "\u{1F680}", group: "\u5904\u7406" },
     { id: "sheet", label: "\u5E8F\u5217\u5E27", icon: "\u{1F39E}\uFE0F", group: "\u5904\u7406" },
     { id: "matting", label: "\u667A\u80FD\u62A0\u56FE", icon: "\u2702\uFE0F", group: "\u5904\u7406" },
+    { id: "extract", label: "\u5143\u7D20\u63D0\u53D6", icon: "\u{1F9E9}", group: "\u5904\u7406" },
     { id: "post", label: "\u540E\u5904\u7406", icon: "\u2728", group: "\u5904\u7406" },
     { id: "map", label: "\u65E0\u7F1D\u5927\u5730\u56FE", icon: "\u{1F5FA}\uFE0F", group: "\u5730\u56FE" },
     { id: "asset", label: "\u7D20\u6750\u603B\u7BA1", icon: "\u{1F4DA}", group: "\u7CFB\u7EDF" },
@@ -627,6 +628,43 @@ function buildStudio() {
         <canvas id="map-canvas" hidden></canvas>
       </div>
     `);
+  const pExtract = mkPanel("extract", `
+    <div class="gas-card">
+      <h4>\u{1F9E9} \u5143\u7D20\u63D0\u53D6 \u2014 \u81EA\u52A8\u6846\u9009\u72EC\u7ACB\u5143\u7D20 / \u70B9\u9009 / \u62D6\u62FD / \u4FDD\u5B58\u7D20\u6750</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <div style="border:1.5px dashed var(--border); border-radius:8px; padding:14px; text-align:center; background:#1a1e20; cursor:pointer" id="x-drop">
+            <div style="font-size:22px">\u{1F5FA}\uFE0F</div><div class="gas-note">\u4E0A\u4F20\u4E00\u5F20\u5730\u56FE\u6216\u542B\u591A\u5143\u7D20\u7684\u56FE\u7247\uFF08PNG/JPG\uFF09<br>\u70B9\u51FB\u6216\u62D6\u62FD</div>
+            <input type="file" id="x-file" accept="image/*" hidden>
+          </div>
+          <label class="gas-label">\u63D0\u53D6\u65B9\u5F0F</label>
+          <select class="gas-select" id="x-mode"><option value="auto" selected>\u{1F50D} \u81EA\u52A8\u6846\u51FA\u6240\u6709\u72EC\u7ACB\u5143\u7D20\uFF08\u672C\u5730\u8FDE\u901A\u57DF\u5206\u5272\uFF09</option><option value="point">\u{1F5B1}\uFE0F \u70B9\u9009\u5355\u4E2A\u5143\u7D20\uFF08\u70B9\u56FE\u4E0A\u67D0\u4E2A\u5143\u7D20\uFF0C\u81EA\u52A8\u6846\u51FA\u5B83\uFF09</option></select>
+          <div class="gas-note" id="x-mode-tip" style="margin-top:4px">\u81EA\u52A8\u6A21\u5F0F\uFF1A\u4E00\u952E\u628A\u56FE\u91CC\u72EC\u7ACB\u5143\u7D20\u5168\u90E8\u6846\u51FA\uFF1B\u50CF\u7D20\u98CE/\u8272\u5757\u5206\u660E\u6548\u679C\u6700\u597D\u3002</div>
+          <div class="gas-row" style="margin-top:8px">
+            <label class="gas-label" style="margin:0">\u5BB9\u5DEE</label>
+            <input class="gas-input" id="x-tol" type="range" min="5" max="120" value="32" style="flex:1">
+            <span class="gas-pill" id="x-tol-v">32</span>
+            <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="x-min" checked> \u5FFD\u7565\u8FC7\u5C0F\u788E\u7247</label>
+          </div>
+          <div class="gas-row" style="margin-top:8px">
+            <button class="gas-btn" id="x-run">\u{1F50D} \u81EA\u52A8\u63D0\u53D6</button>
+            <button class="gas-btn ghost" id="x-clear">\u21BA \u6E05\u7A7A</button>
+            <button class="gas-btn orange" id="x-save-all" disabled>\u{1F4E5} \u5168\u90E8\u5165\u5E93</button>
+          </div>
+          <div class="gas-note" id="x-status"></div>
+          <div class="gas-note" style="margin-top:6px">\u{1F4A1} \u63D0\u53D6\u51FA\u7684\u6BCF\u4E2A\u5143\u7D20\u5728\u53F3\u4FA7\u7F16\u8F91\u533A\u53EF\u81EA\u7531\u62D6\u52A8\u3001\u70B9\u51FB\u9009\u4E2D\uFF1B\u70B9\u300C\u2715\u300D\u53EF\u79FB\u9664\u3002\u53EF\u5355\u4E2A/\u5168\u90E8\u4FDD\u5B58\u4E3A\u7D20\u6750\u6216\u4E0B\u8F7D\u3002</div>
+        </div>
+        <div style="width:320px">
+          <label class="gas-label">\u63D0\u53D6\u7F16\u8F91\u533A\uFF08\u62D6\u52A8 / \u9009\u4E2D / \u4FDD\u5B58\uFF09</label>
+          <div class="gas-extract-stage" id="x-stage"><span class="gas-note">\u5148\u4E0A\u4F20\u56FE\u7247\u5E76\u63D0\u53D6</span></div>
+          <div class="gas-row" style="margin-top:6px">
+            <button class="gas-btn ghost" id="x-save-sel" disabled>\u{1F4E5} \u4FDD\u5B58\u9009\u4E2D\u4E3A\u7D20\u6750</button>
+            <button class="gas-btn ghost" id="x-dl-sel" disabled>\u2B07 \u4E0B\u8F7D\u9009\u4E2D</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
   const pScene = mkPanel("scene", `
     <div class="gas-card">
       <h4>\u{1F326}\uFE0F \u573A\u666F\u5DE5\u574A \u2014 \u5929\u6C14 \xD7 \u65E5\u591C \u5B9E\u65F6\u9884\u89C8</h4>
@@ -841,7 +879,7 @@ function buildStudio() {
       </div>
     </div>
   `);
-  [pChar, pSeq, pPipe, pSheet, pForge, pMat, pMap, pScene, pAsset, pPost, pPreset, pExport].forEach((p) => main.appendChild(p));
+  [pChar, pSeq, pPipe, pSheet, pForge, pMat, pExtract, pMap, pScene, pAsset, pPost, pPreset, pExport].forEach((p) => main.appendChild(p));
   panels["character"] = pChar;
   panels["seq"] = pSeq;
   panels["pipe"] = pPipe;
@@ -850,6 +888,7 @@ function buildStudio() {
   panels["matting"] = pMat;
   panels["map"] = pMap;
   panels["scene"] = pScene;
+  panels["extract"] = pExtract;
   panels["asset"] = pAsset;
   panels["post"] = pPost;
   panels["preset"] = pPreset;
@@ -860,8 +899,265 @@ function buildStudio() {
     Object.entries(tabEls).forEach(([k, el]) => el.classList.toggle("active", k === id));
     Object.entries(panels).forEach(([k, el]) => el.style.display = k === id ? "block" : "none");
     const tip = side.querySelector("#pipeline-tip");
-    const tips = { character: "\u89D2\u8272\u5DE5\u574A\uFF1A\u4E09\u89C6\u56FE\u9002\u5408\u76F4\u63A5\u8FDB\u5E8F\u5217\u5E27\u62C6\u6210\u884C\u8D70\u52A8\u753B", seq: "\u5355\u5E27\u52A8\u753B\uFF1AAI \u9010\u5F20\u753B\u5355\u89D2\u8272\uFF0C\u4EE3\u7801\u81EA\u52A8\u88C1\u767D\u8FB9/\u811A\u5E95\u5BF9\u9F50/\u6A2A\u6392\u62FC\u63A5\uFF0C\u4ECE\u6839\u6E90\u6D88\u9664\u90BB\u5E27\u4E32\u4F4D", pipe: "\u7D20\u6750\u6D41\u6C34\u7EBF\uFF1A\u6279\u91CF\u5BFC\u5165\u5E27/\u6574\u8868\uFF0C\u4E00\u952E\u5B8C\u6210 \u5207\u2192\u53BB\u80CC\u2192\u811A\u90E8\u5BF9\u9F50\u2192\u547D\u540D\u2192\u5BFC\u51FA SpriteFrames\uFF0C\u4EA7\u51FA Godot \u76F4\u63A5\u53EF\u7528\u52A8\u753B", sheet: "\u5E8F\u5217\u5E27\uFF1A4\xD72 \u5207\u7247\u540E FPS 8 \u5728 Godot \u4E2D\u6700\u987A\u6ED1", forge: "\u7D20\u6750\u953B\u9020\uFF1A\u6279\u91CF\u751F\u6210\u540E\u53EF\u5728\u201C\u5BFC\u51FA\u201D\u4E00\u952E\u6253\u5305", matting: "\u62A0\u56FE\uFF1A\u8272\u952E\u9002\u5408\u7EAF\u8272\u80CC\u666F\uFF0CAI \u9002\u5408\u590D\u6742\u6BDB\u53D1", map: "\u65E0\u7F1D\u5730\u56FE\uFF1A\u53EF\u751F\u6210\u5B8C\u6574\u5927\u5730\u56FE\u6216\u74E6\u7247\uFF0C\u518D\u5207\u6210 TileSet\uFF1B\u652F\u6301\u7F29\u653E\u9884\u89C8", scene: "\u573A\u666F\u5DE5\u574A\uFF1A\u751F\u6210/\u4E0A\u4F20\u573A\u666F\u5E95\u56FE\u540E\uFF0C\u53E0\u52A0\u6674\u5929/\u96E8\u5929/\u96F7\u66B4/\u4E0B\u96EA\u4E0E\u65E5\u591C\u8272\u8C03\u5B9E\u65F6\u9884\u89C8\uFF0C\u53EF\u5BFC\u51FA\u5F53\u524D\u5E27", asset: "\u7D20\u6750\u603B\u7BA1\uFF1A\u6BCF\u4E2A\u6A21\u5757\u751F\u6210\u540E\u53EF\u300C\u{1F4E5} \u5165\u5E93\u300D\uFF0C\u81EA\u52A8\u5206\u7C7B\u7F16\u53F7\u3001\u672C\u5730\u4FDD\u5B58\u3001\u53EF\u5BFC\u51FA/\u5BFC\u5165\u5907\u4EFD", post: "\u540E\u5904\u7406\uFF1A\u8C03\u8272\u677F\u91CF\u5316\u9002\u5408\u50CF\u7D20\u98CE\uFF0C\u63CF\u8FB9\u9002\u5408\u7CBE\u7075\uFF0C\u5C3A\u5BF8\u8C03\u6574\u9002\u5408 Godot \u5BFC\u5165\u4F18\u5316", preset: "API \u914D\u7F6E\uFF1A\u5185\u7F6E\u4F9B\u5E94\u5546 Key \u4E0E\u81EA\u5B9A\u4E49\u8DEF\u7531\u90FD\u5728\u6B64\u8BBE\u7F6E\uFF0C\u4FDD\u5B58\u540E\u540C\u6B65\u5230\u6240\u6709\u751F\u6210\u9762\u677F\uFF1B\u53EF\u70B9\u300C\u{1F50D} \u83B7\u53D6\u9ED8\u8BA4\u6A21\u578B\u300D\u4E00\u952E\u62C9\u53D6\u5168\u90E8\u53EF\u7528\u6A21\u578B", export: "\u5BFC\u51FA\uFF1Amanifest.json \u8BB0\u5F55 Godot \u76EE\u5F55\u7ED3\u6784" };
+    const tips = { character: "\u89D2\u8272\u5DE5\u574A\uFF1A\u4E09\u89C6\u56FE\u9002\u5408\u76F4\u63A5\u8FDB\u5E8F\u5217\u5E27\u62C6\u6210\u884C\u8D70\u52A8\u753B", seq: "\u5355\u5E27\u52A8\u753B\uFF1AAI \u9010\u5F20\u753B\u5355\u89D2\u8272\uFF0C\u4EE3\u7801\u81EA\u52A8\u88C1\u767D\u8FB9/\u811A\u5E95\u5BF9\u9F50/\u6A2A\u6392\u62FC\u63A5\uFF0C\u4ECE\u6839\u6E90\u6D88\u9664\u90BB\u5E27\u4E32\u4F4D", pipe: "\u7D20\u6750\u6D41\u6C34\u7EBF\uFF1A\u6279\u91CF\u5BFC\u5165\u5E27/\u6574\u8868\uFF0C\u4E00\u952E\u5B8C\u6210 \u5207\u2192\u53BB\u80CC\u2192\u811A\u90E8\u5BF9\u9F50\u2192\u547D\u540D\u2192\u5BFC\u51FA SpriteFrames\uFF0C\u4EA7\u51FA Godot \u76F4\u63A5\u53EF\u7528\u52A8\u753B", sheet: "\u5E8F\u5217\u5E27\uFF1A4\xD72 \u5207\u7247\u540E FPS 8 \u5728 Godot \u4E2D\u6700\u987A\u6ED1", forge: "\u7D20\u6750\u953B\u9020\uFF1A\u6279\u91CF\u751F\u6210\u540E\u53EF\u5728\u201C\u5BFC\u51FA\u201D\u4E00\u952E\u6253\u5305", matting: "\u62A0\u56FE\uFF1A\u8272\u952E\u9002\u5408\u7EAF\u8272\u80CC\u666F\uFF0CAI \u9002\u5408\u590D\u6742\u6BDB\u53D1", extract: "\u5143\u7D20\u63D0\u53D6\uFF1A\u4E0A\u4F20\u5730\u56FE/\u591A\u5143\u7D20\u56FE\uFF0C\u81EA\u52A8\u6846\u51FA\u72EC\u7ACB\u5143\u7D20\u6216\u70B9\u9009\u5355\u4E2A\uFF0C\u62D6\u62FD\u540E\u4FDD\u5B58\u4E3A\u7D20\u6750", map: "\u65E0\u7F1D\u5730\u56FE\uFF1A\u53EF\u751F\u6210\u5B8C\u6574\u5927\u5730\u56FE\u6216\u74E6\u7247\uFF0C\u518D\u5207\u6210 TileSet\uFF1B\u652F\u6301\u7F29\u653E\u9884\u89C8", scene: "\u573A\u666F\u5DE5\u574A\uFF1A\u751F\u6210/\u4E0A\u4F20\u573A\u666F\u5E95\u56FE\u540E\uFF0C\u53E0\u52A0\u6674\u5929/\u96E8\u5929/\u96F7\u66B4/\u4E0B\u96EA\u4E0E\u65E5\u591C\u8272\u8C03\u5B9E\u65F6\u9884\u89C8\uFF0C\u53EF\u5BFC\u51FA\u5F53\u524D\u5E27", asset: "\u7D20\u6750\u603B\u7BA1\uFF1A\u6BCF\u4E2A\u6A21\u5757\u751F\u6210\u540E\u53EF\u300C\u{1F4E5} \u5165\u5E93\u300D\uFF0C\u81EA\u52A8\u5206\u7C7B\u7F16\u53F7\u3001\u672C\u5730\u4FDD\u5B58\u3001\u53EF\u5BFC\u51FA/\u5BFC\u5165\u5907\u4EFD", post: "\u540E\u5904\u7406\uFF1A\u8C03\u8272\u677F\u91CF\u5316\u9002\u5408\u50CF\u7D20\u98CE\uFF0C\u63CF\u8FB9\u9002\u5408\u7CBE\u7075\uFF0C\u5C3A\u5BF8\u8C03\u6574\u9002\u5408 Godot \u5BFC\u5165\u4F18\u5316", preset: "API \u914D\u7F6E\uFF1A\u5185\u7F6E\u4F9B\u5E94\u5546 Key \u4E0E\u81EA\u5B9A\u4E49\u8DEF\u7531\u90FD\u5728\u6B64\u8BBE\u7F6E\uFF0C\u4FDD\u5B58\u540E\u540C\u6B65\u5230\u6240\u6709\u751F\u6210\u9762\u677F\uFF1B\u53EF\u70B9\u300C\u{1F50D} \u83B7\u53D6\u9ED8\u8BA4\u6A21\u578B\u300D\u4E00\u952E\u62C9\u53D6\u5168\u90E8\u53EF\u7528\u6A21\u578B", export: "\u5BFC\u51FA\uFF1Amanifest.json \u8BB0\u5F55 Godot \u76EE\u5F55\u7ED3\u6784" };
     if (tip) tip.textContent = tips[id] || "";
+  }
+  {
+    let drawProgress2 = function(msg) {
+      if (statusEl) statusEl.textContent = msg;
+    }, resetStage2 = function() {
+      stage.innerHTML = '<span class="gas-note">\u5148\u4E0A\u4F20\u56FE\u7247\u5E76\u63D0\u53D6</span>';
+    }, splitElements2 = function(won, hon, data, tol, minArea) {
+      const labels = new Int32Array(won * hon);
+      labels.fill(-1);
+      const boxes = [];
+      let lab = 0;
+      const stack = [];
+      for (let sy = 0; sy < hon; sy++) for (let sx = 0; sx < won; sx++) {
+        const si = sy * won + sx;
+        if (labels[si] < 0 && data[si * 4 + 3] > 8) {
+          const sr = data[si * 4], sg = data[si * 4 + 1], sb = data[si * 4 + 2];
+          let minX = sx, maxX = sx, minY = sy, maxY = sy, count = 0;
+          labels[si] = lab;
+          stack.length = 0;
+          stack.push(si);
+          while (stack.length) {
+            const idx = stack.pop();
+            const yy = idx / won | 0, xx = idx % won;
+            count++;
+            if (xx < minX) minX = xx;
+            if (xx > maxX) maxX = xx;
+            if (yy < minY) minY = yy;
+            if (yy > maxY) maxY = yy;
+            const nb = [[xx + 1, yy], [xx - 1, yy], [xx, yy + 1], [xx, yy - 1]];
+            for (const [nx, ny] of nb) {
+              if (nx < 0 || ny < 0 || nx >= won || ny >= hon) continue;
+              const ni = ny * won + nx;
+              if (labels[ni] < 0 && data[ni * 4 + 3] > 8) {
+                const dr = data[ni * 4] - sr, dg = data[ni * 4 + 1] - sg, db = data[ni * 4 + 2] - sb;
+                if (Math.sqrt(dr * dr + dg * dg + db * db) <= tol) {
+                  labels[ni] = lab;
+                  stack.push(ni);
+                }
+              }
+            }
+          }
+          if (count >= minArea) boxes.push({ x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1, count });
+          lab++;
+        }
+      }
+      return boxes;
+    }, cropElement2 = function(box) {
+      const c = document.createElement("canvas");
+      c.width = box.w;
+      c.height = box.h;
+      const g = c.getContext("2d");
+      g.drawImage(srcCanvas, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+      const id = g.getImageData(0, 0, box.w, box.h);
+      const d = id.data;
+      const T = parseInt(tolEl.value) || 32;
+      let br = 0, bg = 0, bb = 0, n = 0;
+      for (let x = 0; x < box.w; x++) {
+        for (const y of [0, box.h - 1]) {
+          const i = (y * box.w + x) * 4;
+          br += d[i];
+          bg += d[i + 1];
+          bb += d[i + 2];
+          n++;
+        }
+      }
+      for (let y = 0; y < box.h; y++) {
+        for (const x of [0, box.w - 1]) {
+          const i = (y * box.w + x) * 4;
+          br += d[i];
+          bg += d[i + 1];
+          bb += d[i + 2];
+          n++;
+        }
+      }
+      br /= n;
+      bg /= n;
+      bb /= n;
+      for (let i = 0; i < d.length; i += 4) {
+        const dist = Math.sqrt((d[i] - br) ** 2 + (d[i + 1] - bg) ** 2 + (d[i + 2] - bb) ** 2);
+        if (dist < T) d[i + 3] = 0;
+      }
+      g.putImageData(id, 0, 0);
+      return c;
+    }, updateSel2 = function() {
+      const has = selected >= 0 && selected < elements.length;
+      saveSelBtn.disabled = !has;
+      dlSelBtn.disabled = !has;
+      saveAllBtn.disabled = !elements.length;
+    }, highlightSel2 = function() {
+      stage.querySelectorAll(".gas-extract-item").forEach((w) => w.classList.toggle("sel", Number(w.dataset.idx) === selected));
+    }, rebuildStage2 = function() {
+      stage.innerHTML = "";
+      if (!elements.length) {
+        stage.innerHTML = '<span class="gas-note">\u6682\u65E0\u63D0\u53D6\u5143\u7D20\uFF0C\u5148\u300C\u{1F50D} \u81EA\u52A8\u63D0\u53D6\u300D</span>';
+        return;
+      }
+      const stw = stage.clientWidth || 320, sth = stage.clientHeight || 260;
+      elements.forEach((el, i) => {
+        const wrap = document.createElement("div");
+        wrap.className = "gas-extract-item";
+        wrap.dataset.idx = String(i);
+        wrap.style.left = Math.min(10 + i * 30, Math.max(0, stw - 90)) + "px";
+        wrap.style.top = Math.min(10 + i * 24, Math.max(0, sth - 90)) + "px";
+        wrap.style.width = Math.min(110, el.w) + "px";
+        wrap.style.height = Math.min(110, el.h) + "px";
+        const img = document.createElement("img");
+        img.src = el.img.toDataURL();
+        wrap.appendChild(img);
+        const tag = document.createElement("span");
+        tag.className = "gas-extract-tag";
+        tag.textContent = "#" + (i + 1);
+        wrap.appendChild(tag);
+        const del = document.createElement("button");
+        del.className = "gas-extract-del";
+        del.textContent = "\u2715";
+        wrap.appendChild(del);
+        wrap.addEventListener("mousedown", (e) => {
+          selected = i;
+          highlightSel2();
+          startDrag2(e, wrap, i);
+        });
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          elements.splice(i, 1);
+          rebuildStage2();
+          updateSel2();
+        });
+        stage.appendChild(wrap);
+      });
+      updateSel2();
+    }, startDrag2 = function(e, wrap, i) {
+      e.preventDefault();
+      const st = stage.getBoundingClientRect();
+      const ox = e.clientX - wrap.getBoundingClientRect().left, oy = e.clientY - wrap.getBoundingClientRect().top;
+      const move = (ev) => {
+        let nx = ev.clientX - st.left - ox, ny = ev.clientY - st.top - oy;
+        nx = Math.max(0, Math.min(nx, st.width - wrap.offsetWidth));
+        ny = Math.max(0, Math.min(ny, st.height - wrap.offsetHeight));
+        wrap.style.left = nx + "px";
+        wrap.style.top = ny + "px";
+      };
+      const up = () => {
+        window.removeEventListener("mousemove", move);
+        window.removeEventListener("mouseup", up);
+      };
+      window.addEventListener("mousemove", move);
+      window.addEventListener("mouseup", up);
+    }, doPoint2 = function(x, y) {
+      if (!srcCanvas) return drawProgress2("\u8BF7\u5148\u4E0A\u4F20\u56FE\u7247");
+      const T = parseInt(tolEl.value) || 32;
+      const w = srcCanvas.width, h = srcCanvas.height;
+      if (x < 0 || y < 0 || x >= w || y >= h) return;
+      const g = srcCanvas.getContext("2d");
+      const id = g.getImageData(0, 0, w, h);
+      const data = id.data;
+      const hit = splitElements2(w, h, data, T, 0).filter((b2) => x >= b2.x && x < b2.x + b2.w && y >= b2.y && y < b2.y + b2.h);
+      if (!hit.length) return drawProgress2("\u8BE5\u70B9\u672A\u547D\u4E2D\u5143\u7D20\uFF0C\u8BF7\u70B9\u5728\u5143\u7D20\u4E0A");
+      const b = hit[0];
+      const el = { x: b.x, y: b.y, w: b.w, h: b.h, img: cropElement2(b), name: "ELEMENT-" + (elements.length + 1) };
+      elements.push(el);
+      selected = elements.length - 1;
+      drawProgress2("\u5DF2\u6846\u51FA\u5143\u7D20 #" + (selected + 1) + "\uFF08" + b.w + "\xD7" + b.h + "\uFF09");
+      rebuildStage2();
+    };
+    var drawProgress = drawProgress2, resetStage = resetStage2, splitElements = splitElements2, cropElement = cropElement2, updateSel = updateSel2, highlightSel = highlightSel2, rebuildStage = rebuildStage2, startDrag = startDrag2, doPoint = doPoint2;
+    const pExt = pExtract;
+    const drop = pExt.querySelector("#x-drop"), fileInput = pExt.querySelector("#x-file");
+    const modeEl = pExt.querySelector("#x-mode"), modeTip = pExt.querySelector("#x-mode-tip");
+    const tolEl = pExt.querySelector("#x-tol"), tolV = pExt.querySelector("#x-tol-v");
+    const minEl = pExt.querySelector("#x-min");
+    const runBtn = pExt.querySelector("#x-run"), statusEl = pExt.querySelector("#x-status");
+    const stage = pExt.querySelector("#x-stage"), clearBtn = pExt.querySelector("#x-clear");
+    const saveAllBtn = pExt.querySelector("#x-save-all"), saveSelBtn = pExt.querySelector("#x-save-sel"), dlSelBtn = pExt.querySelector("#x-dl-sel");
+    let srcCanvas = null;
+    let elements = [];
+    let selected = -1;
+    tolEl.addEventListener("input", () => tolV.textContent = tolEl.value);
+    modeEl.addEventListener("change", () => modeTip.textContent = modeEl.value === "auto" ? "\u81EA\u52A8\u6A21\u5F0F\uFF1A\u4E00\u952E\u628A\u56FE\u91CC\u72EC\u7ACB\u5143\u7D20\u5168\u90E8\u6846\u51FA\uFF1B\u50CF\u7D20\u98CE/\u8272\u5757\u5206\u660E\u6548\u679C\u6700\u597D\u3002" : "\u70B9\u9009\u6A21\u5F0F\uFF1A\u5728\u539F\u56FE\u4E0A\u70B9\u51FB\u67D0\u4E2A\u5143\u7D20\uFF0C\u81EA\u52A8\u6846\u51FA\u5B83\u3002");
+    drop.addEventListener("click", () => fileInput.click());
+    drop.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      drop.style.borderColor = "#478cbf";
+    });
+    drop.addEventListener("dragleave", () => drop.style.borderColor = "var(--border)");
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const f = e.dataTransfer?.files?.[0];
+      if (f) handle(f);
+    });
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files?.[0];
+      if (f) handle(f);
+    });
+    async function handle(file) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = url;
+      await new Promise((r) => img.onload = r);
+      srcCanvas = document.createElement("canvas");
+      srcCanvas.width = img.naturalWidth;
+      srcCanvas.height = img.naturalHeight;
+      srcCanvas.getContext("2d").drawImage(img, 0, 0);
+      elements = [];
+      selected = -1;
+      resetStage2();
+      drawProgress2("\u5DF2\u52A0\u8F7D " + img.naturalWidth + "\xD7" + img.naturalHeight + "\uFF0C\u70B9\u300C\u{1F50D} \u81EA\u52A8\u63D0\u53D6\u300D\u6216\u5207\u70B9\u9009\u6A21\u5F0F\u70B9\u5143\u7D20\u3002");
+    }
+    async function doAuto() {
+      if (!srcCanvas) return drawProgress2("\u8BF7\u5148\u4E0A\u4F20\u56FE\u7247");
+      drawProgress2("\u6B63\u5728\u5206\u6790\u2026");
+      await new Promise((r) => setTimeout(r, 30));
+      const g = srcCanvas.getContext("2d");
+      const id = g.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+      const data = id.data;
+      const T = parseInt(tolEl.value) || 32;
+      const minArea = minEl.checked ? Math.max(8, srcCanvas.width * srcCanvas.height * 4e-4) : 0;
+      const boxes = splitElements2(srcCanvas.width, srcCanvas.height, data, T, minArea);
+      boxes.sort((a, b) => b.count - a.count);
+      elements = boxes.map((b, i) => ({ x: b.x, y: b.y, w: b.w, h: b.h, img: cropElement2(b), name: "ELEMENT-" + (i + 1) }));
+      drawProgress2("\u81EA\u52A8\u63D0\u53D6\u5B8C\u6210\uFF1A" + elements.length + " \u4E2A\u72EC\u7ACB\u5143\u7D20\u3002\u53EF\u5728\u53F3\u4FA7\u62D6\u52A8\u3001\u9009\u4E2D\u4FDD\u5B58\u3002");
+      rebuildStage2();
+    }
+    runBtn.addEventListener("click", () => {
+      if (modeEl.value === "auto") doAuto();
+      else drawProgress2("\u70B9\u9009\u6A21\u5F0F\uFF1A\u8BF7\u5728\u4E0A\u65B9\u539F\u56FE\u70B9\u51FB\u8981\u63D0\u53D6\u7684\u5143\u7D20");
+    });
+    clearBtn.addEventListener("click", () => {
+      elements = [];
+      selected = -1;
+      rebuildStage2();
+      updateSel2();
+      drawProgress2("\u5DF2\u6E05\u7A7A");
+    });
+    saveAllBtn.addEventListener("click", () => {
+      void saveElements(elements);
+    });
+    saveSelBtn.addEventListener("click", () => {
+      if (selected >= 0) void saveElements([elements[selected]]);
+    });
+    dlSelBtn.addEventListener("click", () => {
+      const el = selected >= 0 ? elements[selected] : elements[0] || null;
+      if (el) downloadUrl(el.img.toDataURL(), el.name + ".png");
+    });
+    async function saveElements(list) {
+      for (const el of list) {
+        await addToLibrary("extract", el.name, el.img.toDataURL());
+      }
+      drawProgress2("\u5DF2\u4FDD\u5B58 " + list.length + " \u4E2A\u5143\u7D20\u5230\u7D20\u6750\u5E93");
+    }
+    drop.addEventListener("click", () => {
+    });
+    stage.addEventListener("mousedown", (e) => {
+      if (modeEl.value === "point" && srcCanvas) {
+      }
+    });
+    resetStage2();
+    updateSel2();
   }
   const LS_HISTORY = "dsh-game-art-studio:history";
   const getHistory = () => {
@@ -3696,7 +3992,7 @@ function buildStudio() {
         if (modeEl.value === "wand") {
           doWand(x, y);
         } else if (modeEl.value === "point") {
-          doPoint(x, y);
+          doPoint2(x, y);
         } else if (modeEl.value === "box") {
           state.px = x;
           state.py = y;
@@ -3732,7 +4028,7 @@ function buildStudio() {
         doBox(state.px, state.py, x, y);
       };
     }
-    function doPoint(sx, sy) {
+    function doPoint2(sx, sy) {
       if (!originalData) return;
       const w = canvas.width, h = canvas.height;
       const g = canvas.getContext("2d");
