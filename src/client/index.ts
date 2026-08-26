@@ -524,7 +524,7 @@ function buildStudio(): HTMLElement {
             <input type="file" id="m-file" accept="image/*" hidden>
           </div>
           <label class="gas-label">抠图模式</label>
-          <select class="gas-select" id="m-mode"><option value="auto" selected>🤖 智能自动扣背景（本地采样，像PS一键抠）</option><option value="wand">🪄 点击背景擦除（魔棒）</option><option value="chroma">🎨 色键抠图（指定颜色）</option><option value="ai">🌐 AI 抠图 (Replicate rembg / BYOK)</option></select>
+          <select class="gas-select" id="m-mode"><option value="auto" selected>🤖 智能自动扣背景（本地采样，像PS一键抠）</option><option value="point">🖱️ 点选保留主体（精准抠单个元素）</option><option value="box">⬚ 框选保留区域</option><option value="wand">🪄 点击背景擦除（魔棒）</option><option value="chroma">🎨 色键抠图（指定颜色）</option><option value="ai">🌐 AI 抠图 (Replicate rembg / BYOK)</option></select>
           <div class="gas-note" id="m-mode-tip" style="margin-top:4px">🤖 自动模式：自动分析四边背景色，一键扣除背景；复杂背景建议用魔棒或 AI。</div>
           <div id="m-chroma-opts">
             <label class="gas-label">拾取背景色（点击图片拾色）</label>
@@ -2738,9 +2738,10 @@ function mockImage(prompt:string, opts:any): string {
     let loadedImg: HTMLImageElement|null=null
     let originalData: ImageData|null=null
     let colorTouched=false
+    const state={ px:0, py:0, qx:0, qy:0, dragging:false }
     tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
     modeEl.addEventListener('change', ()=>{
-      if(modeTip) modeTip.textContent = modeEl.value==='auto' ? '🤖 自动模式：从图片四边开始扩散扣除相连背景，适合产品图/素材图' : modeEl.value==='wand' ? '🪄 魔棒模式：点击原图中的背景区域，即可擦除相连相似颜色' : modeEl.value==='ai' ? '🌐 AI 模式：调用 Replicate rembg（需右侧配置 Key），无 Key 时自动回退本地智能抠图' : '🎨 色键模式：点击原图拾取背景色，或直接选颜色'
+      if(modeTip) modeTip.textContent = modeEl.value==='auto' ? '🤖 自动模式：从图片四边开始扩散扣除相连背景，适合产品图/素材图' : modeEl.value==='point' ? '🖱️ 点选保留：点击原图上要保留的元素，只留下与该点相连且颜色相近的主体（适合元素很多的图精准抠单个）' : modeEl.value==='box' ? '⬚ 框选保留：在图上拖拽框出要保留的区域，框内保留、其余透明' : modeEl.value==='wand' ? '🪄 魔棒模式：点击原图中的背景区域，即可擦除相连相似颜色' : modeEl.value==='ai' ? '🌐 AI 模式：调用 Replicate rembg（需右侧配置 Key），无 Key 时自动回退本地智能抠图' : '🎨 色键模式：点击原图拾取背景色，或直接选颜色'
     })
     drop.addEventListener('click', ()=> fileInput.click())
     drop.addEventListener('dragover', e=>{e.preventDefault(); drop.style.borderColor='#478cbf'})
@@ -2759,6 +2760,10 @@ function mockImage(prompt:string, opts:any): string {
         const rect=im.getBoundingClientRect(); const x=Math.floor((e.clientX-rect.left)/rect.width * img.naturalWidth); const y=Math.floor((e.clientY-rect.top)/rect.height * img.naturalHeight)
         if(modeEl.value==='wand'){
           doWand(x,y)
+        } else if(modeEl.value==='point'){
+          doPoint(x,y)
+        } else if(modeEl.value==='box'){
+          state.px=x; state.py=y; state.dragging=true
         } else if(modeEl.value==='chroma'){
           const c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight; const g2=c.getContext('2d')!; g2.drawImage(img,0,0)
           const dd=g2.getImageData(x,y,1,1).data; const hex='#'+[dd[0],dd[1],dd[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); colorEl.value=hex; colorTouched=true
@@ -2766,6 +2771,65 @@ function mockImage(prompt:string, opts:any): string {
           toast(status,'自动抠图无需点击，直接点「✂️ 一键抠图」即可')
         }
       }
+      // box 模式：拖拽框选
+      im.onmousemove=(e)=>{
+        if(!state.dragging || modeEl.value!=='box') return
+        const rect=im.getBoundingClientRect(); const x=Math.floor((e.clientX-rect.left)/rect.width * img.naturalWidth); const y=Math.floor((e.clientY-rect.top)/rect.height * img.naturalHeight)
+        state.qx=x; state.qy=y
+      }
+      im.onmouseup=(e)=>{
+        if(!state.dragging || modeEl.value!=='box') return
+        state.dragging=false
+        const rect=im.getBoundingClientRect(); const x=Math.floor((e.clientX-rect.left)/rect.width * img.naturalWidth); const y=Math.floor((e.clientY-rect.top)/rect.height * img.naturalHeight)
+        doBox(state.px,state.py,x,y)
+      }
+    }
+
+    // 点选保留主体：从点击点做颜色连通区域生长，只保留相连且颜色相近的主体
+    function doPoint(sx:number, sy:number){
+      if(!originalData) return
+      const w=canvas.width, h=canvas.height
+      const g=canvas.getContext('2d')!; g.putImageData(originalData,0,0)
+      const imgData=g.getImageData(0,0,w,h); const d=imgData.data
+      if(sx<0||sy<0||sx>=w||sy>=h) return
+      const seedIdx=sy*w+sx
+      const sr=d[seedIdx*4], sg=d[seedIdx*4+1], sb=d[seedIdx*4+2]
+      const T=parseInt(tolEl.value)||30
+      const keep=new Uint8Array(w*h)
+      const stack=[seedIdx]; keep[seedIdx]=1
+      while(stack.length){
+        const idx=stack.pop()!
+        const y=Math.floor(idx/w), x=idx%w
+        const neighbors=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]]
+        for(const [nx,ny] of neighbors){
+          if(nx<0||ny<0||nx>=w||ny>=h) continue
+          const ni=ny*w+nx
+          if(keep[ni]) continue
+          const dr=d[ni*4]-sr, dg=d[ni*4+1]-sg, db=d[ni*4+2]-sb
+          const dist=Math.sqrt(dr*dr+dg*dg+db*db)
+          if(dist<T){ keep[ni]=1; stack.push(ni) }
+        }
+      }
+      for(let i=0;i<keep.length;i++){ if(!keep[i]) d[i*4+3]=0 }
+      g.putImageData(imgData,0,0)
+      keepLargest()
+      renderResult()
+      toast(status,'点选保留完成：已留下与所选点相连的主体，其余透明')
+    }
+    // 框选保留：保留框内区域，其余透明
+    function doBox(x1:number,y1:number,x2:number,y2:number){
+      if(!originalData) return
+      const w=canvas.width, h=canvas.height
+      const g=canvas.getContext('2d')!; g.putImageData(originalData,0,0)
+      const imgData=g.getImageData(0,0,w,h); const d=imgData.data
+      const xa=Math.max(0,Math.min(x1,x2)), xb=Math.min(w-1,Math.max(x1,x2))
+      const ya=Math.max(0,Math.min(y1,y2)), yb=Math.min(h-1,Math.max(y1,y2))
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        if(!(x>=xa&&x<=xb&&y>=ya&&y<=yb)){ const i=(y*w+x)*4; d[i+3]=0 }
+      }
+      g.putImageData(imgData,0,0)
+      renderResult()
+      toast(status,'框选保留完成：已保留框内区域，其余透明')
     }
 
     function renderResult(){
@@ -2920,6 +2984,8 @@ function mockImage(prompt:string, opts:any): string {
       if(!loadedImg) return toast(status,'请先上传',false)
       const mode=modeEl.value
       if(mode==='auto') doAuto()
+      else if(mode==='point') toast(status,'请点击原图上要保留的元素，即可只留下主体')
+      else if(mode==='box') toast(status,'请在原图上按住鼠标拖拽框出要保留的区域')
       else if(mode==='wand') toast(status,'请点击原图中的背景区域来擦除')
       else if(mode==='ai') await doAi()
       else doChroma()

@@ -496,7 +496,7 @@ function buildStudio() {
             <input type="file" id="m-file" accept="image/*" hidden>
           </div>
           <label class="gas-label">\u62A0\u56FE\u6A21\u5F0F</label>
-          <select class="gas-select" id="m-mode"><option value="auto" selected>\u{1F916} \u667A\u80FD\u81EA\u52A8\u6263\u80CC\u666F\uFF08\u672C\u5730\u91C7\u6837\uFF0C\u50CFPS\u4E00\u952E\u62A0\uFF09</option><option value="wand">\u{1FA84} \u70B9\u51FB\u80CC\u666F\u64E6\u9664\uFF08\u9B54\u68D2\uFF09</option><option value="chroma">\u{1F3A8} \u8272\u952E\u62A0\u56FE\uFF08\u6307\u5B9A\u989C\u8272\uFF09</option><option value="ai">\u{1F310} AI \u62A0\u56FE (Replicate rembg / BYOK)</option></select>
+          <select class="gas-select" id="m-mode"><option value="auto" selected>\u{1F916} \u667A\u80FD\u81EA\u52A8\u6263\u80CC\u666F\uFF08\u672C\u5730\u91C7\u6837\uFF0C\u50CFPS\u4E00\u952E\u62A0\uFF09</option><option value="point">\u{1F5B1}\uFE0F \u70B9\u9009\u4FDD\u7559\u4E3B\u4F53\uFF08\u7CBE\u51C6\u62A0\u5355\u4E2A\u5143\u7D20\uFF09</option><option value="box">\u2B1A \u6846\u9009\u4FDD\u7559\u533A\u57DF</option><option value="wand">\u{1FA84} \u70B9\u51FB\u80CC\u666F\u64E6\u9664\uFF08\u9B54\u68D2\uFF09</option><option value="chroma">\u{1F3A8} \u8272\u952E\u62A0\u56FE\uFF08\u6307\u5B9A\u989C\u8272\uFF09</option><option value="ai">\u{1F310} AI \u62A0\u56FE (Replicate rembg / BYOK)</option></select>
           <div class="gas-note" id="m-mode-tip" style="margin-top:4px">\u{1F916} \u81EA\u52A8\u6A21\u5F0F\uFF1A\u81EA\u52A8\u5206\u6790\u56DB\u8FB9\u80CC\u666F\u8272\uFF0C\u4E00\u952E\u6263\u9664\u80CC\u666F\uFF1B\u590D\u6742\u80CC\u666F\u5EFA\u8BAE\u7528\u9B54\u68D2\u6216 AI\u3002</div>
           <div id="m-chroma-opts">
             <label class="gas-label">\u62FE\u53D6\u80CC\u666F\u8272\uFF08\u70B9\u51FB\u56FE\u7247\u62FE\u8272\uFF09</label>
@@ -3644,9 +3644,10 @@ function buildStudio() {
     let loadedImg = null;
     let originalData = null;
     let colorTouched = false;
+    const state = { px: 0, py: 0, qx: 0, qy: 0, dragging: false };
     tolEl.addEventListener("input", () => tolV.textContent = tolEl.value);
     modeEl.addEventListener("change", () => {
-      if (modeTip) modeTip.textContent = modeEl.value === "auto" ? "\u{1F916} \u81EA\u52A8\u6A21\u5F0F\uFF1A\u4ECE\u56FE\u7247\u56DB\u8FB9\u5F00\u59CB\u6269\u6563\u6263\u9664\u76F8\u8FDE\u80CC\u666F\uFF0C\u9002\u5408\u4EA7\u54C1\u56FE/\u7D20\u6750\u56FE" : modeEl.value === "wand" ? "\u{1FA84} \u9B54\u68D2\u6A21\u5F0F\uFF1A\u70B9\u51FB\u539F\u56FE\u4E2D\u7684\u80CC\u666F\u533A\u57DF\uFF0C\u5373\u53EF\u64E6\u9664\u76F8\u8FDE\u76F8\u4F3C\u989C\u8272" : modeEl.value === "ai" ? "\u{1F310} AI \u6A21\u5F0F\uFF1A\u8C03\u7528 Replicate rembg\uFF08\u9700\u53F3\u4FA7\u914D\u7F6E Key\uFF09\uFF0C\u65E0 Key \u65F6\u81EA\u52A8\u56DE\u9000\u672C\u5730\u667A\u80FD\u62A0\u56FE" : "\u{1F3A8} \u8272\u952E\u6A21\u5F0F\uFF1A\u70B9\u51FB\u539F\u56FE\u62FE\u53D6\u80CC\u666F\u8272\uFF0C\u6216\u76F4\u63A5\u9009\u989C\u8272";
+      if (modeTip) modeTip.textContent = modeEl.value === "auto" ? "\u{1F916} \u81EA\u52A8\u6A21\u5F0F\uFF1A\u4ECE\u56FE\u7247\u56DB\u8FB9\u5F00\u59CB\u6269\u6563\u6263\u9664\u76F8\u8FDE\u80CC\u666F\uFF0C\u9002\u5408\u4EA7\u54C1\u56FE/\u7D20\u6750\u56FE" : modeEl.value === "point" ? "\u{1F5B1}\uFE0F \u70B9\u9009\u4FDD\u7559\uFF1A\u70B9\u51FB\u539F\u56FE\u4E0A\u8981\u4FDD\u7559\u7684\u5143\u7D20\uFF0C\u53EA\u7559\u4E0B\u4E0E\u8BE5\u70B9\u76F8\u8FDE\u4E14\u989C\u8272\u76F8\u8FD1\u7684\u4E3B\u4F53\uFF08\u9002\u5408\u5143\u7D20\u5F88\u591A\u7684\u56FE\u7CBE\u51C6\u62A0\u5355\u4E2A\uFF09" : modeEl.value === "box" ? "\u2B1A \u6846\u9009\u4FDD\u7559\uFF1A\u5728\u56FE\u4E0A\u62D6\u62FD\u6846\u51FA\u8981\u4FDD\u7559\u7684\u533A\u57DF\uFF0C\u6846\u5185\u4FDD\u7559\u3001\u5176\u4F59\u900F\u660E" : modeEl.value === "wand" ? "\u{1FA84} \u9B54\u68D2\u6A21\u5F0F\uFF1A\u70B9\u51FB\u539F\u56FE\u4E2D\u7684\u80CC\u666F\u533A\u57DF\uFF0C\u5373\u53EF\u64E6\u9664\u76F8\u8FDE\u76F8\u4F3C\u989C\u8272" : modeEl.value === "ai" ? "\u{1F310} AI \u6A21\u5F0F\uFF1A\u8C03\u7528 Replicate rembg\uFF08\u9700\u53F3\u4FA7\u914D\u7F6E Key\uFF09\uFF0C\u65E0 Key \u65F6\u81EA\u52A8\u56DE\u9000\u672C\u5730\u667A\u80FD\u62A0\u56FE" : "\u{1F3A8} \u8272\u952E\u6A21\u5F0F\uFF1A\u70B9\u51FB\u539F\u56FE\u62FE\u53D6\u80CC\u666F\u8272\uFF0C\u6216\u76F4\u63A5\u9009\u989C\u8272";
     });
     drop.addEventListener("click", () => fileInput.click());
     drop.addEventListener("dragover", (e) => {
@@ -3694,6 +3695,12 @@ function buildStudio() {
         const y = Math.floor((e.clientY - rect.top) / rect.height * img.naturalHeight);
         if (modeEl.value === "wand") {
           doWand(x, y);
+        } else if (modeEl.value === "point") {
+          doPoint(x, y);
+        } else if (modeEl.value === "box") {
+          state.px = x;
+          state.py = y;
+          state.dragging = true;
         } else if (modeEl.value === "chroma") {
           const c = document.createElement("canvas");
           c.width = img.naturalWidth;
@@ -3708,6 +3715,79 @@ function buildStudio() {
           toast(status2, "\u81EA\u52A8\u62A0\u56FE\u65E0\u9700\u70B9\u51FB\uFF0C\u76F4\u63A5\u70B9\u300C\u2702\uFE0F \u4E00\u952E\u62A0\u56FE\u300D\u5373\u53EF");
         }
       };
+      im.onmousemove = (e) => {
+        if (!state.dragging || modeEl.value !== "box") return;
+        const rect = im.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / rect.width * img.naturalWidth);
+        const y = Math.floor((e.clientY - rect.top) / rect.height * img.naturalHeight);
+        state.qx = x;
+        state.qy = y;
+      };
+      im.onmouseup = (e) => {
+        if (!state.dragging || modeEl.value !== "box") return;
+        state.dragging = false;
+        const rect = im.getBoundingClientRect();
+        const x = Math.floor((e.clientX - rect.left) / rect.width * img.naturalWidth);
+        const y = Math.floor((e.clientY - rect.top) / rect.height * img.naturalHeight);
+        doBox(state.px, state.py, x, y);
+      };
+    }
+    function doPoint(sx, sy) {
+      if (!originalData) return;
+      const w = canvas.width, h = canvas.height;
+      const g = canvas.getContext("2d");
+      g.putImageData(originalData, 0, 0);
+      const imgData = g.getImageData(0, 0, w, h);
+      const d = imgData.data;
+      if (sx < 0 || sy < 0 || sx >= w || sy >= h) return;
+      const seedIdx = sy * w + sx;
+      const sr = d[seedIdx * 4], sg = d[seedIdx * 4 + 1], sb = d[seedIdx * 4 + 2];
+      const T = parseInt(tolEl.value) || 30;
+      const keep = new Uint8Array(w * h);
+      const stack = [seedIdx];
+      keep[seedIdx] = 1;
+      while (stack.length) {
+        const idx = stack.pop();
+        const y = Math.floor(idx / w), x = idx % w;
+        const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+        for (const [nx, ny] of neighbors) {
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const ni = ny * w + nx;
+          if (keep[ni]) continue;
+          const dr = d[ni * 4] - sr, dg = d[ni * 4 + 1] - sg, db = d[ni * 4 + 2] - sb;
+          const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+          if (dist < T) {
+            keep[ni] = 1;
+            stack.push(ni);
+          }
+        }
+      }
+      for (let i = 0; i < keep.length; i++) {
+        if (!keep[i]) d[i * 4 + 3] = 0;
+      }
+      g.putImageData(imgData, 0, 0);
+      keepLargest();
+      renderResult();
+      toast(status2, "\u70B9\u9009\u4FDD\u7559\u5B8C\u6210\uFF1A\u5DF2\u7559\u4E0B\u4E0E\u6240\u9009\u70B9\u76F8\u8FDE\u7684\u4E3B\u4F53\uFF0C\u5176\u4F59\u900F\u660E");
+    }
+    function doBox(x1, y1, x2, y2) {
+      if (!originalData) return;
+      const w = canvas.width, h = canvas.height;
+      const g = canvas.getContext("2d");
+      g.putImageData(originalData, 0, 0);
+      const imgData = g.getImageData(0, 0, w, h);
+      const d = imgData.data;
+      const xa = Math.max(0, Math.min(x1, x2)), xb = Math.min(w - 1, Math.max(x1, x2));
+      const ya = Math.max(0, Math.min(y1, y2)), yb = Math.min(h - 1, Math.max(y1, y2));
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!(x >= xa && x <= xb && y >= ya && y <= yb)) {
+          const i = (y * w + x) * 4;
+          d[i + 3] = 0;
+        }
+      }
+      g.putImageData(imgData, 0, 0);
+      renderResult();
+      toast(status2, "\u6846\u9009\u4FDD\u7559\u5B8C\u6210\uFF1A\u5DF2\u4FDD\u7559\u6846\u5185\u533A\u57DF\uFF0C\u5176\u4F59\u900F\u660E");
     }
     function renderResult() {
       result.innerHTML = "";
@@ -3926,6 +4006,8 @@ function buildStudio() {
       if (!loadedImg) return toast(status2, "\u8BF7\u5148\u4E0A\u4F20", false);
       const mode = modeEl.value;
       if (mode === "auto") doAuto();
+      else if (mode === "point") toast(status2, "\u8BF7\u70B9\u51FB\u539F\u56FE\u4E0A\u8981\u4FDD\u7559\u7684\u5143\u7D20\uFF0C\u5373\u53EF\u53EA\u7559\u4E0B\u4E3B\u4F53");
+      else if (mode === "box") toast(status2, "\u8BF7\u5728\u539F\u56FE\u4E0A\u6309\u4F4F\u9F20\u6807\u62D6\u62FD\u6846\u51FA\u8981\u4FDD\u7559\u7684\u533A\u57DF");
       else if (mode === "wand") toast(status2, "\u8BF7\u70B9\u51FB\u539F\u56FE\u4E2D\u7684\u80CC\u666F\u533A\u57DF\u6765\u64E6\u9664");
       else if (mode === "ai") await doAi();
       else doChroma();
