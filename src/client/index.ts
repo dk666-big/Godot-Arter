@@ -156,6 +156,19 @@ function buildStudio(): HTMLElement {
   .gas-progress{ height:12px; background:var(--inputb); border-radius:0; overflow:hidden; border:3px solid var(--border); }
   .gas-progress i{ display:block; height:100%; background:var(--accent); width:0%; transition:width .3s; }
   .gas-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; background:var(--hover); border:3px solid var(--border); padding:2px 9px; color:var(--muted); }
+  /* Asset lightbox */
+  .gas-lightbox-overlay{ position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.72);
+    display:grid; place-items:center; padding:24px; }
+  .gas-lightbox{ position:relative; background:var(--panel2); border:4px solid var(--border);
+    box-shadow:6px 6px 0 var(--shadow); max-width:94vw; max-height:92vh; display:flex; flex-direction:column; }
+  .gas-lightbox-bar{ display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--panel);
+    border-bottom:4px solid var(--border); }
+  .gas-lightbox-title{ font-weight:700; font-size:14px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .gas-lightbox-id{ margin-left:8px; font-size:11px; color:var(--muted); font-weight:400; }
+  .gas-lightbox-act{ margin-left:auto; display:flex; gap:8px; }
+  .gas-lightbox-body{ display:grid; place-items:center; padding:16px; overflow:auto; min-width:320px; min-height:220px; }
+  .gas-lightbox-body img{ max-width:100%; max-height:72vh; image-rendering:pixelated; }
+  .gas-lightbox-note{ text-align:center; font-size:11px; color:var(--muted); padding:0 0 10px; }
   /* ---- Pixel-consistency overrides (neutralize inline styles) ---- */
   .gas-root input[type=color], .gas-root #s-drop, .gas-root #pp-drop, .gas-root #m-drop{
     background:var(--inputb) !important; border:3px solid var(--border) !important; border-radius:0 !important;
@@ -3616,6 +3629,12 @@ function mockImage(prompt:string, opts:any): string {
         const meta=document.createElement('div'); meta.className='meta'; meta.style.height='auto'; meta.style.flexDirection='column'; meta.style.alignItems='flex-start'
         meta.innerHTML='<span>'+item.id+'</span><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(item.name||'')+'</span><span>'+formatTime(item.createdAt)+'</span>'
         card.appendChild(meta)
+        // 点击缩略图放大查看
+        card.style.cursor='zoom-in'
+        card.addEventListener('click', (e:any)=>{
+          if((e.target as HTMLElement).closest('button, select, .meta, .gas-nav-item')) return
+          openAssetLightbox(item.url, item.name||item.id, item.id)
+        })
         const actions=document.createElement('div'); actions.style.position='absolute'; actions.style.top='4px'; actions.style.right='4px'; actions.style.display='flex'; actions.style.gap='4px'; actions.style.alignItems='center'
         const dl=document.createElement('button'); dl.className='gas-btn ghost'; dl.textContent='⬇'; dl.style.padding='2px 6px'; dl.onclick=()=>void downloadUrl(item.url,item.id+'.png')
         // 移动到其他库/包
@@ -3872,6 +3891,37 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
   htmlSideToggle.title = '收起/展开左侧功能栏'
   htmlSideToggle.onclick=()=>{ navCollapsed=!navCollapsed; applyNav(); htmlSideToggle.textContent=(navCollapsed?'» 展开':'« 收起') }
   nav.appendChild(htmlSideToggle)
+
+
+  // ---- Asset lightbox (click to enlarge) ----
+  let lightboxEl: HTMLElement|null = null
+  function closeLightbox(){ if(lightboxEl){ lightboxEl.remove(); lightboxEl=null; document.removeEventListener('keydown', lightboxKey) } }
+  function lightboxKey(e:any){ if(e.key==='Escape') closeLightbox() }
+  function openAssetLightbox(url:string, title:string, id:string){
+    closeLightbox()
+    const ov=document.createElement('div')
+    ov.className='gas-lightbox-overlay'
+    ov.innerHTML =`
+      <div class="gas-lightbox">
+        <div class="gas-lightbox-bar">
+          <div class="gas-lightbox-title">${title}<span class="gas-lightbox-id">${id}</span></div>
+          <div class="gas-lightbox-act">
+            <button class="gas-btn ghost" data-lb-dl>⬇ 下载</button>
+            <button class="gas-btn" data-lb-close>✕ 关闭</button>
+          </div>
+        </div>
+        <div class="gas-lightbox-body"><img src="${url}" alt="${title}"></div>
+        <div class="gas-lightbox-note">按 Esc 或点击背景关闭</div>
+      </div>`
+    ov.addEventListener('click', (e:any)=>{ if(e.target===ov) closeLightbox() })
+    ov.querySelector('[data-lb-close]')!.addEventListener('click', closeLightbox)
+    ov.querySelector('[data-lb-dl]')!.addEventListener('click', ()=> void downloadUrl(url, (id||title||'asset')+'.png'))
+    document.body.appendChild(ov)
+    lightboxEl=ov
+    document.addEventListener('keydown', lightboxKey)
+  }
+  // expose for panel code
+  ;(root as any).openAssetLightbox = openAssetLightbox
 
   return root
 }
