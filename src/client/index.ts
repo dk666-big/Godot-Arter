@@ -1887,16 +1887,16 @@ const pPost=mkPanel('post', `
     if(!/^https?:\/\//i.test(url)) return url
     // file:// 直开时没有 DSH 代理路由，不能落入代理兜底
     const hosted= location.protocol!=='file:' && location.origin!=='null'
+    // 30s 超时防卡死；超时/失败都回退到「直接给 <img> 用原URL」或代理，绝不抛错导致生成失败
     const ac = typeof AbortController!=='undefined' ? new AbortController() : null
-    const timer = ac ? setTimeout(()=>ac.abort(), 30000) : null  // 30s 超时，避免无限等待拖慢体验
+    const timer = ac ? setTimeout(()=>ac.abort(), 30000) : null
     try{
       const r=await fetch(url, ac ? { signal: ac.signal } : undefined)
       if(!r.ok) throw new Error('HTTP '+r.status)
       const blob=await r.blob()
       return URL.createObjectURL(blob)
     }catch(e:any){
-      if(e?.name==='AbortError') throw new Error('图片下载超时(30s)：'+url.slice(0,80))
-      // fetch 跨域失败不影响 <img> 直接显示；托管环境才回退到 DSH 代理（供画布切片等需要 CORS 的场景）
+      // 任何下载失败（含超时/跨域/防盗链）都不应让生成流程失败，回退到可显示的原图 URL 或代理
       return hosted ? '/game-art-studio/api/proxy-image?url='+encodeURIComponent(url) : url
     }finally{
       if(timer) clearTimeout(timer)
@@ -2979,18 +2979,18 @@ function mockImage(prompt:string, opts:any): string {
       const worker=async ()=>{
         while(queue.length && !forgeStop){
           const job=queue.shift()!; const { line }=job
-          let url='', ok=false
+          let url='', ok=false, lastErr=''
           for(let attempt=0; attempt<=RETRY && !forgeStop; attempt++){
             try{
               url=await callImageGen(line + ' , game asset' + styleHint + bgSuffix, prov, { style: styleSel, bg, bgTrans, model, reference: refUrl || undefined })
               ok=true; break
-            }catch(e){ if(attempt>=RETRY) { /* last failure below */ } }
+            }catch(e:any){ lastErr=String(e?.message||e); if(attempt>=RETRY) { /* 记录最后一次真实错误，见下方失败卡片 */ } }
           }
           if(ok){
             const card=document.createElement('div'); card.className='gas-thumb'; card.innerHTML='<img src="'+url+'"><div class="meta"><span>'+line.slice(0,12)+'</span><span>64px</span></div>'; grid.appendChild(card)
             pushHistory({ kind:'asset', prompt:line, url })
           }else{
-            const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+line.slice(0,20); grid.appendChild(err)
+            const err=document.createElement('div'); err.className='gas-thumb'; err.style.placeItems='center'; err.style.fontSize='11px'; err.style.color='#e74c3c'; err.textContent='失败:'+line.slice(0,12)+(lastErr?' · '+lastErr.slice(0,120):''); err.title=lastErr; grid.appendChild(err)
           }
           done++; prog.style.width=Math.round(done/lines.length*100)+'%'
         }

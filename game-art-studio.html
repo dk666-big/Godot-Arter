@@ -2365,7 +2365,6 @@ function buildStudio() {
       const blob = await r.blob();
       return URL.createObjectURL(blob);
     } catch (e) {
-      if (e?.name === "AbortError") throw new Error("\u56FE\u7247\u4E0B\u8F7D\u8D85\u65F6(30s)\uFF1A" + url.slice(0, 80));
       return hosted ? "/game-art-studio/api/proxy-image?url=" + encodeURIComponent(url) : url;
     } finally {
       if (timer) clearTimeout(timer);
@@ -4072,13 +4071,14 @@ function buildStudio() {
         while (queue.length && !forgeStop) {
           const job = queue.shift();
           const { line } = job;
-          let url = "", ok = false;
+          let url = "", ok = false, lastErr = "";
           for (let attempt = 0; attempt <= RETRY && !forgeStop; attempt++) {
             try {
               url = await callImageGen(line + " , game asset" + styleHint + bgSuffix, prov, { style: styleSel, bg, bgTrans, model, reference: refUrl || void 0 });
               ok = true;
               break;
             } catch (e) {
+              lastErr = String(e && e.message || e);
               if (attempt >= RETRY) {
               }
             }
@@ -4095,7 +4095,8 @@ function buildStudio() {
             err.style.placeItems = "center";
             err.style.fontSize = "11px";
             err.style.color = "#e74c3c";
-            err.textContent = "\u5931\u8D25:" + line.slice(0, 20);
+            err.textContent = "失败:" + line.slice(0, 12) + (lastErr ? " \u00B7 " + lastErr.slice(0, 120) : "");
+            err.title = lastErr;
             grid.appendChild(err);
           }
           done++;
