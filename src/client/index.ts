@@ -177,6 +177,22 @@ function buildStudio(): HTMLElement {
   .gas-root #e-list{ background:var(--inputb) !important; border:3px dashed var(--border) !important; border-radius:0 !important; }
   .gas-root [style*="1e2224"]{ background:var(--thumbb) !important; }
   .gas-root input[type=range]{ accent-color:var(--accent); }
+  /* Element extractor — 结果区（拼贴画布） */
+  .gas-extract-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:14px; margin-top:10px;
+    background:var(--inputb); border:3px solid var(--border); padding:14px; min-height:120px; }
+  .gas-extract-cell{ position:relative; width:100%; }
+  .gas-extract-item{ position:relative; background:var(--thumbb); border:3px solid var(--border); cursor:grab;
+    transition:border-color .15s, box-shadow .15s; }
+  .gas-extract-item:hover{ border-color:var(--accent2); }
+  .gas-extract-item.sel{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent); }
+  .gas-extract-item img{ width:100%; height:120px; object-fit:contain; display:block; image-rendering:pixelated; }
+  .gas-extract-tag{ position:absolute; left:0; right:0; bottom:0; background:rgba(0,0,0,.6); color:var(--text);
+    font-size:10px; padding:2px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .gas-extract-del{ position:absolute; top:3px; right:3px; width:22px; height:22px; line-height:1; padding:0;
+    background:rgba(0,0,0,.6); color:#fff; border:1px solid var(--border); cursor:pointer; font-size:12px; }
+  .gas-extract-del:hover{ background:var(--pink); color:#fff; }
+  .gas-extract-actions{ display:flex; gap:6px; margin-top:6px; }
+  .gas-extract-actions .gas-btn{ flex:1; padding:4px 6px; font-size:11px; }
   @media(max-width:900px){ .gas-side{ display:none; } }
 `
   root.appendChild(style)
@@ -997,7 +1013,7 @@ const pPost=mkPanel('post', `
       elements.forEach((el,i)=>{
         const cell=document.createElement('div'); cell.className='gas-extract-cell'; cell.dataset.idx=String(i)
         const box=document.createElement('div'); box.className='gas-extract-item'
-        const img=document.createElement('img'); img.src=el.img.toDataURL(); box.appendChild(img)
+        const img=document.createElement('img'); img.src=el.img.toDataURL(); img.setAttribute('data-no-zoom','1'); box.appendChild(img)
         const tag=document.createElement('span'); tag.className='gas-extract-tag'; tag.textContent='#'+(i+1)+' · '+el.w+'×'+el.h; box.appendChild(tag)
         const del=document.createElement('button'); del.className='gas-extract-del'; del.textContent='✕'; box.appendChild(del)
         box.addEventListener('mousedown',(e)=>{ selected=i; highlightSel(); startDrag(e,box,i) })
@@ -1014,8 +1030,11 @@ const pPost=mkPanel('post', `
     }
     function startDrag(e,wrap,i){
       e.preventDefault()
-      const st=stage.getBoundingClientRect(); const ox=e.clientX-wrap.getBoundingClientRect().left, oy=e.clientY-wrap.getBoundingClientRect().top
-      const move=(ev)=>{ let nx=ev.clientX-st.left-ox, ny=ev.clientY-st.top-oy; nx=Math.max(0,Math.min(nx,st.width-wrap.offsetWidth)); ny=Math.max(0,Math.min(ny,st.height-wrap.offsetHeight)); wrap.style.left=nx+'px'; wrap.style.top=ny+'px' }
+      // 用 transform 平移，在各自 cell 内做视觉偏移，不干扰 grid 布局
+      const cell=wrap.parentElement as HTMLElement; const cellR=cell.getBoundingClientRect()
+      let dx=0, dy=0; const baseX=e.clientX, baseY=e.clientY
+      const st=stage.getBoundingClientRect(); const maxX=st.width-wrap.offsetWidth-8, maxY=st.height-wrap.offsetHeight-8
+      const move=(ev)=>{ dx=ev.clientX-baseX; dy=ev.clientY-baseY; const cx=Math.max(-cellR.width,Math.min(dx,maxX)); const cy=Math.max(-cellR.height,Math.min(dy,maxY)); wrap.style.transform='translate('+cx+'px,'+cy+'px)' }
       const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up) }
       window.addEventListener('mousemove',move); window.addEventListener('mouseup',up)
     }
@@ -1024,7 +1043,7 @@ const pPost=mkPanel('post', `
       srcCanvas=document.createElement('canvas'); srcCanvas.width=img.naturalWidth; srcCanvas.height=img.naturalHeight
       srcCanvas.getContext('2d')!.drawImage(img,0,0)
       // 在上传框显示原图并绑定鼠标交互
-      if(previewEl){ previewEl.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.width='100%'; im.style.maxHeight='300px'; im.style.imageRendering='pixelated'; im.style.cursor='crosshair'; previewEl.appendChild(im)
+      if(previewEl){ previewEl.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.width='100%'; im.style.maxHeight='300px'; im.style.imageRendering='pixelated'; im.style.cursor='crosshair'; im.setAttribute('data-no-zoom','1'); previewEl.appendChild(im)
         im.addEventListener('mousedown', ev=> onCanvasDown(ev, im))
         im.addEventListener('mousemove', ev=> onCanvasMove(ev, im))
         im.addEventListener('mouseup', ev=> onCanvasUp(ev, im))
@@ -1179,9 +1198,6 @@ const pPost=mkPanel('post', `
     saveSelBtn.addEventListener('click', ()=>{ if(selected>=0) void saveElements([elements[selected]]) })
     dlSelBtn.addEventListener('click', ()=>{ const el=(selected>=0?elements[selected]:(elements[0]||null)); if(el) downloadUrl(el.img.toDataURL(), el.name+'.png') })
     async function saveElements(list:any[]){ for(const el of list){ await addToLibrary('extract', el.name, el.img.toDataURL()) } drawProgress('已保存 '+list.length+' 个元素到素材库') }
-    // 点选模式：在编辑区/原图点击
-    drop.addEventListener('click', ()=>{})
-    stage.addEventListener('mousedown', (e)=>{ if(modeEl.value==='point' && srcCanvas){ } })
     resetStage(); updateSel()
   }
 
