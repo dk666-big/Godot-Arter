@@ -42,50 +42,92 @@ function buildStudio(): HTMLElement {
   // ---- CSS (Godot 4.x Editor 风格) ----
   const style = document.createElement('style')
   style.textContent = `
-  .gas-root{ --godot-bg:#1f232b; --panel:#272b35; --panel2:#313642; --border:#3e4553; --accent:#7aa2f7; --accent2:#a5c8ff; --accent-orange:#ff9e64; --pink:#f7768e; --text:#eef1f7; --muted:#a6b0c0; --ok:#4fd68a; --warn:#ffc46b; font-family: 'JetBrains Mono', ui-monospace, Consolas, 'Microsoft YaHei', monospace; color:var(--text); background:var(--godot-bg); border:1px solid var(--border); border-radius:18px; overflow:hidden; display:flex; flex-direction:column; max-height:96vh; width:100%; max-width:1740px; margin:0 auto; box-shadow:0 12px 40px rgba(0,0,0,.35); }
-  .gas-header{ display:flex; align-items:center; gap:16px; padding:18px 26px; position:relative; z-index:6; background:linear-gradient(135deg,#272c37,#1f232b); border-bottom:1px solid var(--border); }
-  .gas-logo{ width:42px; height:42px; border-radius:13px; background:linear-gradient(135deg,#7aa2f7,#c792ea); display:grid; place-items:center; font-weight:800; font-size:20px; color:white; box-shadow:0 4px 14px rgba(122,162,247,.35); }
+  /* Theme tokens — OpenCode-style warm surfaces, dark is default */
+  .gas-root{
+    --godot-bg:#1c1b1a; --panel:#232120; --panel2:#2b2928; --border:#3a3736;
+    --accent:#8b7cf6; --accent2:#b3a8ff; --accent-orange:#ff9e64; --pink:#f7768e;
+    --text:#f4f2f1; --muted:#a3a09e; --ok:#4fd68a; --warn:#ffc46b;
+    --inputb:#161413; --thumbb:#121110; --hover:#2e2c2b;
+    font-family:'JetBrains Mono', ui-monospace, Consolas, 'Microsoft YaHei', monospace;
+    color:var(--text); background:var(--godot-bg); border:1px solid var(--border);
+    border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+    max-height:96vh; width:100%; max-width:1740px; margin:0 auto; box-shadow:0 12px 40px rgba(0,0,0,.35);
+    transition:background .25s, color .25s;
+  }
+  .gas-root[data-theme='light']{
+    --godot-bg:#f6f4f2; --panel:#eceae7; --panel2:#fbfaf8; --border:#dedad6;
+    --accent:#6d5bd0; --accent2:#4f3fa8; --accent-orange:#e8713d; --pink:#d9536f;
+    --text:#26221f; --muted:#6f6862; --ok:#1f9d55; --warn:#b7791f;
+    --inputb:#f2efec; --thumbb:#efece9; --hover:#e2dfda;
+  }
+  /* Top bar */
+  .gas-header{ display:flex; align-items:center; gap:14px; padding:14px 22px; position:relative; z-index:6;
+    background:var(--panel); border-bottom:1px solid var(--border); }
+  .gas-logo{ width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg,var(--accent),#c792ea);
+    display:grid; place-items:center; font-weight:800; font-size:19px; color:#fff; box-shadow:0 4px 14px rgba(122,162,247,.3); }
   .gas-title{ font-weight:700; letter-spacing:1px; font-size:15px; }
-  .gas-title small{ display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:4px; letter-spacing:.3px; }
-  .gas-badge{ margin-left:auto; background:rgba(255,255,255,.05); border:1px solid var(--border); padding:5px 12px; border-radius:999px; font-size:11px; color:var(--muted); }
+  .gas-title small{ display:block; font-weight:400; color:var(--muted); font-size:11px; margin-top:3px; letter-spacing:.3px; }
+  .gas-badge{ margin-left:auto; background:var(--hover); border:1px solid var(--border); padding:5px 12px; border-radius:999px; font-size:11px; color:var(--muted); }
   .gas-badge b{ color:var(--accent2); }
-  .gas-tabs{ display:flex; gap:10px; padding:12px 18px; position:relative; z-index:5; background:#262a34; border-bottom:1px solid var(--border); overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; }
-  .gas-tab{ padding:10px 16px; border-radius:999px; border:1px solid transparent; background:#2c313d; color:var(--muted); cursor:pointer; font-size:12px; white-space:nowrap; transition:background .18s, color .18s, box-shadow .18s; }
-  .gas-tab.active{ background:linear-gradient(135deg,#7aa2f7,#c792ea); color:#fff; font-weight:600; box-shadow:0 2px 8px rgba(122,162,247,.32); }
-  .gas-tab:hover{ border-color:var(--border); color:var(--text); }
-  .gas-body{ display:flex; flex:1; min-height:0; position:relative; z-index:0; }
-  .gas-main{ flex:1; padding:26px; overflow-y:auto; overflow-x:hidden; background:var(--godot-bg); }
-  .gas-side{ width:276px; border-left:1px solid var(--border); background:var(--panel); padding:18px; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column; gap:16px; }
+  .gas-top-btn{ background:var(--hover); border:1px solid var(--border); color:var(--muted); border-radius:10px;
+    padding:7px 12px; font-size:12px; cursor:pointer; transition:filter .15s, color .15s; }
+  .gas-top-btn:hover{ filter:brightness(1.1); color:var(--text); }
+  .gas-top-btn.active{ color:var(--accent2); border-color:var(--accent); }
+  /* Mobile / narrow */
   @media(max-width:900px){ .gas-side{ display:none; } }
-  .gas-card{ background:var(--panel2); border:1px solid var(--border); border-radius:18px; padding:24px; box-shadow:0 2px 10px rgba(0,0,0,.12); }
+  /* Layout */
+  .gas-shell{ display:flex; flex:1; min-height:0; position:relative; z-index:0; }
+  .gas-body{ display:flex; flex:1; min-height:0; }
+  .gas-main{ flex:1; padding:24px; overflow-y:auto; overflow-x:hidden; background:var(--godot-bg); }
+  .gas-side{ width:236px; border-left:1px solid var(--border); background:var(--panel); padding:16px; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column; gap:16px; }
+  /* Left nav */
+  .gas-nav{ width:224px; flex:0 0 224px; background:var(--panel); border-right:1px solid var(--border);
+    padding:14px 10px; overflow-y:auto; overflow-x:hidden; transition:width .2s, transform .2s; position:relative; z-index:3; }
+  .gas-nav.collapsed{ width:56px; flex-basis:56px; }
+  .gas-nav.collapsed .gas-nav-item span.nlabel{ display:none; }
+  .gas-nav.collapsed .gas-nav-item{ justify-content:center; padding:9px 0; }
+  .gas-nav.collapsed .gas-nav-group{ text-align:center; }
+  .gas-nav-group{ font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin:14px 6px 6px; opacity:.8; }
+  .gas-nav-item{ display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:10px; border:1px solid transparent;
+    background:transparent; color:var(--muted); cursor:pointer; font-size:12px; white-space:nowrap; width:100%; text-align:left;
+    transition:background .15s, color .15s, border-color .15s; }
+  .gas-nav-item:hover{ background:var(--hover); color:var(--text); }
+  .gas-nav-item.active{ background:linear-gradient(135deg,var(--accent),#c792ea); color:#fff; font-weight:600; }
+  .gas-nav-item .nico{ width:18px; text-align:center; font-size:13px; flex-shrink:0; }
+  .gas-nav-item.collapsed .nlabel{ display:none; }
+  .gas-side-toggle{ background:var(--hover); border:1px solid var(--border); color:var(--muted); border-radius:8px;
+    padding:6px; margin:4px 6px 0; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:11px; }
+  .gas-side-toggle:hover{ color:var(--text); }
+  /* Card + controls */
+  .gas-card{ background:var(--panel2); border:1px solid var(--border); border-radius:16px; padding:22px; box-shadow:0 2px 10px rgba(0,0,0,.1); }
   .gas-card h4{ margin:2px 0 14px; font-size:14px; color:var(--accent2); letter-spacing:.5px; }
   .gas-label{ font-size:11px; color:var(--muted); margin:14px 0 6px; display:block; letter-spacing:.3px; }
-  .gas-input, .gas-select, .gas-textarea{ width:100%; background:#1a1e27; border:1px solid var(--border); color:var(--text); border-radius:11px; padding:10px 12px; font-size:12px; font-family:inherit; transition:border-color .15s, box-shadow .15s; }
-  .gas-input:focus, .gas-select:focus, .gas-textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(122,162,247,.15); }
+  .gas-input, .gas-select, .gas-textarea{ width:100%; background:var(--inputb); border:1px solid var(--border); color:var(--text); border-radius:11px; padding:10px 12px; font-size:12px; font-family:inherit; transition:border-color .15s, box-shadow .15s; }
+  .gas-input:focus, .gas-select:focus, .gas-textarea:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(139,124,246,.15); }
   .gas-textarea{ min-height:76px; resize:vertical; }
   .gas-row{ display:flex; gap:14px; }
-  .gas-btn{ padding:10px 16px; border-radius:12px; border:1px solid transparent; background:linear-gradient(135deg,#7aa2f7,#8aa7f0); color:#fff; cursor:pointer; font-size:12px; font-weight:600; transition:filter .18s, box-shadow .18s; box-shadow:0 2px 8px rgba(122,162,247,.25); }
+  .gas-btn{ padding:10px 16px; border-radius:12px; border:1px solid transparent; background:linear-gradient(135deg,var(--accent),#8aa7f0); color:#fff; cursor:pointer; font-size:12px; font-weight:600; transition:filter .18s, box-shadow .18s; box-shadow:0 2px 8px rgba(139,124,246,.25); }
   .gas-btn:hover{ filter:brightness(1.07); }
-  .gas-btn.ghost{ background:#2c313d; color:var(--text); border:1px solid var(--border); box-shadow:none; }
+  .gas-btn.ghost{ background:var(--hover); color:var(--text); border:1px solid var(--border); box-shadow:none; }
   .gas-btn.orange{ background:linear-gradient(135deg,#ff9e64,#f7768e); box-shadow:0 2px 8px rgba(255,158,100,.25); }
   .gas-btn:disabled{ opacity:.5; cursor:not-allowed; }
   .gas-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(172px,1fr)); gap:18px; margin-top:16px; }
-  .gas-thumb{ aspect-ratio:1; background:#141822; border:1px solid var(--border); border-radius:16px; overflow:hidden; position:relative; display:grid; place-items:center; transition:border-color .15s; }
+  .gas-thumb{ aspect-ratio:1; background:var(--thumbb); border:1px solid var(--border); border-radius:16px; overflow:hidden; position:relative; display:grid; place-items:center; transition:border-color .15s; }
   .gas-thumb:hover{ border-color:var(--accent); }
   .gas-thumb img, .gas-thumb canvas{ width:100%; height:100%; object-fit:contain; }
-  .gas-thumb .meta{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:white; font-size:10px; padding:6px 8px; display:flex; justify-content:space-between; }
-  .gas-preview{ background:#141822; border:1px solid var(--border); border-radius:16px; padding:16px; display:grid; place-items:center; min-height:180px; max-height:280px; position:relative; overflow:hidden; }
-  .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, #3a4150 1px, transparent 0); background-size:20px 20px; }
+  .gas-thumb .meta{ position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,.55); color:#fff; font-size:10px; padding:6px 8px; display:flex; justify-content:space-between; }
+  .gas-preview{ background:var(--thumbb); border:1px solid var(--border); border-radius:16px; padding:16px; display:grid; place-items:center; min-height:180px; max-height:280px; position:relative; overflow:hidden; }
+  .gas-preview.tiled{ background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0); background-size:20px 20px; }
   .gas-canvas{ max-width:100%; max-height:180px; width:auto; height:auto; image-rendering: pixelated; border-radius:10px; display:block; }
-  .gas-map-viewport{ width:100%; height:400px; overflow:auto; background:#141822; border:1px solid var(--border); border-radius:16px; padding:0; position:relative; }
+  .gas-map-viewport{ width:100%; height:400px; overflow:auto; background:var(--thumbb); border:1px solid var(--border); border-radius:16px; padding:0; position:relative; }
   .gas-map-viewport img{ display:block; image-rendering: pixelated; max-width:none; cursor:grab; }
-  .gas-kbd{ background:#1a1e27; border:1px solid var(--border); border-bottom-width:2px; padding:2px 7px; border-radius:8px; font-size:10px; color:var(--muted); }
+  .gas-kbd{ background:var(--inputb); border:1px solid var(--border); border-bottom-width:2px; padding:2px 7px; border-radius:8px; font-size:10px; color:var(--muted); }
   .gas-divider{ height:1px; background:var(--border); margin:20px 0; opacity:.6; }
   .gas-note{ font-size:11px; color:var(--muted); line-height:1.75; }
-  .gas-progress{ height:7px; background:#1a1e27; border-radius:999px; overflow:hidden; border:1px solid var(--border); }
-  .gas-progress i{ display:block; height:100%; background:linear-gradient(90deg,#7aa2f7,#c792ea,#ff9e64); width:0%; transition:width .3s; }
-  .gas-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; background:#2c313d; border:1px solid var(--border); padding:4px 10px; border-radius:999px; color:var(--muted); }
-  `
+  .gas-progress{ height:7px; background:var(--inputb); border-radius:999px; overflow:hidden; border:1px solid var(--border); }
+  .gas-progress i{ display:block; height:100%; background:linear-gradient(90deg,var(--accent),#c792ea,#ff9e64); width:0%; transition:width .3s; }
+  .gas-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; background:var(--hover); border:1px solid var(--border); padding:4px 10px; border-radius:999px; color:var(--muted); }
+`
   root.appendChild(style)
 
   // ---- Header ----
@@ -93,41 +135,47 @@ function buildStudio(): HTMLElement {
   header.className = 'gas-header'
   header.innerHTML = `<div class="gas-logo">G</div>
     <div class="gas-title">游戏美术工坊 <span style="font-weight:400;color:#6ea6d1;">· Godot Ready</span><small>角色 · 序列帧 · 素材 · 抠图 · 无缝大地图 — BYOK · 一键导出 Godot 4.x</small></div>
+    <button class="gas-top-btn" id="btn-theme" title="切换主题 (深色/浅色/跟随系统)" style="margin-left:auto;">🌓</button>
     <div class="gas-badge">DOCS <b>Godot 4.2</b> · <span style="color:#2ecc71;">● 就绪</span></div>`
   root.appendChild(header)
 
-  // ---- Tabs ----
-  const tabs = document.createElement('div')
-  tabs.className = 'gas-tabs'
-  const tabDefs: { id:string; label:string; icon:string }[] = [
-    { id:'character', label:'角色工坊', icon:'🧍' },
-    { id:'seq', label:'单帧动画', icon:'🎬' },
-    { id:'pipe', label:'素材流水线', icon:'🚀' },
-    { id:'sheet', label:'序列帧', icon:'🎞️' },
-    { id:'forge', label:'素材锻造', icon:'🧱' },
-    { id:'matting', label:'智能抠图', icon:'✂️' },
-    { id:'map', label:'无缝大地图', icon:'🗺️' },
-    { id:'scene', label:'场景工坊', icon:'🌦️' },
-    { id:'asset', label:'素材总管', icon:'📚' },
-    { id:'post', label:'后处理', icon:'✨' },
-    { id:'preset', label:'API 预设', icon:'🔌' },
-    { id:'export', label:'设置/导出', icon:'⚙️' },
+  // ---- Left nav (grouped) ----
+  const tabDefs: { id:string; label:string; icon:string; group:string }[] = [
+    { id:'character', label:'角色工坊', icon:'🧍', group:'生成' },
+    { id:'seq', label:'单帧动画', icon:'🎬', group:'生成' },
+    { id:'forge', label:'素材锻造', icon:'🧱', group:'生成' },
+    { id:'scene', label:'场景工坊', icon:'🌦️', group:'生成' },
+    { id:'pipe', label:'素材流水线', icon:'🚀', group:'处理' },
+    { id:'sheet', label:'序列帧', icon:'🎞️', group:'处理' },
+    { id:'matting', label:'智能抠图', icon:'✂️', group:'处理' },
+    { id:'post', label:'后处理', icon:'✨', group:'处理' },
+    { id:'map', label:'无缝大地图', icon:'🗺️', group:'地图' },
+    { id:'asset', label:'素材总管', icon:'📚', group:'系统' },
+    { id:'preset', label:'API 预设', icon:'🔌', group:'系统' },
+    { id:'export', label:'设置/导出', icon:'⚙️', group:'系统' },
   ]
   let active='character'
   const tabEls: Record<string, HTMLElement> = {}
-  tabDefs.forEach(t=>{
-    const b=document.createElement('button')
-    b.className='gas-tab'+(t.id===active?' active':'')
-    b.innerHTML=`${t.icon} ${t.label}`
-    b.onclick=()=>switchTab(t.id)
-    tabs.appendChild(b); tabEls[t.id]=b
+  const nav = document.createElement('nav')
+  nav.className = 'gas-nav'
+  const groups = [...new Set(tabDefs.map(t=>t.group))]
+  groups.forEach(g=>{
+    const gh=document.createElement('div'); gh.className='gas-nav-group'; gh.textContent=g; nav.appendChild(gh)
+    tabDefs.filter(t=>t.group===g).forEach(t=>{
+      const b=document.createElement('button')
+      b.className='gas-nav-item'+(t.id===active?' active':'')
+      b.innerHTML=`<span class="nico">${t.icon}</span><span class="nlabel">${t.label}</span>`
+      b.dataset.tab=t.id
+      b.onclick=()=>switchTab(t.id)
+      nav.appendChild(b); tabEls[t.id]=b
+    })
   })
-  root.appendChild(tabs)
 
+  const shell=document.createElement('div'); shell.className='gas-shell'
   const body=document.createElement('div'); body.className='gas-body'
   const main=document.createElement('div'); main.className='gas-main'
   const side=document.createElement('div'); side.className='gas-side'
-  body.append(main, side); root.appendChild(body)
+  body.append(main, side); shell.append(nav, body); root.appendChild(shell)
 
   // ---- Side panel (Godot hints only; API keys moved to API 预设) ----
   side.innerHTML = `
@@ -3724,6 +3772,51 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
     const a=document.createElement('a'); a.href=url; a.download='godot_pixel_settings.cfg'; a.click()
     toast(pre,'已下载 godot_pixel_settings.cfg — 粘贴到 project.godot 的 [rendering] 段即生效', true)
   })
+
+
+  // ---- Theme engine (dark / light / system) ----
+  const THEME_KEY = 'gas-theme'
+  const THEME_ORDER = ['dark','light','system']
+  const themeIcon = (mode)=> mode==='light' ? '☀️' : (mode==='dark' ? '🌙' : '⚡')
+  function resolveTheme(mode){
+    if(mode === 'system'){
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark'
+    }
+    return mode
+  }
+  function delItem(k){ try{ localStorage.removeItem(k) }catch{} }
+  function applyTheme(mode){
+    root.dataset.theme = resolveTheme(mode)
+    const btn = document.getElementById('btn-theme')
+    if(btn){ btn.textContent = themeIcon(mode); btn.title = '切换主题：' + (mode==='light'?'浅色':(mode==='dark'?'深色':'跟随系统')) }
+    if(mode === 'system'){ delItem(THEME_KEY) } else { try{ localStorage.setItem(THEME_KEY, mode) }catch{} }
+  }
+  const savedTheme = (()=>{ try{ return localStorage.getItem(THEME_KEY) }catch{ return null } })()
+  applyTheme(savedTheme || 'dark')
+  const themeBtn = document.getElementById('btn-theme')
+  if(themeBtn) themeBtn.onclick = ()=>{
+    const cur = (()=>{ try{ return localStorage.getItem(THEME_KEY) }catch{ return null } })() || 'dark'
+    let next = THEME_ORDER[(THEME_ORDER.indexOf(cur)+1)%THEME_ORDER.length]
+    applyTheme(next)
+  }
+  if(window.matchMedia) try{
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()=>{
+      const cur = (()=>{ try{ return localStorage.getItem(THEME_KEY) }catch{ return null } })()
+      if(cur === null) applyTheme('system')
+    })
+  }catch{}
+
+  // ---- Nav collapse (rail) ----
+  const NAV_KEY = 'gas-nav-collapsed'
+  let navCollapsed = (()=>{ try{ return localStorage.getItem(NAV_KEY)==='1' }catch{ return false } })()
+  function applyNav(){ nav.classList.toggle('collapsed', navCollapsed); try{ localStorage.setItem(NAV_KEY, navCollapsed?'1':'0') }catch{} }
+  applyNav()
+  const htmlSideToggle = document.createElement('button')
+  htmlSideToggle.className='gas-side-toggle'
+  htmlSideToggle.textContent = (navCollapsed?'» 展开':'« 收起')
+  htmlSideToggle.title = '收起/展开左侧功能栏'
+  htmlSideToggle.onclick=()=>{ navCollapsed=!navCollapsed; applyNav(); htmlSideToggle.textContent=(navCollapsed?'» 展开':'« 收起') }
+  nav.appendChild(htmlSideToggle)
 
   return root
 }
