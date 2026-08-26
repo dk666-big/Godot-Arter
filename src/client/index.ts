@@ -212,10 +212,10 @@ function buildStudio(): HTMLElement {
             <input type="file" id="s-file" accept="image/*" hidden>
           </div>
           <div class="gas-row" style="margin-top:8px">
-            <div style="flex:1"><label class="gas-label">列 (cols)</label><input class="gas-input" id="s-cols" type="number" value="4" min="1" max="16"></div>
-            <div style="flex:1"><label class="gas-label">行 (rows)</label><input class="gas-input" id="s-rows" type="number" value="2" min="1" max="16"></div>
-            <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="s-fps" type="number" value="8" min="1" max="24"></div>
-            <div style="flex:1"><label class="gas-label">边界微剪(px)</label><input class="gas-input" id="s-crop" type="number" value="2" min="0" max="32"></div>
+            <div style="flex:1"><label class="gas-label">列 (cols)</label><input class="gas-input" id="s-cols" type="number" value="4" min="1" max="128"></div>
+            <div style="flex:1"><label class="gas-label">行 (rows)</label><input class="gas-input" id="s-rows" type="number" value="2" min="1" max="128"></div>
+            <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="s-fps" type="number" value="8" min="1" max="60"></div>
+            <div style="flex:1"><label class="gas-label">边界微剪(px)</label><input class="gas-input" id="s-crop" type="number" value="2" min="0" max="256"></div>
           </div>
           <div class="gas-row" style="margin-top:8px;align-items:center">
             <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="s-dir-rows"> 行 = 方向（导出命名动画）</label>
@@ -251,10 +251,10 @@ function buildStudio(): HTMLElement {
       <div class="gas-grid" id="s-frames"></div>
       <div class="gas-row" style="margin-top:10px;align-items:center">
         <span class="gas-note" id="s-selinfo" style="flex:1">点击缩略图选中帧 → 微调该帧四边裁剪（去除残留，如邻帧法杖尖端）</span>
-        <span class="gas-note">上</span><input class="gas-input" id="s-mt" type="number" value="0" min="0" max="96" style="width:56px">
-        <span class="gas-note">下</span><input class="gas-input" id="s-mb" type="number" value="0" min="0" max="96" style="width:56px">
-        <span class="gas-note">左</span><input class="gas-input" id="s-ml" type="number" value="0" min="0" max="96" style="width:56px">
-        <span class="gas-note">右</span><input class="gas-input" id="s-mr" type="number" value="0" min="0" max="96" style="width:56px">
+        <span class="gas-note">上</span><input class="gas-input" id="s-mt" type="number" value="0" min="0" max="512" style="width:56px">
+        <span class="gas-note">下</span><input class="gas-input" id="s-mb" type="number" value="0" min="0" max="512" style="width:56px">
+        <span class="gas-note">左</span><input class="gas-input" id="s-ml" type="number" value="0" min="0" max="512" style="width:56px">
+        <span class="gas-note">右</span><input class="gas-input" id="s-mr" type="number" value="0" min="0" max="512" style="width:56px">
       </div>
     </div>
   `)
@@ -273,7 +273,7 @@ function buildStudio(): HTMLElement {
 挥法杖
 收招"></textarea>
           <div class="gas-row" style="margin-top:8px">
-            <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="q-fps" type="number" value="8" min="1" max="24"></div>
+            <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="q-fps" type="number" value="8" min="1" max="60"></div>
             <div style="flex:1"><label class="gas-label">参考图（可选）</label><label class="gas-btn ghost" style="cursor:pointer;width:100%;justify-content:center"><input type="file" id="q-ref" accept="image/*" hidden>📁 上传</label></div>
             <div style="flex:0 0 150px"><label class="gas-label">提供商</label><select class="gas-select" id="q-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示</option></select><select class="gas-select" id="q-model-sel" style="display:none;margin-top:4px"></select></div>
           </div>
@@ -336,8 +336,8 @@ function buildStudio(): HTMLElement {
           </div>
           <div class="gas-row" style="margin-top:8px">
             <div style="flex:1"><label class="gas-label">动作名（命名前缀）</label><input class="gas-input" id="pp-name" value="walk"></div>
-            <div style="flex:1"><label class="gas-label">FPS</label><input class="gas-input" id="pp-fps" type="number" value="8" min="1" max="24"></div>
-            <div style="flex:1"><label class="gas-label">目标尺寸（0=自适应）</label><input class="gas-input" id="pp-size" type="number" value="0" min="0" max="512"></div>
+            <div style="flex:1"><label class="gas-label">FPS</label><input class="gas-input" id="pp-fps" type="number" value="8" min="1" max="60"></div>
+            <div style="flex:1"><label class="gas-label">目标尺寸（0=自适应）</label><input class="gas-input" id="pp-size" type="number" value="0" min="0" max="4096"></div>
             <div style="flex:1"><label class="gas-label">去背模式</label><select class="gas-select" id="pp-bg"><option value="white">白底去背后</option><option value="gray">灰底去背后</option><option value="none">不去背</option></select></div>
           </div>
           <div class="gas-row" style="margin-top:8px;align-items:center">
@@ -476,8 +476,8 @@ function buildStudio(): HTMLElement {
               </div>
             </div>
             <div class="gas-row" style="margin-top:8px">
-              <div style="flex:1"><label class="gas-label">瓦片尺寸</label><select class="gas-select" id="map-size"><option value="16">16px</option><option value="32" selected>32px</option><option value="64">64px</option><option value="128">128px</option></select></div>
-              <div style="flex:1"><label class="gas-label">完整地图尺寸</label><select class="gas-select" id="map-big-size"><option value="1024">1024×1024</option><option value="1536">1536×1024</option><option value="2048" selected>2048×2048</option><option value="4096">4096×4096</option></select></div>
+              <div style="flex:1"><label class="gas-label">瓦片尺寸</label><select class="gas-select" id="map-size"><option value="16">16px</option><option value="32" selected>32px</option><option value="64">64px</option><option value="128">128px</option><option value="256">256px</option></select></div>
+              <div style="flex:1"><label class="gas-label">完整地图尺寸</label><select class="gas-select" id="map-big-size"><option value="1024">1024×1024</option><option value="1536">1536×1024</option><option value="2048" selected>2048×2048</option><option value="4096">4096×4096</option><option value="8192">8192×8192</option></select></div>
             </div>
             <div class="gas-row" style="margin-top:8px">
               <button class="gas-btn" id="map-seam">♻ 整图无缝化</button>
@@ -1459,17 +1459,23 @@ const pPost=mkPanel('post', `
   }
 
   async function toLocalBlobUrl(url:string): Promise<string> {
+    // 已是本地 data:/blob: 直接返回，避免多余的下载
     if(!/^https?:\/\//i.test(url)) return url
     // file:// 直开时没有 DSH 代理路由，不能落入代理兜底
     const hosted= location.protocol!=='file:' && location.origin!=='null'
+    const ac = typeof AbortController!=='undefined' ? new AbortController() : null
+    const timer = ac ? setTimeout(()=>ac.abort(), 30000) : null  // 30s 超时，避免无限等待拖慢体验
     try{
-      const r=await fetch(url)
+      const r=await fetch(url, ac ? { signal: ac.signal } : undefined)
       if(!r.ok) throw new Error('HTTP '+r.status)
       const blob=await r.blob()
       return URL.createObjectURL(blob)
-    }catch{
+    }catch(e:any){
+      if(e?.name==='AbortError') throw new Error('图片下载超时(30s)：'+url.slice(0,80))
       // fetch 跨域失败不影响 <img> 直接显示；托管环境才回退到 DSH 代理（供画布切片等需要 CORS 的场景）
       return hosted ? '/game-art-studio/api/proxy-image?url='+encodeURIComponent(url) : url
+    }finally{
+      if(timer) clearTimeout(timer)
     }
   }
 
@@ -1491,7 +1497,7 @@ const pPost=mkPanel('post', `
   async function callImageEdits(prompt:string, endpoint:string, key:string, opts:any): Promise<string> {
     const fd=new FormData()
     fd.append('image', dataUrlToBlob(opts.reference), 'reference.png')
-    fd.append('prompt', prompt.slice(0,1000))
+    fd.append('prompt', prompt)
     if(opts.model) fd.append('model', opts.model)
     fd.append('n','1')
     fd.append('size', opts.size||'1024x1024')
@@ -1533,18 +1539,25 @@ const pPost=mkPanel('post', `
       if(ref){
         return await callImageEdits(prompt, resolveEditsEndpoint(endpoint), preset.apiKey, { ...opts, model: opts.model || preset.model || (preset.models?.[0]||'') || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3') })
       }
-      const body:any={ prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024' }
+      const body:any={ prompt, n:1, size: opts.size||'1024x1024' }
       body.model=opts.model || preset.model || (preset.models?.[0]||'') || (preset.type==='siliconflow' ? 'black-forest-labs/FLUX.1-schnell' : 'dall-e-3')
       if(preset.type==='siliconflow') body.image_size=opts.size||'1024x1024'
       // 优先要 base64：图片直接本地化，file:// 直开也能切片/下载，摆脱跨域图片 URL 限制
       body.response_format='b64_json'
-      let r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) })
-      if(r.status===400||r.status===422){ delete body.response_format; r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body) }) }
-      if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-      const j=await r.json()
-      const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url || j.output?.[0]?.url
-      if(!url) throw new Error('第三方('+label+') 未返回图片 URL')
-      return await toLocalBlobUrl(url)
+      // 生图接口处理可能很慢（尤其大图），给请求加 180s 超时避免无限转圈
+      const acS = typeof AbortController!=='undefined' ? new AbortController() : null
+      const tS = acS ? setTimeout(()=>acS.abort(), 180000) : null
+      try{
+        let r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body), signal: acS?.signal })
+        if(r.status===400||r.status===422){ delete body.response_format; r=await fetch(endpoint,{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+preset.apiKey }, body:JSON.stringify(body), signal: acS?.signal }) }
+        if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
+        const j=await r.json()
+        const url=j.data?.[0]?.url || (j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)) || j.images?.[0]?.url || j.output?.[0]?.url
+        if(!url) throw new Error('第三方('+label+') 未返回图片 URL')
+        return await toLocalBlobUrl(url)
+      }finally{
+        if(tS) clearTimeout(tS)
+      }
     }
 
     // 内置供应商
@@ -1552,7 +1565,7 @@ const pPost=mkPanel('post', `
     if(provider==='openai'){
       const key=keys.openai
       if(ref){ return await callImageEdits(prompt, 'https://api.openai.com/v1/images/edits', key, { ...opts, model:'dall-e-3' }) }
-      const body:any={ model:'dall-e-3', prompt: prompt.slice(0,1000), n:1, size: opts.size||'1024x1024', quality:'standard', response_format:'b64_json' }
+      const body:any={ model:'dall-e-3', prompt, n:1, size: opts.size||'1024x1024', quality:'standard', response_format:'b64_json' }
       let r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) })
       if(r.status===400||r.status===422){ delete body.response_format; r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) }) }
       if(!r.ok) throw new Error('OpenAI '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
@@ -1988,7 +2001,7 @@ function mockImage(prompt:string, opts:any): string {
     for(const [k,id2] of [['t','#s-mt'],['b','#s-mb'],['l','#s-ml'],['r','#s-mr']] as const){
       pSheet.querySelector(id2)!.addEventListener('input', (e:any)=>{
         const v=parseInt(e.target.value)||0
-        if(selF>=0&&frameOffs[selF]){ (frameOffs[selF] as any)[k]=Math.max(0,Math.min(96,v)); reRenderFrame(selF) }
+        if(selF>=0&&frameOffs[selF]){ (frameOffs[selF] as any)[k]=Math.max(0,Math.min(512,v)); reRenderFrame(selF) }
       })
     }
 
@@ -2533,7 +2546,7 @@ function mockImage(prompt:string, opts:any): string {
       const model=(pForge.querySelector('#f-model-sel') as HTMLSelectElement)?.value||undefined
       const batchBtn=pForge.querySelector('#f-batch') as HTMLButtonElement
       const stopBtn=pForge.querySelector('#f-stop') as HTMLButtonElement
-      const CONCURRENCY=2, RETRY=2
+      const CONCURRENCY=4, RETRY=3
       grid.innerHTML=''; forgeStop=false
       batchBtn.disabled=true; stopBtn.disabled=false
       let done=0
