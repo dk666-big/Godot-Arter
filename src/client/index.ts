@@ -670,11 +670,11 @@ function buildStudio(): HTMLElement {
             <div style="font-size:18px">🗺️</div><div class="gas-note">拖拽或点击上传 PNG/JPG</div>
             <input type="file" id="x-file" accept="image/*" hidden>
           </div>
-          <div class="gas-preview tiled" id="x-preview" style="min-height:140px;margin-top:8px"><span class="gas-note">上传后在这里显示原图</span></div>
+          <div class="gas-preview tiled" style="min-height:140px;margin-top:8px;position:relative" id="x-preview-wrap"><div id="x-preview" style="width:100%;min-height:140px;display:grid;place-items:center"><span class="gas-note">上传后在这里显示原图</span></div><canvas id="x-overlay" style="position:absolute;inset:0;pointer-events:none;display:none"></canvas></div>
         </div>
         <div style="flex:1">
           <label class="gas-label">提取方式</label>
-          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（先自动去背景再分割）</option><option value="point">🖱️ 点选单个元素（点原图某元素，自动框出它）</option><option value="ai">🌐 AI 分割（SAM，需联网+Key）</option></select>
+          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（先自动去背景再分割）</option><option value="point">🖱️ 点选单个元素（点原图某元素，自动框出它）</option><option value="box">⬚ 鼠标框选区域（拉矩形框，提取框内元素）</option><option value="line">✏️ 画分割线（画一条线把场景切开，分别提取）</option><option value="ai">🌐 AI 分割（SAM，需联网+Key）</option></select>
           <div class="gas-note" id="x-mode-tip" style="margin-top:4px">自动模式：先识别背景色并擦除，再对前景做连通域分割，框出每个独立元素。</div>
           <div class="gas-row" style="margin-top:8px">
             <label class="gas-label" style="margin:0">容差</label>
@@ -936,8 +936,11 @@ const pPost=mkPanel('post', `
     let srcCanvas: HTMLCanvasElement|null=null
     let elements: any[]=[]
     let selected=-1
+    const previewWrap=pExt.querySelector('#x-preview-wrap') as HTMLElement
+    const previewEl=pExt.querySelector('#x-preview') as HTMLElement
+    const overlay=pExt.querySelector('#x-overlay') as HTMLCanvasElement
     tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
-    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：先识别背景并擦除，再对前景做连通域分割，框出每个独立元素。' : modeEl.value==='point' ? '点选模式：点击原图上某个元素，自动框出它。' : 'AI 模式：预留 SAM 分割接口，接入模型后可按物体语义分割；当前可先用自动/点选。')
+    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：先识别背景并擦除，再对前景做连通域分割，框出每个独立元素。' : modeEl.value==='point' ? '点选模式：点击原图上某个元素，自动框出它。' : modeEl.value==='box' ? '框选模式：在原图上按住拖拽拉一个矩形框，松开后提取框内所有独立元素。' : modeEl.value==='line' ? '画线模式：在原图上按住画一条分割线（尽量贯穿场景），松开后沿线把场景切开并分别提取。' : 'AI 模式：预留 SAM 分割接口，接入模型后可按物体语义分割。')
     drop.addEventListener('click', ()=> fileInput.click())
     drop.addEventListener('dragover', e=>{e.preventDefault(); drop.style.borderColor='#478cbf'})
     drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
@@ -1020,10 +1023,15 @@ const pPost=mkPanel('post', `
       const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await new Promise(r=>img.onload=r)
       srcCanvas=document.createElement('canvas'); srcCanvas.width=img.naturalWidth; srcCanvas.height=img.naturalHeight
       srcCanvas.getContext('2d')!.drawImage(img,0,0)
-      // 在上传框显示原图缩略
-      const pv=pExt.querySelector('#x-preview') as HTMLElement; if(pv){ pv.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; im.style.maxHeight='220px'; im.style.imageRendering='pixelated'; pv.appendChild(im) }
+      // 在上传框显示原图并绑定鼠标交互
+      if(previewEl){ previewEl.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.width='100%'; im.style.maxHeight='300px'; im.style.imageRendering='pixelated'; im.style.cursor='crosshair'; previewEl.appendChild(im)
+        im.addEventListener('mousedown', ev=> onCanvasDown(ev, im))
+        im.addEventListener('mousemove', ev=> onCanvasMove(ev, im))
+        im.addEventListener('mouseup', ev=> onCanvasUp(ev, im))
+        im.addEventListener('mouseleave', ()=>{ if(drawing) endDraw() })
+      }
       elements=[]; selected=-1; resetStage()
-      drawProgress('已加载 '+img.naturalWidth+'×'+img.naturalHeight+'，点「🔍 自动提取」。')
+      drawProgress('已加载 '+img.naturalWidth+'×'+img.naturalHeight+'。可自动提取，或切换 框选/画线 在原图上操作。')
     }
     // 采样四边背景色（可能多个），返回主背景色数组
     function sampleBg(d, w, h){
@@ -1080,7 +1088,7 @@ const pPost=mkPanel('post', `
     }
     function doPoint(x,y){
       if(!srcCanvas) return drawProgress('请先上传图片')
-      const T=parseInt(tolEl.value)||32; const w=srcCanvas.width,h=srcCanvas.height
+      const T=parseInt(tolEl.value)||48; const w=srcCanvas.width,h=srcCanvas.height
       if(x<0||y<0||x>=w||y>=h) return
       const g=srcCanvas.getContext('2d')!; const id=g.getImageData(0,0,w,h); const data=id.data
       const hit=splitElements(w,h,data,T,0).filter(b=> x>=b.x&&x<b.x+b.w&&y>=b.y&&y<b.y+b.h)
@@ -1088,7 +1096,84 @@ const pPost=mkPanel('post', `
       const b=hit[0]; const el={x:b.x,y:b.y,w:b.w,h:b.h,img:cropElement(b),name:'ELEMENT-'+(elements.length+1)}
       elements.push(el); selected=elements.length-1; drawProgress('已框出元素 #'+(selected+1)+'（'+b.w+'×'+b.h+'）'); rebuildStage()
     }
-    runBtn.addEventListener('click', ()=>{ if(modeEl.value==='auto') doAuto(); else drawProgress('点选模式：请在上方原图点击要提取的元素') })
+    // 鼠标交互（点选 / 框选 / 画线）
+    let drawing=false, drawMode='', startX=0, startY=0, curX=0, curY=0, linePts:any[]=[]
+    function onCanvasDown(ev, im){
+      if(!srcCanvas) return
+      const mode=modeEl.value
+      if(mode!=='point' && mode!=='box' && mode!=='line') return
+      const [mx,my]=toImg(ev, im)
+      drawing=true; drawMode=mode; startX=mx; startY=my; curX=mx; curY=my; linePts=mode==='line'?[{x:mx,y:my}]:[]
+      setupOverlay()
+      drawOverlay()
+      ev.preventDefault()
+    }
+    function onCanvasMove(ev, im){
+      if(!drawing) return
+      const [mx,my]=toImg(ev, im); curX=mx; curY=my
+      if(drawMode==='line') linePts.push({x:mx,y:my})
+      drawOverlay()
+    }
+    function onCanvasUp(ev, im){
+      if(!drawing) return
+      const [mx,my]=toImg(ev, im)
+      if(drawMode==='box'){ doBoxSelect(startX,startY,mx,my) }
+      else if(drawMode==='line'){ doLineCut(linePts) }
+      else if(drawMode==='point'){ doPoint(mx,my) }
+      drawing=false; hideOverlay()
+    }
+    function endDraw(){ if(linePts.length>1) doLineCut(linePts); drawing=false; hideOverlay() }
+    function toImg(ev, im){ const r=im.getBoundingClientRect(); return [Math.floor((ev.clientX-r.left)/r.width*srcCanvas!.width), Math.floor((ev.clientY-r.top)/r.height*srcCanvas!.height)] }
+    function setupOverlay(){ overlay.style.display='block'; const w=previewEl.querySelector('img'); if(w){ overlay.width=w.clientWidth; overlay.height=w.clientHeight; overlay.getContext('2d')!.clearRect(0,0,overlay.width,overlay.height) } }
+    function drawOverlay(){ const c=overlay.getContext('2d')!; c.clearRect(0,0,overlay.width,overlay.height); c.strokeStyle='#ff5a5a'; c.lineWidth=2; if(drawMode==='box'){ const imgw=previewEl.querySelector('img'); const sx=startX/srcCanvas!.width*imgw!.clientWidth, sy=startY/srcCanvas!.height*imgw!.clientHeight; const ex=curX/srcCanvas!.width*imgw!.clientWidth, ey=curY/srcCanvas!.height*imgw!.clientHeight; c.strokeRect(Math.min(sx,ex),Math.min(sy,ey),Math.abs(ex-sx),Math.abs(ey-sy)) } else if(drawMode==='line'){ c.beginPath(); const imgw=previewEl.querySelector('img'); linePts.forEach((p,i)=>{ const x=p.x/srcCanvas!.width*imgw!.clientWidth,y=p.y/srcCanvas!.height*imgw!.clientHeight; if(i===0)c.moveTo(x,y); else c.lineTo(x,y) }); c.stroke() } }
+    function hideOverlay(){ drawing=false; overlay.style.display='none'; const c=overlay.getContext('2d')!; c.clearRect(0,0,overlay.width,overlay.height) }
+    // 框选：提取框内所有独立元素
+    function doBoxSelect(x1,y1,x2,y2){
+      if(!srcCanvas) return drawProgress('请先上传图片')
+      const xa=Math.max(0,Math.min(x1,x2)), xb=Math.min(srcCanvas.width-1,Math.max(x1,x2))
+      const ya=Math.max(0,Math.min(y1,y2)), yb=Math.min(srcCanvas.height-1,Math.max(y1,y2))
+      if(xb-xa<4||yb-ya<4) return drawProgress('框选区域过小')
+      const g=srcCanvas.getContext('2d')!; const id=g.getImageData(xa,ya,xb-xa+1,yb-ya+1); const d=id.data
+      const T=parseInt(tolEl.value)||48; const minArea=minEl.checked? Math.max(5,(xb-xa+1)*(yb-ya+1)*0.0002):0
+      const boxes=splitElements(xb-xa+1,yb-ya+1,d,T,minArea)
+      let added=0
+      for(const b of boxes){ const abs={x:xa+b.x,y:ya+b.y,w:b.w,h:b.h,count:b.count}; const el={x:abs.x,y:abs.y,w:abs.w,h:abs.h,img:cropElement(abs),name:'ELEMENT-'+(elements.length+1)}; elements.push(el); added++ }
+      selected=elements.length-1
+      drawProgress('框选提取完成：框内 '+added+' 个独立元素'); rebuildStage(); updateSel()
+    }
+    // 画线：把线像素设为透明作为分割缝，再擦背景，前景连通域被线切断成多块
+    function doLineCut(pts){
+      if(!srcCanvas) return drawProgress('请先上传图片')
+      if(pts.length<2) return drawProgress('线太短，请画一条线')
+      const w=srcCanvas.width,h=srcCanvas.height
+      const g=srcCanvas.getContext('2d')!; const id=g.getImageData(0,0,w,h); const d=id.data
+      // 1) 采样背景
+      const bgList=sampleBg(d,w,h); const Tbg=Math.max(24,parseInt(tolEl.value)||48)
+      removeBg(d,w,h,bgList,Tbg)
+      // 2) 把线像素（及其宽度）设为透明
+      const T=parseInt(tolEl.value)||48
+      const width=Math.max(1,Math.round(Math.max(2, Math.min(8, Math.min(w,h)*0.01))))
+      for(let i=0;i<pts.length;i++){
+        const p=pts[i]; const p2=pts[i+1]||p
+        const steps=Math.max(1,Math.ceil(Math.max(Math.abs(p2.x-p.x),Math.abs(p2.y-p.y))))
+        for(let s=0;s<steps;s++){
+          const x=Math.round(p.x+(p2.x-p.x)*s/steps), y=Math.round(p.y+(p2.y-p.y)*s/steps)
+          for(let dy=-width;dy<=width;dy++) for(let dx=-width;dx<=width;dx++){
+            const nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=w||ny>=h) continue
+            const idx=(ny*w+nx); d[idx*4+3]=0
+          }
+        }
+      }
+      g.putImageData(id,0,0)
+      // 3) 前景连通域分割，线把它切断成多块
+      const minArea=minEl.checked? Math.max(5,(w*h)*0.0002):0
+      const boxes=splitElements(w,h,d,T,minArea)
+      let added=0
+      for(const b of boxes){ const el={x:b.x,y:b.y,w:b.w,h:b.h,img:cropElement(b),name:'ELEMENT-'+(elements.length+1)}; elements.push(el); added++ }
+      selected=elements.length-1
+      drawProgress('画线分割完成：沿切割线分出 '+added+' 个区域'); rebuildStage(); updateSel()
+    }
+    runBtn.addEventListener('click', ()=>{ if(modeEl.value==='auto') doAuto(); else drawProgress('请在右侧原图上：'+ (modeEl.value==='point'?'点击':'框选拉矩形' ) + (modeEl.value==='line'?'，按住画线分割':'，或切回自动提取')) })
     clearBtn.addEventListener('click', ()=>{ elements=[]; selected=-1; rebuildStage(); updateSel(); drawProgress('已清空') })
     saveAllBtn.addEventListener('click', ()=>{ void saveElements(elements) })
     saveSelBtn.addEventListener('click', ()=>{ if(selected>=0) void saveElements([elements[selected]]) })
