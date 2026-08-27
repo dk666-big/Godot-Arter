@@ -1195,7 +1195,7 @@ function buildStudio() {
             <div id="st-editor" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px"></div>
           </div>
           <div style="flex:1;display:flex;flex-direction:column">
-            <label class="gas-label">▶ 实时预览</label>
+            <label class="gas-label">▶ 实时预览 <button class="gas-btn ghost" id="pv-fullscreen" style="margin-left:8px;padding:2px 8px;font-size:11px">⛶ 全屏预览</button></label>
             <div id="story-stage" data-no-zoom style="position:relative;aspect-ratio:16/9;background:#0b0a09;border:2px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer">
               <img id="pv-img" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;z-index:1">
               <div id="pv-dim" style="position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .35s;z-index:2"></div>
@@ -1208,6 +1208,7 @@ function buildStudio() {
               </div>
               <div id="pv-choices" style="position:absolute;right:5%;top:8%;z-index:4;display:none;flex-direction:column;gap:8px"></div>
               <div id="pv-state" style="position:absolute;left:8px;top:6px;z-index:4;font-size:10px;color:#9aa0a6"></div>
+              <button id="pv-img-fullscreen" style="position:absolute;right:8px;bottom:220px;z-index:10;background:rgba(0,0,0,0.7);border:1px solid #594c39;border-radius:6px;color:#e8a33d;padding:4px 8px;cursor:pointer;font-size:11px;display:none">⛶ 插画全屏</button>
             </div>
             <div class="gas-row" style="margin-top:8px">
               <button class="gas-btn" id="pv-play-scene">▶ 播放当前场景</button>
@@ -1824,7 +1825,14 @@ function buildStudio() {
 					chBox.innerHTML = "";
 					chBox.style.display = "none";
 					const src = itemById(t.image_item)?.url || "";
-					if (src) img.src = src;
+					if (src) {
+						img.src = src;
+						pvImgFullscreenBtn.style.display = "block";
+						pvImgFullscreenBtn.onclick = (e) => {
+							e.stopPropagation();
+							openImgFullscreen(src);
+						};
+					} else pvImgFullscreenBtn.style.display = "none";
 					applyEntryAnim(img, t.entry_anim);
 					doShake(pStory.querySelector("#pv-shake"), t.camera_shake);
 					spk.textContent = t.speaker;
@@ -1965,6 +1973,22 @@ function buildStudio() {
 					});
 					pStory.querySelector("#pv-stop").addEventListener("click", stopPreview);
 				}
+				pStory.querySelector("#pv-fullscreen").addEventListener("click", () => {
+					const sc = selScene();
+					if (!sc) {
+						toast(statusEl, "请先选择一个场景", false);
+						return;
+					}
+					openStoryFullscreen(sc);
+				});
+				const pvImgFullscreenBtn = pStory.querySelector("#pv-img-fullscreen");
+				pStory.querySelector("#story-stage").addEventListener("click", (e) => {
+					const target = e.target;
+					if (target.id === "pv-img" || target.closest("#pv-img")) {
+						const src = pStory.querySelector("#pv-img").src;
+						if (src && !src.includes("data:image/png;base64,R0lGODlh")) openImgFullscreen(src);
+					}
+				});
 				function storyTresEscape(s) {
 					return String(s).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\r/g, "").replace(/\n/g, "\\n").replace(/\t/g, "\\t");
 				}
@@ -2674,6 +2698,64 @@ function buildStudio() {
 					downloadBlob(new Blob([JSON.stringify(p, null, 2)], { type: "application/json" }), "cutscene_" + p.id + ".json");
 					toast(statusEl, "JSON 已下载（与导出包内的 cutscenes/*.json 同构）", true);
 				});
+				function openStoryFullscreen(sc) {
+					const overlay = document.createElement("div");
+					overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px";
+					const closeBtn = document.createElement("button");
+					closeBtn.textContent = "✕ 关闭 (Esc)";
+					closeBtn.style.cssText = "position:absolute;top:20px;right:20px;background:rgba(255,255,255,0.1);border:2px solid #594c39;border-radius:8px;color:#e8a33d;padding:8px 16px;cursor:pointer;font-size:14px";
+					closeBtn.onclick = () => overlay.remove();
+					overlay.appendChild(closeBtn);
+					const stage = document.createElement("div");
+					stage.style.cssText = "position:relative;width:100%;max-width:1200px;aspect-ratio:16/9;background:#0b0a09;border:3px solid #594c39;border-radius:12px;overflow:hidden";
+					overlay.appendChild(stage);
+					const grid = document.createElement("div");
+					grid.style.cssText = "display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:20px;max-width:1200px";
+					sc.shots.forEach((t, i) => {
+						const card = document.createElement("div");
+						card.style.cssText = "width:180px;background:#1a1e20;border:2px solid #594c39;border-radius:8px;padding:12px;cursor:pointer";
+						const it = itemById(t.image_item);
+						if (it && it.url) {
+							const img = document.createElement("img");
+							img.src = it.url;
+							img.style.cssText = "width:100%;height:100px;object-fit:cover;border-radius:4px";
+							card.appendChild(img);
+						} else {
+							const placeholder = document.createElement("div");
+							placeholder.style.cssText = "width:100%;height:100px;background:#2b2e33;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#566;font-size:24px";
+							placeholder.textContent = "🖼";
+							card.appendChild(placeholder);
+						}
+						const info = document.createElement("div");
+						info.style.cssText = "margin-top:8px;font-size:11px;color:#9aa0a6";
+						info.textContent = "#" + (i + 1) + " " + t.speaker;
+						card.appendChild(info);
+						const text = document.createElement("div");
+						text.style.cssText = "margin-top:4px;font-size:10px;color:#efe6d0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+						text.textContent = t.text.slice(0, 30);
+						card.appendChild(text);
+						grid.appendChild(card);
+					});
+					overlay.appendChild(grid);
+					document.body.appendChild(overlay);
+					document.addEventListener("keydown", function escHandler(e) {
+						if (e.key === "Escape") {
+							overlay.remove();
+							document.removeEventListener("keydown", escHandler);
+						}
+					});
+				}
+				function openImgFullscreen(src) {
+					const overlay = document.createElement("div");
+					overlay.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;cursor:pointer";
+					const img = document.createElement("img");
+					img.src = src;
+					img.style.cssText = "max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px";
+					img.onclick = () => overlay.remove();
+					overlay.onclick = () => overlay.remove();
+					overlay.appendChild(img);
+					document.body.appendChild(overlay);
+				}
 				injectStoryStyle();
 				wirePreview();
 				renderAll();
