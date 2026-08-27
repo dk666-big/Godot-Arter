@@ -1104,8 +1104,9 @@ function buildStudio(): HTMLElement {
        assets/cutscenes/img/<itemId>.png（分镜/场景底图）
        scripts/cutscene/*.gd（五个 @export 数据类 + 单文件运行时播放器参考实现）
      游戏侧接线、触发条件、存档联动由使用者在 Godot 内自行完成。 */
+let pStory: HTMLElement
   ;(()=>{
-    const pStory=mkPanel('story', `
+    pStory=mkPanel('story', `
       <div class="gas-card">
         <h4>🎭 烛火剧场 InkTheater — 剧情演出素材生产</h4>
         <div class="gas-row" style="align-items:flex-end">
