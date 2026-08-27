@@ -14,7 +14,7 @@ Godot-Arter is a browser-based game art studio designed around the Godot game en
 | 🎞️ Sprite Sheet Workshop | Upload a sprite sheet, auto-slice by columns/rows, preview animation, repack, export PNG + `SpriteFrames.json` |
 | 🧱 Asset Forge | Batch-generate props / icons / FX from multiple prompts |
 | ✂️ Smart Matting | Color-key cutout (local), AI matting (Replicate rembg), feather/stroke, transparent PNG export |
-| 🗺️ Seamless Map | **Full AI-generated map mode** or tile mode; seamless processing; Wang Tiles; split to Godot TileSet; high-res zoomable preview |
+| 🗺️ Seamless Map | **Full AI-generated map mode** or tile mode; seamless processing; mirrored seamless 2×2 tiling; split to Godot TileSet; high-res zoomable preview |
 | ✨ Post Processing | Palette quantization, sprite outline, resize — useful for pixel-art and Godot import optimization |
 | 🔌 API Presets | Add custom third-party OpenAI-compatible / Stability / SiliconFlow API routes; auto-sync to all generators |
 | ⚙️ Export Center | Generate `manifest.json`, package assets, Godot official docs links |

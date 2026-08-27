@@ -632,7 +632,7 @@ function buildStudio(): HTMLElement {
             </div>
             <div class="gas-row" style="margin-top:8px">
               <button class="gas-btn" id="map-seam">♻ 整图无缝化</button>
-              <button class="gas-btn ghost" id="map-wang">Wang Tiles</button>
+              <button class="gas-btn ghost" id="map-wang">🔁 镜像无缝 2×2</button>
               <button class="gas-btn ghost" id="map-split">🔪 切成 TileSet</button>
               <button class="gas-btn orange" id="map-export">⬇ 导出 TileSet</button>
               <button class="gas-btn ghost" id="map-dl">⬇ 当前图</button>
@@ -719,7 +719,7 @@ function buildStudio(): HTMLElement {
         </div>
         <div style="flex:1">
           <label class="gas-label">提取方式</label>
-          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（先自动去背景再分割）</option><option value="point">🖱️ 点选单个元素（点原图某元素，自动框出它）</option><option value="box">⬚ 鼠标框选区域（拉矩形框，提取框内元素）</option><option value="line">✏️ 画分割线（画一条线把场景切开，分别提取）</option><option value="ai">🌐 AI 分割（SAM，需联网+Key）</option></select>
+          <select class="gas-select" id="x-mode"><option value="auto" selected>🔍 自动框出所有独立元素（先自动去背景再分割）</option><option value="point">🖱️ 点选单个元素（点原图某元素，自动框出它）</option><option value="box">⬚ 鼠标框选区域（拉矩形框，提取框内元素）</option><option value="line">✏️ 画分割线（画一条线把场景切开，分别提取）</option><option value="ai" disabled>🌐 AI 分割（SAM）— 即将上线</option></select>
           <div class="gas-note" id="x-mode-tip" style="margin-top:4px">自动模式：先识别背景色并擦除，再对前景做连通域分割，框出每个独立元素。</div>
           <div class="gas-row" style="margin-top:8px">
             <label class="gas-label" style="margin:0">容差</label>
@@ -1187,7 +1187,7 @@ const pPost=mkPanel('post', `
     const previewEl=pExt.querySelector('#x-preview') as HTMLElement
     const overlay=pExt.querySelector('#x-overlay') as HTMLCanvasElement
     tolEl.addEventListener('input', ()=> tolV.textContent=tolEl.value)
-    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：先识别背景并擦除，再对前景做连通域分割，框出每个独立元素。' : modeEl.value==='point' ? '点选模式：点击原图上某个元素，自动框出它。' : modeEl.value==='box' ? '框选模式：在原图上按住拖拽拉一个矩形框，松开后提取框内所有独立元素。' : modeEl.value==='line' ? '画线模式：在原图上按住画一条分割线（尽量贯穿场景），松开后沿线把场景切开并分别提取。' : 'AI 模式：预留 SAM 分割接口，接入模型后可按物体语义分割。')
+    modeEl.addEventListener('change', ()=> modeTip.textContent = modeEl.value==='auto' ? '自动模式：先识别背景并擦除，再对前景做连通域分割，框出每个独立元素。' : modeEl.value==='point' ? '点选模式：点击原图上某个元素，自动框出它。' : modeEl.value==='box' ? '框选模式：在原图上按住拖拽拉一个矩形框，松开后提取框内所有独立元素。' : modeEl.value==='line' ? '画线模式：在原图上按住画一条分割线（尽量贯穿场景），松开后沿线把场景切开并分别提取。' : 'AI 分割(SAM) 即将上线——当前请使用自动/点选/框选/画线模式。')
     drop.addEventListener('click', ()=> fileInput.click())
     drop.addEventListener('dragover', e=>{e.preventDefault(); drop.style.borderColor='#478cbf'})
     drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
@@ -2318,35 +2318,53 @@ function mockImage(prompt:string, opts:any): string {
       const type=typeEl.value, name=nameEl.value||'Player', shape=shapeEl.value
       const layer=parseInt(layerEl.value)||1, mask=parseInt(maskEl.value)||1
       const mass=parseFloat(massEl.value)||1.0
-      const vx=parseFloat(vxEl.value)||0, vy=parseFloat(vyEl.value)||0
       const grav=parseFloat(gravEl.value)||1.0
       const safe=name.replace(/[^a-zA-Z0-9_]/g,'_')
       const shapes:Record<string,string>={ capsule:'CapsuleShape2D', circle:'CircleShape2D', rect:'RectangleShape2D', convex:'ConvexPolygonShape2D' }
-      const s2d:Record<string,string>={ capsule:'CollisionShape2D', circle:'CollisionShape2D', rect:'CollisionShape2D', convex:'CollisionShape2D' }
-      const lines=[
+      const shapeType=shapes[shape]||shapes.rect
+      const lines:string[]=[
         '[gd_scene load_steps=2 format=3]',
         '',
-        '[node name="'+safe+'" type="'+typeEl.options[typeEl.selectedIndex].text.replace(/.*\(/,'').replace(')','')+'"]',
+        '[sub_resource type="'+shapeType+'" id="'+shapeType+'_1"]',
       ]
-      if(type==='char') lines.push('max_fall_speed = 1000.0')
-      else if(type==='rigid'){ lines.push('mass = '+mass); lines.push('gravity_scale = '+grav) }
-      lines.push('collision_layer = '+layer)
-      lines.push('collision_mask = '+mask)
-      lines.push('')
-      lines.push('[node name="Collision" type="'+s2d[shape]+'" parent="."]')
-      lines.push('shape = SubResource("'+shapes[shape]+'")')
-      lines.push('')
-      lines.push('[sub_resource type="'+shapes[shape]+'" id="'+shapes[shape]+'"]')
       if(shape==='capsule') lines.push('radius = 16.0\nheight = 32.0')
       else if(shape==='circle') lines.push('radius = 16.0')
       else if(shape==='rect') lines.push('size = Vector2(32, 32)')
       else if(shape==='convex') lines.push('points = PackedVector2Array(Vector2(-16, -16), Vector2(16, -16), Vector2(16, 16), Vector2(-16, 16))')
+      // 子资源必须先于节点声明；节点类型从下拉文案提取（如 “CharacterBody2D (角色)”）
+      const nodeType=typeEl.options[typeEl.selectedIndex].text.replace(/.*\(/,'').replace(/\)/g,'').trim()
+      lines.push('')
+      lines.push('[node name="'+safe+'" type="'+nodeType+'"]')
+      if(type==='rigid'){ lines.push('mass = '+mass); lines.push('gravity_scale = '+grav) }
+      lines.push('collision_layer = '+layer)
+      lines.push('collision_mask = '+mask)
+      lines.push('')
+      lines.push('[node name="Collision" type="CollisionShape2D" parent="."]')
+      lines.push('shape = SubResource("'+shapeType+'_1")')
       return lines.join('\n')
     }
     function buildPhysicsGD(): string {
-      const type=typeEl.value, name=nameEl.value||'Player', safe=name.replace(/[^a-zA-Z0-9_]/g,'_')
-      if(type==='char') return 'extends CharacterBody2D\n\nfunc _ready() -> void:\n    pass\n\nfunc _physics_process(delta: float) -> void:\n    pass\n'
-      if(type==='rigid') return 'extends RigidBody2D\n\nfunc _ready() -> void:\n    pass\n'
+      const type=typeEl.value
+      if(type==='char'){
+        return [
+          'extends CharacterBody2D',
+          '',
+          'const SPEED := 150.0',
+          'const RUN_SPEED := 300.0',
+          '',
+          'func _physics_process(delta: float) -> void:',
+          '\tvar dir := Input.get_axis("ui_left", "ui_right")',
+          '\tvar speed := RUN_SPEED if Input.is_action_pressed("ui_accept") else SPEED',
+          '\tif dir != 0.0:',
+          '\t\tvelocity.x = dir * speed',
+          '\telse:',
+          '\t\tvelocity.x = move_toward(velocity.x, 0.0, SPEED)',
+          '\tvelocity.y += ProjectSettings.get_setting("physics/2d/default_gravity", 980.0) * delta',
+          '\tmove_and_slide()',
+          '',
+        ].join('\n')
+      }
+      if(type==='rigid') return 'extends RigidBody2D\n'
       return 'extends StaticBody2D\n'
     }
     pPreset.querySelector('#phys-export')!.addEventListener('click',()=>{
@@ -2392,22 +2410,30 @@ function mockImage(prompt:string, opts:any): string {
       const c=document.createElement('canvas'); c.width=w; c.height=h
       const g=c.getContext('2d')!; g.drawImage(loadedTile,0,0)
       const data=g.getImageData(0,0,w,h).data
-      // 瓦片大小假设为 48x48（或自动检测）
-      const tileSize=Math.min(w,h)
+      // 瓦片尺寸：优先尝试能整除图集的常见尺寸，取最大者；否则退化为 min(w,h)
+      const common=[8,16,24,32,48,64]
+      let tileSize=Math.min(w,h)
+      for(const t of common){ if(t<=Math.min(w,h) && w%t===0 && h%t===0){ tileSize=t } }
       const cols=Math.round(w/tileSize), rows=Math.round(h/tileSize)
       const getAlpha=(tx:number,ty:number):boolean=>{
+        if(tx<0||ty<0||tx>=cols||ty>=rows) return false // 图集外视为空
         const sx=Math.min(tx*tileSize,w-1), sy=Math.min(ty*tileSize,h-1)
-        return data[(sy*sx)*4+3]>10
+        return data[(sy*w+sx)*4+3]>10   // 取每格左上角像素 alpha（索引必须乘以整行宽度 w）
       }
-      // Godot 4 AutoTile bitmask (47-tile pattern)
-      // bit 0=top, bit 1=top-right, bit 2=right, bit 3=bottom-right, bit 4=bottom, bit 5=bottom-left, bit 6=left, bit 7=top-left
-      function tileMask(tx:number,ty:number):number{ let m=0; const t=getAlpha(tx,ty-1),tr=getAlpha(tx+1,ty-1),r=getAlpha(tx+1,ty),br=getAlpha(tx+1,ty+1),b=getAlpha(tx,ty+1),bl=getAlpha(tx-1,ty+1),l=getAlpha(tx-1,ty),tl=getAlpha(tx-1,ty-1); if(t||tr||tl) m|=1; if(tr||r||br) m|=2; if(r||br||l) m|=4; if(br||b||bl) m|=8; if(b||bl||br) m|=16; if(bl||l||tl) m|=32; if(l||tl||t) m|=64; if(tl||t||tr) m|=128; return m }
+      // Godot 4 peering-bit 语义：8 个方向各自独立判定（N/NE/E/SE/S/SW/W/NW）
+      function tileMask(tx:number,ty:number):number{
+        let m=0
+        const n=(dx:number,dy:number)=>getAlpha(tx+dx,ty+dy)
+        if(n(0,-1))m|=1; if(n(1,-1))m|=2; if(n(1,0))m|=4; if(n(1,1))m|=8
+        if(n(0,1))m|=16; if(n(-1,1))m|=32; if(n(-1,0))m|=64; if(n(-1,-1))m|=128
+        return m
+      }
       const bitmaskNames:Record<string,string>={}
-      let bitsSummary='已识别 '+cols+'×'+rows+' 瓦片，bitmask 分布:\n'
+      let bitsSummary='已识别 '+cols+'×'+rows+' 瓦片(格 '+tileSize+'px)，bitmask 分布:\n'
       const seen=new Map<number,number>()
       for(let ty=0;ty<rows;ty++) for(let tx=0;tx<cols;tx++){ const m=tileMask(tx,ty); seen.set(m,(seen.get(m)||0)+1); bitmaskNames[m]=(bitmaskNames[m]||'')+'('+tx+','+ty+')' }
       for(const [m,count] of seen){ bitsSummary+='Bitmask '+(m>>>0)+': '+count+'个 '+bitmaskNames[m]+'\n' }
-      return bitsSummary
+      return bitsSummary+'\n注: 位掩码仅基于每格透明度判断；地形(Terrain)匹配需在 Godot 中为地形集手动绘制或结合此 JSON 调整。'
     }
 
     runBtn.addEventListener('click',()=>{
@@ -2421,13 +2447,42 @@ function mockImage(prompt:string, opts:any): string {
     exportBtn.addEventListener('click',()=>{
       if(!loadedTile) return
       const w=loadedTile.naturalWidth, h=loadedTile.naturalHeight
-      const tileSize=Math.min(w,h)
-      const cols=Math.round(w/tileSize)
+      const common=[8,16,24,32,48,64]
+      let tileSize=Math.min(w,h)
+      for(const t of common){ if(t<=Math.min(w,h) && w%t===0 && h%t===0){ tileSize=t } }
+      const cols=Math.round(w/tileSize), rows=Math.round(h/tileSize)
       const safeName='AutoTile_'+Date.now()
-      const tres=`[gd_resource type="TileSet" load_steps=2 format=3]\n\n[ext_resource type="Texture2D" path="res://tiles/autotile.png" id="1"]\n\n[resource]\ntile_size = Vector2i(${tileSize}, ${tileSize})\n# ${cols} 列, ${Math.round(h/tileSize)} 行\n`
-      downloadBlob(new Blob([tres],{type:'text/plain'}), safeName+'.tres')
+      // 导出可用图集 TileSet：注册全部瓦片（c:r/0），地形位由用户在编辑器里结合 JSON 分析手动指定
+      const L:string[]=[
+        '[gd_resource type="TileSet" load_steps=3 format=3]',
+        '',
+        '[ext_resource type="Texture2D" path="res://tiles/autotile.png" id="1_autotile"]',
+        '',
+        '[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_1"]',
+        'texture = ExtResource("1_autotile")',
+        'texture_region_size = Vector2i('+tileSize+', '+tileSize+')',
+      ]
+      for(let r2=0;r2<rows;r2++) for(let c2=0;c2<cols;c2++) L.push(c2+':'+r2+'/0 = '+(r2*cols+c2))
+      L.push('')
+      L.push('[resource]')
+      L.push('tile_size = Vector2i('+tileSize+', '+tileSize+')')
+      L.push('sources/0 = SubResource("TileSetAtlasSource_1")')
+      downloadBlob(new Blob([L.join('\n')],{type:'text/plain'}), safeName+'.tres')
+      // 同步导出逐格 bitmask 分析结果（可在 Godot 中据此绘制 terrain）
+      const maskJson={ tile_size:tileSize, columns:cols, rows:rows, note:'terrain matching 需在 Godot 编辑器中手动指定', cells:[] as any[] }
+      {
+        const cvs=document.createElement('canvas'); cvs.width=w; cvs.height=h; const g2=cvs.getContext('2d')!; g2.drawImage(loadedTile,0,0); const px=g2.getImageData(0,0,w,h).data
+        const a=(tx:number,ty:number)=> (tx>=0&&ty>=0&&tx<cols&&ty<rows) ? px[(ty*tileSize*w+tx*tileSize)*4+3]>10 : false
+        for(let ty=0;ty<rows;ty++) for(let tx=0;tx<cols;tx++){
+          let m=0; const n=(dx:number,dy:number)=>a(tx+dx,ty+dy)
+          if(n(0,-1))m|=1; if(n(1,-1))m|=2; if(n(1,0))m|=4; if(n(1,1))m|=8
+          if(n(0,1))m|=16; if(n(-1,1))m|=32; if(n(-1,0))m|=64; if(n(-1,-1))m|=128
+          maskJson.cells.push({ cell:[tx,ty], mask:m>>>0 })
+        }
+      }
+      setTimeout(()=>downloadBlob(new Blob([JSON.stringify(maskJson,null,2)],{type:'application/json'}), safeName+'_bitmask.json'),300)
       downloadUrl(loadedTile.src, safeName+'_source.png')
-      status.textContent='已导出 TileSet.tres + 源图 PNG（拖入 Godot 即可使用）'; status.style.color='var(--ok)'
+      status.textContent='已导出 TileSet.tres(含全部图集瓦片) + _bitmask.json 分析 + 源图 PNG —— 地形匹配请在 Godot 中按 JSON 绘制'; status.style.color='var(--ok)'
     })
   })()
 
@@ -2497,12 +2552,66 @@ function mockImage(prompt:string, opts:any): string {
     pChar.querySelector('#c-export-scene')!.addEventListener('click', async ()=>{
       if(!lastUrl){ toast(status,'请先生成角色',false); return }
       const view=(pChar.querySelector('#c-view') as HTMLSelectElement)?.value||'single'
-      const godotScript=`extends CharacterBody2D\n\n@onready var sprite: Sprite2D = $Sprite2D\n@onready var anim: AnimationPlayer = $AnimationPlayer\n\nfunc _ready():\n    anim.play("idle")\n\nfunc _physics_process(delta: float) -> void:\n    var dir := Input.get_axis("ui_left", "ui_right")\n    if dir != 0:\n        velocity.x = dir * (300.0 if Input.is_action_pressed("ui_accept") else 150.0)\n        sprite.flip_h = dir < 0\n        if anim.current_animation != "run": anim.play("walk" if abs(velocity.x) < 200 else "run")\n    else:\n        velocity.x = move_toward(velocity.x, 0, 20)\n        if anim.current_animation != "idle": anim.play("idle")\n    move_and_slide()\n`
-      const tcn=`[gd_scene load_steps=2 format=3]\n\n[ext_resource type="Script" path="res://characters/player.gd" id="1"]\n\n[node name="Player" type="CharacterBody2D"]\nscript = ExtResource("1")\n\n[node name="Sprite2D" type="Sprite2D" parent="."]\nposition = Vector2(0, -16)\n\n[node name="AnimationPlayer" type="AnimationPlayer" parent="."]\nanims/idle = SubResource("IdleAnim")\nanims/walk = SubResource("WalkAnim")\n\n[sub_resource type="Animation" id="IdleAnim"]\nresource_name = "idle"\nlength = 0.4\nloop = true\ntracks/0/type = "value"\ntracks/0/imported = false\ntracks/0/enabled = true\ntracks/0/path = NodePath("Sprite2D:frame")\ntracks/0/interp = 1\ntracks/0/loop_wrap = true\ntracks/0/keys = {\n"times": PackedFloat32Array(0, 0.2),\n"transitions": PackedFloat32Array(1, 1),\n"update": 1,\n"values": [0, 0]\n}\n\n[sub_resource type="Animation" id="WalkAnim"]\nresource_name = "walk"\nlength = 0.2\nloop = true\ntracks/0/type = "value"\ntracks/0/imported = false\ntracks/0/enabled = true\ntracks/0/path = NodePath("Sprite2D:frame")\ntracks/0/interp = 1\ntracks/0/loop_wrap = true\ntracks/0/keys = {\n"times": PackedFloat32Array(0, 0.1),\n"transitions": PackedFloat32Array(1, 1),\n"update": 1,\n"values": [0, 1]\n}\n`
+      const godotScript=['extends CharacterBody2D','','# 使用说明：给 Sprite2D 指定角色精灵表纹理并设置 hframes（列数），场景即可播放 idle/walk','const SPEED := 150.0','const RUN_SPEED := 300.0','','@onready var sprite: Sprite2D = $Sprite2D','@onready var anim: AnimationPlayer = $AnimationPlayer','','func _ready() -> void:','\tanim.play("idle")','','func _physics_process(delta: float) -> void:','\tvar dir := Input.get_axis("ui_left", "ui_right")','\tvar speed := RUN_SPEED if Input.is_action_pressed("ui_accept") else SPEED','\tif dir != 0.0:','\t\tvelocity.x = dir * speed','\t\tsprite.flip_h = dir < 0','\t\tif anim.current_animation != "walk": anim.play("walk")','\telse:','\t\tvelocity.x = move_toward(velocity.x, 0.0, SPEED)','\t\tif anim.current_animation != "idle": anim.play("idle")','\tvelocity.y += ProjectSettings.get_setting("physics/2d/default_gravity", 980.0) * delta','\tmove_and_slide()',''].join('\n')
+      // Godot 4 结构：Animation 挂入 AnimationLibrary，再经 node 的 libraries 属性装载；sub_resource 必须先于 node 声明
+      const tcn=['[gd_scene load_steps=5 format=3]','',
+        '[ext_resource type="Script" path="res://characters/player.gd" id="1_player"]','',
+        '[sub_resource type="Animation" id="Animation_idle"]',
+        'resource_name = "idle"',
+        'length = 0.4',
+        'loop_mode = 1',
+        'tracks/0/type = "value"',
+        'tracks/0/imported = false',
+        'tracks/0/enabled = true',
+        'tracks/0/path = NodePath("Sprite2D:frame")',
+        'tracks/0/interp = 1',
+        'tracks/0/loop_wrap = true',
+        'tracks/0/keys = {',
+        '"times": PackedFloat32Array(0, 0.2),',
+        '"transitions": PackedFloat32Array(1, 1),',
+        '"update": 1,',
+        '"values": [0, 0]',
+        '}',
+        '',
+        '[sub_resource type="Animation" id="Animation_walk"]',
+        'resource_name = "walk"',
+        'length = 0.2',
+        'loop_mode = 1',
+        'tracks/0/type = "value"',
+        'tracks/0/imported = false',
+        'tracks/0/enabled = true',
+        'tracks/0/path = NodePath("Sprite2D:frame")',
+        'tracks/0/interp = 1',
+        'tracks/0/loop_wrap = true',
+        'tracks/0/keys = {',
+        '"times": PackedFloat32Array(0, 0.1),',
+        '"transitions": PackedFloat32Array(1, 1),',
+        '"update": 1,',
+        '"values": [0, 1]',
+        '}',
+        '',
+        '[sub_resource type="AnimationLibrary" id="AnimationLibrary_1"]',
+        '_data = {',
+        '&"idle": SubResource("Animation_idle"),',
+        '&"walk": SubResource("Animation_walk")',
+        '}',
+        '',
+        '[node name="Player" type="CharacterBody2D"]',
+        'script = ExtResource("1_player")',
+        '',
+        '[node name="Sprite2D" type="Sprite2D" parent="."]',
+        'position = Vector2(0, -16)',
+        'hframes = 2',
+        '',
+        '[node name="AnimationPlayer" type="AnimationPlayer" parent="."]',
+        'libraries = {',
+        '&"": SubResource("AnimationLibrary_1")',
+        '}',
+        ''].join('\n')
       const gdBlob=new Blob([godotScript],{type:'text/plain'})
       downloadBlob(new Blob([tcn],{type:'text/plain'}),'player_scene.tscn')
       setTimeout(()=>downloadBlob(gdBlob,'player.gd'),300)
-      toast(status,'已导出角色场景 + player.gd（'+view+',含 idle/walk 动画），拖入 Godot 即可运行',true)
+      toast(status,'已导出角色场景 player_scene.tscn + player.gd（'+view+'，idle/walk 两帧动画骨架）— 请给 Sprite2D 设置精灵表纹理与 hframes 后运行',true)
     })
     // ⚡ 一键流水线：角色 → 序列帧 → 切片 → 打包 → 导出 SpriteFrames（一次跑完）
     pChar.querySelector('#c-to-sheet-auto')!.addEventListener('click', async ()=>{
@@ -3837,9 +3946,15 @@ function mockImage(prompt:string, opts:any): string {
       if(!corsSafe){ toast(status,'远程图片未开启CORS，无法处理',false); return }
       const size=parseInt((pMap.querySelector('#map-size') as HTMLSelectElement).value)||32
       canvas.width=size*2; canvas.height=size*2; const g=canvas.getContext('2d')!; g.imageSmoothingEnabled=false
-      for(let y=0;y<2;y++) for(let x=0;x<2;x++){ g.drawImage(curImg, x*size, y*size, size,size); g.fillStyle='rgba(71,140,191,'+(x+y)*0.08+')'; g.fillRect(x*size,y*size,size,size) }
-      g.strokeStyle='rgba(255,255,255,0.6)'; g.lineWidth=1; g.strokeRect(0,0,size*2,size*2); g.beginPath(); g.moveTo(size,0); g.lineTo(size,size*2); g.moveTo(0,size); g.lineTo(size*2,size); g.stroke()
-      const url=canvas.toDataURL(); preview.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; preview.appendChild(im); curImg=await loadImg(url); updateTiled(); toast(status,'Wang Tiles 2×2 已生成')
+      // 镜像四象限：原 / 水平翻转 / 垂直翻转 / 双向翻转 —— 相邻边像素天然连续，无限平铺也无接缝
+      g.drawImage(curImg, 0, 0)
+      g.save(); g.translate(size*2,0); g.scale(-1,1); g.drawImage(curImg, 0, 0); g.restore()   // 右：水平镜像
+      g.save(); g.translate(0,size*2); g.scale(1,-1); g.drawImage(curImg, 0, 0); g.restore()   // 下：垂直镜像
+      g.save(); g.translate(size*2,size*2); g.scale(-1,-1); g.drawImage(curImg, 0, 0); g.restore() // 右下：双向镜像
+      const url=canvas.toDataURL('image/png')
+      preview.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; preview.appendChild(im)
+      curImg=await loadImg(url); updateTiled()
+      toast(status,'镜像无缝 2×2 已生成（可点「生成大地图」得到完全无缝平铺）',true)
     })
 
     pMap.querySelector('#map-big')?.addEventListener('click', ()=>{
@@ -3980,12 +4095,13 @@ function mockImage(prompt:string, opts:any): string {
           outer: for(let y=h-1;y>=0;y--){ for(let x=0;x<w;x++){ const i=(y*w+x)*4; if(d[i]>10||d[i+1]>10||d[i+2]>10){ stretchBottom=y+1; break outer } } }
           outer: for(let x=w-1;x>=0;x--){ for(let y=0;y<h;y++){ const i=(y*w+x)*4; if(d[i]>10||d[i+1]>10||d[i+2]>10){ stretchRight=x+1; break outer } } }
           const marginL=stretchLeft, marginR=w-stretchRight, marginT=stretchTop, marginB=h-stretchBottom
-          // 生成 .tres (Godot 4 StyleBoxTexture)
-          const tres=`[gd_resource type="StyleBoxTexture" load_steps=2 format=3]\n\n[ext_resource type="Texture2D" path="res://ui/panel.png" id="1"]\n\n[resource]\ntexture = ExtResource("1")\nregion_rect = Rect2(${stretchLeft}, ${stretchTop}, ${stretchRight-stretchLeft}, ${stretchBottom-stretchTop})\nmargin_left = ${marginL}\nmargin_right = ${marginR}\nmargin_top = ${marginT}\nmargin_bottom = ${marginB}\n`
+          // 生成 .tres (Godot 4 StyleBoxTexture)：九宫格边距属性为 texture_margin_*（Godot 3 的 margin_* 已失效）
+          const pngName='9patch_panel.png'
+          const tres=`[gd_resource type="StyleBoxTexture" load_steps=2 format=3]\n\n[ext_resource type="Texture2D" path="res://ui/${pngName}" id="1_panel"]\n\n[resource]\ntexture = ExtResource("1_panel")\ntexture_margin_left = ${marginL}\ntexture_margin_top = ${marginT}\ntexture_margin_right = ${marginR}\ntexture_margin_bottom = ${marginB}\n`
           const patchCanvas=document.createElement('canvas'); patchCanvas.width=w; patchCanvas.height=h
           const pg=patchCanvas.getContext('2d')!; pg.imageSmoothingEnabled=false; pg.drawImage(loadedImg,0,0)
           const pngData=patchCanvas.toDataURL('image/png')
-          downloadUrl(pngData,'9patch_panel.png')
+          downloadUrl(pngData,pngName)
           setTimeout(()=>downloadBlob(new Blob([tres],{type:'text/plain'}),'panel_stylebox.tres'),300)
           canvas.width=w; canvas.height=h; const pg2=canvas.getContext('2d')!; pg2.imageSmoothingEnabled=false; pg2.clearRect(0,0,w,h); pg2.drawImage(loadedImg,0,0)
           // 在预览上画 9 宫格标记
