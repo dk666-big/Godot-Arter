@@ -5,7 +5,7 @@
  */
 import type { SlotsService } from '@deepseek-ai/dsh-client-ui-slots'
 
-type ClientContext = { slots: SlotsService }
+type ClientContext = { slots: SlotsService; effect(fn: () => any, name?: string): void }
 export const inject = ['slots']
 
 export function apply(ctx: ClientContext): void {
@@ -177,6 +177,34 @@ function buildStudio(): HTMLElement {
   .gas-root #e-list{ background:var(--inputb) !important; border:3px dashed var(--border) !important; border-radius:0 !important; }
   .gas-root [style*="1e2224"]{ background:var(--thumbb) !important; }
   .gas-root input[type=range]{ accent-color:var(--accent); }
+  /* Level editor — layer panel items (Photoshop-style) */
+  .sc-layer-item{ display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:5px; cursor:pointer; border:1.5px solid transparent; user-select:none; transition:background 0.1s; min-height:32px; }
+  .sc-layer-item:hover{ background:rgba(255,255,255,0.05); }
+  .sc-layer-item.active{ border-color:var(--accent); background:rgba(74,158,255,0.12) !important; }
+  .sc-layer-item.drag-over{ border-color:#f1c40f; background:rgba(241,196,15,0.15) !important; }
+  .sc-layer-item.dragging{ opacity:0.4; }
+  .sc-layer-item .ly-vis{ width:20px; height:20px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; flex-shrink:0; border:none; background:transparent; padding:0; color:var(--muted); }
+  .sc-layer-item .ly-vis:hover{ color:var(--text); }
+  .sc-layer-item .ly-vis.hidden{ color:#555; }
+  .sc-layer-item .ly-lock{ width:20px; height:20px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:11px; cursor:pointer; flex-shrink:0; border:none; background:transparent; padding:0; color:var(--muted); }
+  .sc-layer-item .ly-lock:hover{ color:var(--text); }
+  .sc-layer-item .ly-lock.locked{ color:#e74c3c; }
+  .sc-layer-item .ly-thumb{ width:24px; height:24px; border-radius:3px; border:1px solid rgba(255,255,255,0.1); flex-shrink:0; overflow:hidden; background:#1a2030; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .sc-layer-item .ly-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--text); padding:0 2px; cursor:pointer; }
+  .sc-layer-item .ly-name:hover{ color:var(--accent2); }
+  .sc-layer-item .ly-name-input{ flex:1; background:#252a2e; border:1px solid var(--accent); border-radius:3px; color:var(--text); font-size:11px; padding:1px 4px; outline:none; width:0; min-width:0; }
+  .sc-layer-item .ly-op{ width:36px; font-size:10px; color:var(--muted); text-align:center; flex-shrink:0; cursor:pointer; }
+  .sc-layer-item .ly-op:hover{ color:var(--text); }
+  .sc-layer-item .ly-sprite-count{ font-size:9px; color:var(--muted); flex-shrink:0; }
+  .sc-layers-list::-webkit-scrollbar{ width:4px; }
+  .sc-layers-list::-webkit-scrollbar-track{ background:transparent; }
+  .sc-layers-list::-webkit-scrollbar-thumb{ background:var(--border); border-radius:2px; }
+  /* Level editor layer panel context menu */
+  .sc-layer-ctx{ position:fixed; z-index:9999; background:#252a2e; border:1px solid var(--border); border-radius:6px; padding:4px 0; min-width:150px; box-shadow:0 4px 16px rgba(0,0,0,0.5); }
+  .sc-layer-ctx-item{ padding:6px 12px; font-size:11px; cursor:pointer; color:var(--text); display:flex; align-items:center; gap:6px; }
+  .sc-layer-ctx-item:hover{ background:rgba(255,255,255,0.08); }
+  .sc-layer-ctx-item.danger{ color:#e74c3c; }
+  .sc-layer-ctx-sep{ height:1px; background:var(--border); margin:3px 0; }
   /* Element extractor — 结果区（拼贴画布） */
   .gas-extract-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:14px; margin-top:10px;
     background:var(--inputb); border:3px solid var(--border); padding:14px; min-height:120px; }
@@ -288,7 +316,7 @@ function buildStudio(): HTMLElement {
           <div class="gas-row" style="margin-top:8px">
             <div style="flex:1"><label class="gas-label">风格</label><select class="gas-select" id="c-style"><option value="pixel32">像素 32px</option><option value="pixel16">像素 16px</option><option value="chibi">Q版 Chibi</option><option value="anime">二次元立绘</option><option value="real">写实</option><option value="free">🎨 自由风格（完全按提示词）</option></select></div>
             <div style="flex:1"><label class="gas-label">视图</label><select class="gas-select" id="c-view"><option value="single">单视图</option><option value="tri">三视图 (前/侧/后)</option><option value="dir8">八方向</option></select></div>
-            <div style="flex:1"><label class="gas-label">提供商</label><select class="gas-select" id="c-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select><select class="gas-select" id="c-model-sel" style="display:none;margin-top:6px"></select></div>
+            <div style="flex:1"><label class="gas-label">提供商</label><select class="gas-select" id="c-provider"><option value="mock">本地演示(无Key)</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="c-model-sel" style="display:none;margin-top:6px"></select></div>
           </div>
           <div class="gas-row" style="margin-top:8px;align-items:center">
             <label class="gas-label" style="margin:0">背景色</label>
@@ -313,6 +341,7 @@ function buildStudio(): HTMLElement {
             <button class="gas-btn ghost" id="c-save">📥 入库</button>
               <button class="gas-btn ghost" id="c-to-sheet">→ 序列帧</button>
               <button class="gas-btn ghost" id="c-to-sheet-auto" title="角色→序列帧→切片→打包→导出 SpriteFrames 一次跑完">⚡ 一键流水线</button>
+              <button class="gas-btn" id="c-export-scene" title="导出 Godot CharacterBody2D + SpriteFrames + 动画脚本，拖入 Godot 即可运行角色">🎮 角色场景</button>
           </div>
         </div>
       </div>
@@ -397,7 +426,7 @@ function buildStudio(): HTMLElement {
           <div class="gas-row" style="margin-top:8px">
             <div style="flex:1"><label class="gas-label">帧率 FPS</label><input class="gas-input" id="q-fps" type="number" value="8" min="1" max="60"></div>
             <div style="flex:1"><label class="gas-label">参考图（可选）</label><label class="gas-btn ghost" style="cursor:pointer;width:100%;justify-content:center"><input type="file" id="q-ref" accept="image/*" hidden>📁 上传</label></div>
-            <div style="flex:0 0 150px"><label class="gas-label">提供商</label><select class="gas-select" id="q-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示</option></select><select class="gas-select" id="q-model-sel" style="display:none;margin-top:4px"></select></div>
+            <div style="flex:0 0 150px"><label class="gas-label">提供商</label><select class="gas-select" id="q-provider"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="q-model-sel" style="display:none;margin-top:4px"></select></div>
           </div>
           <div id="q-ref-preview" class="gas-preview tiled" style="min-height:44px;max-height:56px;margin-top:8px"><span class="gas-note">无参考图</span></div>
           <div class="gas-row" style="margin-top:8px">
@@ -505,7 +534,7 @@ function buildStudio(): HTMLElement {
       </div>
       <div class="gas-row" style="margin-top:8px">
         <select class="gas-select" id="f-style" style="flex:1"><option value="icon">图标 64px</option><option value="pixel">像素道具</option><option value="fx">特效</option><option value="free">🎨 自由（完全按提示词）</option></select>
-        <div style="flex:1;display:flex;flex-direction:column"><select class="gas-select" id="f-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="mock">本地演示</option></select><select class="gas-select" id="f-model-sel" style="display:none;margin-top:4px"></select></div>
+        <div style="flex:1;display:flex;flex-direction:column"><select class="gas-select" id="f-provider"><option value="mock">本地演示</option><option value="openai">OpenAI</option><option value="stability">Stability</option></select><select class="gas-select" id="f-model-sel" style="display:none;margin-top:4px"></select></div>
         <button class="gas-btn" id="f-batch">⚡ 批量生成</button>
         <button class="gas-btn ghost" id="f-stop" disabled>⏹ 停止</button>
       </div>
@@ -722,7 +751,7 @@ function buildStudio(): HTMLElement {
           <label class="gas-label">场景描述 Prompt（可选；留空则用上传 / 本地演示底图）</label>
           <div class="gas-row">
             <textarea class="gas-textarea" id="sc-prompt" style="min-height:58px" placeholder="例：像素风山间小镇，40x40 俯视（支持换行书写长提示词）"></textarea>
-            <div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="sc-provider"><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option><option value="mock">本地演示(无Key)</option></select><select class="gas-select" id="sc-model-sel" style="display:none;margin-top:4px"></select></div>
+            <div style="display:flex;flex-direction:column;flex:0 0 140px"><select class="gas-select" id="sc-provider"><option value="mock">本地演示(无Key)</option><option value="openai">OpenAI</option><option value="stability">Stability</option><option value="siliconflow">SiliconFlow</option></select><select class="gas-select" id="sc-model-sel" style="display:none;margin-top:4px"></select></div>
             <button class="gas-btn" id="sc-gen">✨ 生成场景</button>
             <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="sc-upload" accept="image/*" hidden>📁 上传场景图</label>
             <button class="gas-btn orange" id="sc-export">⬇ 导出当前帧</button>
@@ -746,8 +775,82 @@ function buildStudio(): HTMLElement {
         <div style="flex:1"><label class="gas-label">风力 / 飘动</label><input class="gas-input" id="sc-wind" type="range" min="0" max="100" value="40"></div>
         <div style="flex:1"><label class="gas-label">时间（日夜）</label><input class="gas-input" id="sc-hour" type="range" min="0" max="2400" value="1000"></div>
       </div>
-      <div class="gas-label" style="margin-top:6px">预览（左上角显示 天气 · 时刻；雨/雪/闪电为纯程序化绘制）</div>
-      <div class="gas-preview" style="padding:0;overflow:hidden"><canvas id="sc-canvas" width="800" height="450" style="width:100%;height:auto;display:block"></canvas></div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button class="gas-btn" id="sc-tab-weather">☁️ 天气预览</button>
+        <button class="gas-btn ghost" id="sc-tab-editor">🎮 关卡编辑</button>
+      </div>
+      <div id="sc-weather-section">
+        <div class="gas-label" style="margin-top:6px">预览（左上角显示 天气 · 时刻；雨/雪/闪电为纯程序化绘制）</div>
+        <div class="gas-preview" style="padding:0;overflow:hidden"><canvas id="sc-canvas" width="800" height="450" style="width:100%;height:auto;display:block"></canvas></div>
+      </div>
+    </div>
+    <div class="gas-card" id="sc-editor-card" style="display:none">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <h4 style="margin:0">🎮 关卡编辑器</h4>
+        <span class="gas-note">拖拽素材到画布 · 双击删除 · 右键调整层级</span>
+        <div style="flex:1"></div>
+        <button class="gas-btn ghost" id="sc-ed-import-map">🗺️ 导入地图底图</button>
+        <button class="gas-btn ghost" id="sc-ed-extract">🔍 智能提取元素</button>
+        <button class="gas-btn ghost" id="sc-ed-water">🌊 海水动画</button>
+        <button class="gas-btn" id="sc-ed-export-tscn">⬇ 导出 .tscn</button>
+      </div>
+      <div style="display:flex;gap:8px;height:480px">
+        <!-- 左:素材库+工具栏 -->
+        <div style="width:180px;display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <div style="font-size:11px;color:var(--muted);font-weight:bold;margin-bottom:2px">📦 素材库</div>
+          <div id="sc-ed-sprite-palette" style="flex:1;overflow-y:auto;background:#1a1e20;border:1px solid var(--border);border-radius:6px;padding:6px;display:flex;flex-direction:column;gap:4px;min-height:120px">
+            <div class="gas-note" style="font-size:10px">暂无素材<br>请先在「素材总管」入库</div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);font-weight:bold;margin-bottom:2px">🛠 工具</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
+            <button class="gas-btn ghost sc-ed-tool" data-tool="select" id="sc-ed-tool-select" style="font-size:11px;padding:5px">🖱 选择</button>
+            <button class="gas-btn ghost sc-ed-tool" data-tool="pan" style="font-size:11px;padding:5px">✋ 平移</button>
+            <button class="gas-btn ghost sc-ed-tool" data-tool="water-brush" style="font-size:11px;padding:5px">💧 海水笔</button>
+            <button class="gas-btn ghost sc-ed-tool" data-tool="land-brush" style="font-size:11px;padding:5px">🌍 陆地笔</button>
+            <button class="gas-btn ghost sc-ed-tool" data-tool="eraser" style="font-size:11px;padding:5px">🧹 橡皮擦</button>
+            <button class="gas-btn ghost sc-ed-tool" data-tool="extract" style="font-size:11px;padding:5px">🔲 框选提取</button>
+            <button class="gas-btn ghost sc-ed-tool" data-tool="particle" style="font-size:11px;padding:5px">✨ 粒子特效</button>
+          </div>
+          <div style="font-size:10px;color:var(--muted)">笔刷大小</div>
+          <input class="gas-input" id="sc-ed-brush-size" type="range" min="4" max="64" value="16" style="width:100%">
+        </div>
+        <!-- 中:主画布 -->
+        <div style="flex:1;position:relative;background:#111314;border:1px solid var(--border);border-radius:8px;overflow:hidden" id="sc-ed-canvas-wrap">
+          <canvas id="sc-ed-canvas" style="position:absolute;top:0;left:0;cursor:default"></canvas>
+          <canvas id="sc-ed-overlay" style="position:absolute;top:0;left:0;pointer-events:none"></canvas>
+        </div>
+        <!-- 右:图层+属性 -->
+        <div style="width:200px;display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+            <span style="font-size:11px;color:var(--muted);font-weight:bold">📚 图层</span>
+            <div style="flex:1"></div>
+            <!-- 图层工具栏 -->
+            <button class="gas-btn ghost" id="sc-ed-layer-add" title="新建图层" style="padding:2px 5px;font-size:10px;line-height:1">+</button>
+            <button class="gas-btn ghost" id="sc-ed-layer-del" title="删除图层" style="padding:2px 5px;font-size:10px;line-height:1;background:#3a1a1a">🗑</button>
+            <button class="gas-btn ghost" id="sc-ed-layer-dup" title="复制图层" style="padding:2px 5px;font-size:10px;line-height:1">⧉</button>
+            <button class="gas-btn ghost" id="sc-ed-layer-merge" title="向下合并" style="padding:2px 5px;font-size:10px;line-height:1">⬇</button>
+          </div>
+          <div style="display:flex;gap:4px;margin-bottom:4px">
+            <button class="gas-btn ghost" id="sc-ed-lock-all" title="锁定所有" style="flex:1;font-size:9px;padding:2px">🔒锁</button>
+            <button class="gas-btn ghost" id="sc-ed-hide-all" title="隐藏所有" style="flex:1;font-size:9px;padding:2px">👁‍🗨隐</button>
+            <button class="gas-btn ghost" id="sc-ed-show-all" title="显示所有" style="flex:1;font-size:9px;padding:2px">👁</button>
+          </div>
+          <div id="sc-ed-layers" class="sc-layers-list" style="flex:1;overflow-y:auto;background:#1a1e20;border:1px solid var(--border);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:2px;min-height:120px;max-height:260px"></div>
+          <div style="font-size:11px;color:var(--muted);font-weight:bold;margin-top:4px">⚙ 属性</div>
+          <div id="sc-ed-props" style="background:#1a1e20;border:1px solid var(--border);border-radius:6px;padding:6px;font-size:11px;min-height:60px">
+            <div class="gas-note" style="font-size:10px">选中素材查看属性</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+        <span style="font-size:11px;color:var(--muted)">缩放</span>
+        <input class="gas-input" id="sc-ed-zoom" type="range" min="10" max="400" value="100" style="width:120px">
+        <span style="font-size:11px;color:var(--muted)" id="sc-ed-zoom-label">100%</span>
+        <div style="flex:1"></div>
+        <button class="gas-btn ghost" id="sc-ed-undo" style="font-size:11px">↩ 撤销</button>
+        <button class="gas-btn ghost" id="sc-ed-clear" style="font-size:11px">🗑 清空</button>
+        <button class="gas-btn" id="sc-ed-preview">▶ 实时预览</button>
+      </div>
     </div>
   `)
 // EXPORT
@@ -817,6 +920,14 @@ function buildStudio(): HTMLElement {
         <button class="gas-btn" id="web-gemini" style="flex:1">🌐 打开 Gemini 网页版</button>
         <button class="gas-btn" id="web-chatgpt" style="flex:1">🌐 打开 ChatGPT 网页版</button>
       </div>
+      <div class="gas-divider"></div>
+      <h4>🔗 网页联动 — 浏览器扩展（ChatGPT / Gemini）</h4>
+      <div class="gas-note">安装项目 <span class="gas-kbd">extension/</span> 目录下的浏览器扩展后（Chrome / Edge 开发者模式加载，见 extension/安装说明.md）：<br>① 点上方按钮（或在工坊中选「🌐 网页版」供应商生成）→ 扩展把提示词<b>自动填入网页对话框</b>——只填入、不自动发送，检查后手动点发送；<br>② 网页生成图片后点图片旁「💾 Godot-Arter」按钮 → 自动保存到 <span class="gas-kbd">assets/generated/</span> 并记录到 <span class="gas-kbd">data/generated_assets.json</span>；工坊页面会自动把它<b>导入素材库</b>（含提示词/来源/时间）。<br>未安装扩展时自动退化为「复制提示词到剪贴板，手动粘贴」。</div>
+      <div class="gas-row" style="margin-top:8px">
+        <button class="gas-btn ghost" id="web-link-test" style="flex:1">🔍 测试联动服务</button>
+        <button class="gas-btn ghost" id="web-link-inbox" style="flex:1">📥 检查网页收件箱</button>
+      </div>
+      <div class="gas-note" id="web-link-status" style="margin-top:6px"></div>
     </div>
     <div class="gas-card">
       <h4>🔌 第三方 API 路由预设 — 自定义供应商</h4>
@@ -857,6 +968,75 @@ function buildStudio(): HTMLElement {
         </div>
       </div>
     </div>
+    <div class="gas-card">
+      <h4>🎮 Godot 物理预设 + 碰撞体配置器</h4>
+      <div class="gas-note">配置 CharacterBody2D / RigidBody2D 参数，导出 .tscn 直接拖入 Godot 使用</div>
+      <div class="gas-row" style="margin-top:10px">
+        <div style="flex:1">
+          <label class="gas-label">预设类型</label>
+          <select class="gas-select" id="phys-type">
+            <option value="char">CharacterBody2D（玩家/敌人）</option>
+            <option value="rigid">RigidBody2D（物理对象）</option>
+            <option value="static">StaticBody2D（静态墙/地板）</option>
+          </select>
+          <label class="gas-label" style="margin-top:8px">节点名称</label>
+          <input class="gas-input" id="phys-name" value="Player" placeholder="节点名">
+          <label class="gas-label" style="margin-top:8px">碰撞形状</label>
+          <select class="gas-select" id="phys-shape">
+            <option value="capsule">CapsuleShape2D（角色用胶囊）</option>
+            <option value="circle">CircleShape2D（圆形碰撞）</option>
+            <option value="rect">RectangleShape2D（矩形碰撞）</option>
+            <option value="convex">ConvexPolygonShape2D（凸多边形）</option>
+          </select>
+        </div>
+        <div style="flex:1">
+          <label class="gas-label">碰撞层 / 遮罩</label>
+          <div class="gas-row">
+            <input class="gas-input" id="phys-layer" type="number" value="1" min="1" max="32" style="flex:1">
+            <span class="gas-note" style="margin:0 4px">层</span>
+            <input class="gas-input" id="phys-mask" type="number" value="1" min="0" max="32" style="flex:1">
+            <span class="gas-note" style="margin:0 4px">遮罩</span>
+          </div>
+          <label class="gas-label" style="margin-top:8px">质量 (mass)</label>
+          <input class="gas-input" id="phys-mass" type="number" value="1.0" step="0.1" min="0.1">
+          <label class="gas-label" style="margin-top:8px">初始速度</label>
+          <div class="gas-row">
+            <input class="gas-input" id="phys-vx" type="number" value="0" placeholder="vx" style="flex:1">
+            <input class="gas-input" id="phys-vy" type="number" value="0" placeholder="vy" style="flex:1">
+          </div>
+          <label class="gas-label" style="margin-top:8px">重力缩放</label>
+          <input class="gas-input" id="phys-gravity" type="number" value="1.0" step="0.1" min="0" max="10">
+        </div>
+      </div>
+      <div class="gas-row" style="margin-top:10px">
+        <button class="gas-btn" id="phys-export" style="flex:1">⬇ 导出 .tscn</button>
+        <button class="gas-btn ghost" id="phys-export-gd" style="flex:1">📜 导出 .gd 脚本</button>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>🗺️ AutoTile 位图平铺 — 自动识别 bitmask</h4>
+      <div class="gas-note">上传瓦片图，自动识别 Godot 4 AutoTile 的 47 种 bitmask，导出 TileSet .tres</div>
+      <div class="gas-row" style="margin-top:10px">
+        <div style="flex:1">
+          <div style="border:1.5px dashed var(--border);border-radius:8px;padding:12px;text-align:center;background:#1a1e20;cursor:pointer;" id="at-drop">
+            <div style="font-size:20px">🗺️</div><div class="gas-note">点击或拖拽上传瓦片图 PNG（48×48 / 64×64 / 32×32 等）</div>
+            <input type="file" id="at-file" accept="image/*" hidden>
+          </div>
+          <div class="gas-row" style="margin-top:8px">
+            <button class="gas-btn" id="at-run" style="flex:1">🔍 分析 bitmask</button>
+            <button class="gas-btn ghost" id="at-export" disabled style="flex:1">⬇ 导出 TileSet.tres</button>
+          </div>
+          <div class="gas-note" id="at-status" style="margin-top:6px"></div>
+        </div>
+        <div style="width:280px">
+          <label class="gas-label">识别结果预览</label>
+          <div id="at-preview" style="background:#1a1e20;border:1px solid var(--border);border-radius:8px;min-height:120px;max-height:200px;overflow:hidden;display:flex;align-items:center;justify-content:center">
+            <span class="gas-note">等待上传…</span>
+          </div>
+          <div id="at-info" class="gas-note" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
   `)
 
   // 内置供应商 Key（统一在 API 预设面板配置）
@@ -873,9 +1053,47 @@ function buildStudio(): HTMLElement {
   pPreset.querySelector('#save-keys')!.addEventListener('click', saveKeys)
   pPreset.querySelector('#clear-keys')!.addEventListener('click', ()=>{ localStorage.removeItem(LS); loadKeys() })
   // 免费网页版快捷入口：点击跳转到官方网页版，自行登录使用
-  const openWebPanel=(kind:string)=>{ const url= kind==='gemini' ? 'https://gemini.google.com' : 'https://chatgpt.com'; window.open(url,'_blank') }
+  /* ---- 网页联动（浏览器扩展）客户端 ---- */
+  const WEB_LINK_BASE = /^https?:$/.test(location.protocol) ? location.origin : ''
+  function webToast(msg:string, ok=true){
+    let el=document.getElementById('gas-web-toast') as HTMLElement|null
+    if(!el){ el=document.createElement('div'); el.id='gas-web-toast'; el.style.cssText='position:fixed;right:18px;bottom:18px;z-index:2147483647;max-width:430px;padding:10px 14px;font-size:12px;line-height:1.6;border:3px solid #594c39;background:#38302a;color:#efe6d0;box-shadow:4px 4px 0 rgba(0,0,0,.45);display:none;font-family:inherit;'; document.body.appendChild(el) }
+    el.textContent=msg; el.style.borderColor= ok?'#7cbf5a':'#d9536f'; el.style.display='block'
+    clearTimeout((el as any)._t); (el as any)._t=setTimeout(()=>{ el!.style.display='none' },5000)
+  }
+  async function webLinkPushPrompt(kind:string, prompt:string): Promise<boolean>{
+    if(!WEB_LINK_BASE || !prompt) return false
+    try{
+      const r=await fetch(WEB_LINK_BASE+'/api/web-link/prompt',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ site:kind, prompt, from:'studio' }) })
+      const j=await r.json()
+      return !!j.ok
+    }catch{ return false }
+  }
+  const openWebPanel=async (kind:string, prompt?:string)=>{
+    const url= kind==='gemini' ? 'https://gemini.google.com' : 'https://chatgpt.com'
+    if(prompt){
+      const pushed=await webLinkPushPrompt(kind,prompt)
+      if(pushed){
+        webToast('🔗 提示词已发送到联动服务 — 装有扩展的浏览器会自动填入 '+(kind==='gemini'?'Gemini':'ChatGPT')+' 对话框（不会自动发送）')
+      }else{
+        try{ await navigator.clipboard.writeText(prompt); webToast('📋 联动服务不可用，提示词已复制到剪贴板 — 打开网页后手动粘贴') }
+        catch{ webToast('⚠️ 提示词未能复制，请手动复制后粘贴到网页',false) }
+      }
+    }
+    window.open(url,'_blank')
+  }
   pPreset.querySelector('#web-gemini')!.addEventListener('click', ()=> openWebPanel('gemini'))
   pPreset.querySelector('#web-chatgpt')!.addEventListener('click', ()=> openWebPanel('chatgpt'))
+  pPreset.querySelector('#web-link-test')!.addEventListener('click', async ()=>{
+    const st=pPreset.querySelector('#web-link-status') as HTMLElement
+    if(!WEB_LINK_BASE){ st.textContent='⚠️ 当前以 file:// 直开，联动服务不可用 — 请用 node server.mjs 后经 http://127.0.0.1:3080 访问'; st.style.color='var(--warn)'; return }
+    try{
+      const j=await(await fetch(WEB_LINK_BASE+'/api/web-link/status')).json()
+      st.textContent='✅ 联动服务在线 · 已保存 '+j.saved+' 张网页素材'+(j.pending&&j.pending.length?' · 待取提示词: '+j.pending.join('/'):'' )
+      st.style.color='var(--ok)'
+    }catch{ st.textContent='❌ 联动服务未连接（server.mjs 未运行？）'; st.style.color='var(--pink)' }
+  })
+  pPreset.querySelector('#web-link-inbox')!.addEventListener('click', ()=> webLinkCheckInbox(0,true))
 
   // 后处理工坊
     // 素材总管
@@ -918,6 +1136,7 @@ const pPost=mkPanel('post', `
               <option value="palette">🎨 调色板量化（像素风）</option>
               <option value="outline">🖊️ 精灵描边</option>
               <option value="resize">📐 尺寸调整</option>
+              <option value="9patch">📐 9-patch UI 导出 Godot StyleBox</option>
             </select></div>
             <div style="flex:0 0 140px"><label class="gas-label">参数</label><input class="gas-input" id="post-param" placeholder="例：16 色 / 描边2px / 64px"></div>
           </div>
@@ -954,12 +1173,12 @@ const pPost=mkPanel('post', `
   // ---- 元素提取器 logic ----
   {
     const pExt = pExtract
-    const drop=pExt.querySelector('#x-drop'), fileInput=pExt.querySelector('#x-file') as HTMLInputElement
+    const drop=pExt.querySelector('#x-drop') as HTMLElement, fileInput=pExt.querySelector('#x-file') as HTMLInputElement
     const modeEl=pExt.querySelector('#x-mode') as HTMLSelectElement, modeTip=pExt.querySelector('#x-mode-tip') as HTMLElement
     const tolEl=pExt.querySelector('#x-tol') as HTMLInputElement, tolV=pExt.querySelector('#x-tol-v') as HTMLElement
     const minEl=pExt.querySelector('#x-min') as HTMLInputElement
-    const runBtn=pExt.querySelector('#x-run'), statusEl=pExt.querySelector('#x-status') as HTMLElement
-    const stage=pExt.querySelector('#x-stage') as HTMLElement, clearBtn=pExt.querySelector('#x-clear')
+    const runBtn=pExt.querySelector('#x-run') as HTMLElement, statusEl=pExt.querySelector('#x-status') as HTMLElement
+    const stage=pExt.querySelector('#x-stage') as HTMLElement, clearBtn=pExt.querySelector('#x-clear') as HTMLElement
     const saveAllBtn=pExt.querySelector('#x-save-all') as HTMLButtonElement, saveSelBtn=pExt.querySelector('#x-save-sel') as HTMLButtonElement, dlSelBtn=pExt.querySelector('#x-dl-sel') as HTMLButtonElement
     let srcCanvas: HTMLCanvasElement|null=null
     let elements: any[]=[]
@@ -974,9 +1193,9 @@ const pPost=mkPanel('post', `
     drop.addEventListener('dragleave', ()=> drop.style.borderColor='var(--border)')
     drop.addEventListener('drop', e=>{ e.preventDefault(); const f=e.dataTransfer?.files?.[0]; if(f) handle(f) })
     fileInput.addEventListener('change', ()=>{ const f=fileInput.files?.[0]; if(f) handle(f) })
-    function drawProgress(msg, warn=false){ if(statusEl){ statusEl.textContent=msg; statusEl.style.color = warn ? 'var(--warn)' : 'var(--muted)' } }
+    function drawProgress(msg:string, warn=false){ if(statusEl){ statusEl.textContent=msg; statusEl.style.color = warn ? 'var(--warn)' : 'var(--muted)' } }
     function resetStage(){ stage.innerHTML='<span class="gas-note">先上传图片并提取</span>' }
-    function splitElements(won,hon,data,tol,minArea){
+    function splitElements(won:number,hon:number,data:Uint8ClampedArray,tol:number,minArea:number){
       const labels=new Int32Array(won*hon); labels.fill(-1)
       const boxes:any[]=[]; let lab=0; const stack:number[]=[]
       for(let sy=0;sy<hon;sy++) for(let sx=0;sx<won;sx++){
@@ -1004,7 +1223,7 @@ const pPost=mkPanel('post', `
       }
       return boxes
     }
-    function cropElement(box){
+    function cropElement(box:any){
       const c=document.createElement('canvas'); c.width=box.w; c.height=box.h
       const g=c.getContext('2d')!; g.drawImage(srcCanvas!, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h)
       const id=g.getImageData(0,0,box.w,box.h); const d=id.data
@@ -1040,18 +1259,19 @@ const pPost=mkPanel('post', `
       })
       updateSel()
     }
-    function startDrag(e,wrap,i){
+    function startDrag(e:MouseEvent,wrap:HTMLElement,i:number){
       e.preventDefault()
       // 用 transform 平移，在各自 cell 内做视觉偏移，不干扰 grid 布局
       const cell=wrap.parentElement as HTMLElement; const cellR=cell.getBoundingClientRect()
       let dx=0, dy=0; const baseX=e.clientX, baseY=e.clientY
       const st=stage.getBoundingClientRect(); const maxX=st.width-wrap.offsetWidth-8, maxY=st.height-wrap.offsetHeight-8
-      const move=(ev)=>{ dx=ev.clientX-baseX; dy=ev.clientY-baseY; const cx=Math.max(-cellR.width,Math.min(dx,maxX)); const cy=Math.max(-cellR.height,Math.min(dy,maxY)); wrap.style.transform='translate('+cx+'px,'+cy+'px)' }
+      const move=(ev:MouseEvent)=>{ dx=ev.clientX-baseX; dy=ev.clientY-baseY; const cx=Math.max(-cellR.width,Math.min(dx,maxX)); const cy=Math.max(-cellR.height,Math.min(dy,maxY)); wrap.style.transform='translate('+cx+'px,'+cy+'px)' }
       const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up) }
       window.addEventListener('mousemove',move); window.addEventListener('mouseup',up)
     }
     async function handle(file:File){
       const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await new Promise(r=>img.onload=r)
+      revokeSoon(url) // 图片已画到 canvas，不再需要 blob URL
       srcCanvas=document.createElement('canvas'); srcCanvas.width=img.naturalWidth; srcCanvas.height=img.naturalHeight
       srcCanvas.getContext('2d')!.drawImage(img,0,0)
       // 在上传框显示原图并绑定鼠标交互
@@ -1065,17 +1285,17 @@ const pPost=mkPanel('post', `
       drawProgress('已加载 '+img.naturalWidth+'×'+img.naturalHeight+'。可自动提取，或切换 框选/画线 在原图上操作。')
     }
     // 采样四边背景色（可能多个），返回主背景色数组
-    function sampleBg(d, w, h){
+    function sampleBg(d:Uint8ClampedArray|number[], w:number, h:number){
       const bg:any={}
       const edge=Math.max(1, Math.min(4, Math.floor(Math.min(w,h)*0.02)))
-      const add=(x,y)=>{ if(x<0||y<0||x>=w||y>=h) return; const i=(y*w+x)*4; const k=String(((d[i]>>3)<<6)|((d[i+1]>>3)<<3)|(d[i+2]>>3)); if(!bg[k]) bg[k]={n:0,r:0,g:0,b:0}; const b=bg[k]; b.n++; b.r+=d[i]; b.g+=d[i+1]; b.b+=d[i+2] }
+      const add=(x:number,y:number)=>{ if(x<0||y<0||x>=w||y>=h) return; const i=(y*w+x)*4; const k=String(((d[i]>>3)<<6)|((d[i+1]>>3)<<3)|(d[i+2]>>3)); if(!bg[k]) bg[k]={n:0,r:0,g:0,b:0}; const b=bg[k]; b.n++; b.r+=d[i]; b.g+=d[i+1]; b.b+=d[i+2] }
       for(let x=0;x<w;x++){ add(x,0); add(x,h-1); add(x,edge-1); add(x,h-edge) }
       for(let y=0;y<h;y++){ add(0,y); add(w-1,y); add(edge-1,y); add(w-edge,y) }
       const arr=Object.values(bg).sort((a:any,b:any)=>b.n-a.n)
       return arr.slice(0,4).map((b:any)=>({ r:b.r/b.n, g:b.g/b.n, b:b.b/b.n }))
     }
     // 把与四边背景色相近的像素设为透明（去背景）
-    function removeBg(d, w, h, bgList, T){
+    function removeBg(d:Uint8ClampedArray|number[], w:number, h:number, bgList:any, T:number){
       const bgd=bgList.map((c:any)=> Math.sqrt(c.r*c.r+c.g*c.g+c.b*c.b))
       let removed=0
       for(let i=0;i<d.length;i+=4){
@@ -1117,7 +1337,7 @@ const pPost=mkPanel('post', `
       drawProgress('自动提取完成：'+elements.length+' 个独立元素。可在下方结果区拖动、选中保存。')
       rebuildStage()
     }
-    function doPoint(x,y){
+    function doPoint(x:number,y:number){
       if(!srcCanvas) return drawProgress('请先上传图片')
       const T=parseInt(tolEl.value)||48; const w=srcCanvas.width,h=srcCanvas.height
       if(x<0||y<0||x>=w||y>=h) return
@@ -1129,7 +1349,7 @@ const pPost=mkPanel('post', `
     }
     // 鼠标交互（点选 / 框选 / 画线）
     let drawing=false, drawMode='', startX=0, startY=0, curX=0, curY=0, linePts:any[]=[]
-    function onCanvasDown(ev, im){
+    function onCanvasDown(ev:MouseEvent|any, im:any){
       if(!srcCanvas) return
       const mode=modeEl.value
       if(mode!=='point' && mode!=='box' && mode!=='line') return
@@ -1139,13 +1359,13 @@ const pPost=mkPanel('post', `
       drawOverlay()
       ev.preventDefault()
     }
-    function onCanvasMove(ev, im){
+    function onCanvasMove(ev:MouseEvent|any, im:any){
       if(!drawing) return
       const [mx,my]=toImg(ev, im); curX=mx; curY=my
       if(drawMode==='line') linePts.push({x:mx,y:my})
       drawOverlay()
     }
-    function onCanvasUp(ev, im){
+    function onCanvasUp(ev:MouseEvent|any, im:any){
       if(!drawing) return
       const [mx,my]=toImg(ev, im)
       if(drawMode==='box'){ doBoxSelect(startX,startY,mx,my) }
@@ -1154,12 +1374,12 @@ const pPost=mkPanel('post', `
       drawing=false; hideOverlay()
     }
     function endDraw(){ if(linePts.length>1) doLineCut(linePts); drawing=false; hideOverlay() }
-    function toImg(ev, im){ const r=im.getBoundingClientRect(); return [Math.floor((ev.clientX-r.left)/r.width*srcCanvas!.width), Math.floor((ev.clientY-r.top)/r.height*srcCanvas!.height)] }
+    function toImg(ev:MouseEvent|any, im:HTMLElement){ const r=im.getBoundingClientRect(); return [Math.floor((ev.clientX-r.left)/r.width*srcCanvas!.width), Math.floor((ev.clientY-r.top)/r.height*srcCanvas!.height)] }
     function setupOverlay(){ overlay.style.display='block'; const w=previewEl.querySelector('img'); if(w){ overlay.width=w.clientWidth; overlay.height=w.clientHeight; overlay.getContext('2d')!.clearRect(0,0,overlay.width,overlay.height) } }
     function drawOverlay(){ const c=overlay.getContext('2d')!; c.clearRect(0,0,overlay.width,overlay.height); c.strokeStyle='#ff5a5a'; c.lineWidth=2; if(drawMode==='box'){ const imgw=previewEl.querySelector('img'); const sx=startX/srcCanvas!.width*imgw!.clientWidth, sy=startY/srcCanvas!.height*imgw!.clientHeight; const ex=curX/srcCanvas!.width*imgw!.clientWidth, ey=curY/srcCanvas!.height*imgw!.clientHeight; c.strokeRect(Math.min(sx,ex),Math.min(sy,ey),Math.abs(ex-sx),Math.abs(ey-sy)) } else if(drawMode==='line'){ c.beginPath(); const imgw=previewEl.querySelector('img'); linePts.forEach((p,i)=>{ const x=p.x/srcCanvas!.width*imgw!.clientWidth,y=p.y/srcCanvas!.height*imgw!.clientHeight; if(i===0)c.moveTo(x,y); else c.lineTo(x,y) }); c.stroke() } }
     function hideOverlay(){ drawing=false; overlay.style.display='none'; const c=overlay.getContext('2d')!; c.clearRect(0,0,overlay.width,overlay.height) }
     // 框选：提取框内所有独立元素
-    function doBoxSelect(x1,y1,x2,y2){
+    function doBoxSelect(x1:number,y1:number,x2:number,y2:number){
       if(!srcCanvas) return drawProgress('请先上传图片')
       const xa=Math.max(0,Math.min(x1,x2)), xb=Math.min(srcCanvas.width-1,Math.max(x1,x2))
       const ya=Math.max(0,Math.min(y1,y2)), yb=Math.min(srcCanvas.height-1,Math.max(y1,y2))
@@ -1173,7 +1393,7 @@ const pPost=mkPanel('post', `
       drawProgress('框选提取完成：框内 '+added+' 个独立元素'); rebuildStage(); updateSel()
     }
     // 画线：把线像素设为透明作为分割缝，再擦背景，前景连通域被线切断成多块
-    function doLineCut(pts){
+    function doLineCut(pts:{x:number,y:number}[]){
       if(!srcCanvas) return drawProgress('请先上传图片')
       if(pts.length<2) return drawProgress('线太短，请画一条线')
       const w=srcCanvas.width,h=srcCanvas.height
@@ -1242,11 +1462,11 @@ const pPost=mkPanel('post', `
       req.onerror=()=>reject(req.error)
     })
   }
-  async function idbPut(item:any){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(item); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
+  async function idbPut(item:any){ const db=await openAssetDB(); return new Promise<void>((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(item); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
   async function idbGetAll():Promise<any[]>{ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readonly'); const req=tx.objectStore(DB_STORE).getAll(); req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error) }) }
-  async function idbDelete(id:string){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).delete(id); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
+  async function idbDelete(id:string){ const db=await openAssetDB(); return new Promise<void>((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).delete(id); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
   async function idbClearByKind(kind:string){ const all=await idbGetAll(); for(const a of all){ if(a.kind===kind) await idbDelete(a.id) } }
-  async function idbClearAll(){ const db=await openAssetDB(); return new Promise((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).clear(); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
+  async function idbClearAll(){ const db=await openAssetDB(); return new Promise<void>((resolve,reject)=>{ const tx=db.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).clear(); tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error) }) }
   function downloadDataUrl(dataUrl:string, filename:string){ const a=document.createElement('a'); a.href=dataUrl; a.download=filename; a.click() }
   // 可靠下载：data:/blob: 直接下载；远程 URL 先试 fetch→blob（CORS 允许时），
   // 托管环境再走本地代理，都不行则新标签打开原图（绝不覆盖当前页面）
@@ -1262,6 +1482,9 @@ const pPost=mkPanel('post', `
         }
         if(blob){ target=URL.createObjectURL(blob); setTimeout(()=>URL.revokeObjectURL(target),10000) }
         else { window.open(url,'_blank'); return }
+      } else if(/^blob:/i.test(url)){
+        // blob URL 传入时，在 8s 后释放（浏览器已触发下载）
+        revokeSoon(url, 8000)
       }
       const a=document.createElement('a'); a.href=target; a.download=filename; document.body.appendChild(a); a.click(); a.remove()
     }catch{ window.open(url,'_blank') }
@@ -1334,7 +1557,7 @@ const pPost=mkPanel('post', `
     ev.setUint32(12,centralSize,true)
     ev.setUint32(16,offset,true)                  // central dir offset
     ev.setUint16(20,0,true)                       // comment len
-    return new Blob([...chunks, ...central, end],{type:'application/zip'})
+    return new Blob([...chunks, ...central, end] as unknown as BlobPart[],{type:'application/zip'})
   }
   // 从 data:/blob:/http URL 转字节数组，供打包使用
   async function urlToBytes(url:string): Promise<{bytes:Uint8Array; mime:string; ext:string}> {
@@ -1356,7 +1579,7 @@ const pPost=mkPanel('post', `
   function blankCanvas(w:number,h:number): HTMLCanvasElement { const c=document.createElement('canvas'); c.width=Math.max(1,w); c.height=Math.max(1,h); return c }
   // 找到内容包围盒（非纯白 / alpha>0），返回相对源图坐标；用亮度容差适配浅色/渐变背景
   function trimWhitespace(img:HTMLImageElement|HTMLCanvasElement):{sx:number;sy:number;w:number;h:number}{
-    const W=img.naturalWidth||(img as HTMLCanvasElement).width, H=img.naturalHeight||(img as HTMLCanvasElement).height
+    const W=(img as HTMLImageElement).naturalWidth||(img as HTMLCanvasElement).width, H=(img as HTMLImageElement).naturalHeight||(img as HTMLCanvasElement).height
     if(W<1||H<1) return { sx:0, sy:0, w:W, h:H }
     const c=blankCanvas(W,H); const g=c.getContext('2d')!; g.imageSmoothingEnabled=false; g.drawImage(img as any,0,0)
     const d=g.getImageData(0,0,W,H).data
@@ -1642,6 +1865,10 @@ const pPost=mkPanel('post', `
     try{ refreshAssetManagerGlobal?.() }catch{}
     return id
   }
+  // 获取素材库全部条目(scene编辑器等模块调用)
+  function getAllAssetItems(): Promise<{id:string, kind:string, name:string, url:string, meta?:any}[]>{
+    return idbGetAll()
+  }
 
 
   // ---- 第三方 API 预设（自定义路由） ----
@@ -1700,7 +1927,7 @@ const pPost=mkPanel('post', `
     const presets=getCustomProviders()
     if(!presets.length){ list.innerHTML='<span style="color:#9aa0a6">暂无自定义预设 — 在下方表单中添加第一个</span>'; return }
     list.innerHTML=presets.map(p=>{
-      const typeLabel={ openai:'OpenAI 兼容', stability:'Stability', siliconflow:'SiliconFlow' }[p.type]||p.type||'?'
+      const typeLabel=({ openai:'OpenAI 兼容', stability:'Stability', siliconflow:'SiliconFlow' } as Record<string,string>)[p.type]||p.type||'?'
       return `<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-bottom:1px dashed #3a3f47">
         <span style="color:#e67e22">🔌</span>
         <div style="flex:1;min-width:0">
@@ -1765,7 +1992,10 @@ const pPost=mkPanel('post', `
     if(!baseUrl) { st.textContent='请填写 Base URL 接口地址'; st.style.color='#e74c3c'; return }
     const existingId=(pPreset.querySelector('#p-id-hidden') as HTMLInputElement)?.value
     const list=getCustomProviders()
-    const newItem={ id: existingId || ('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)), name, type, model: model||(pickedModels[0]||''), baseUrl, apiKey, models: pickedModels.slice() }
+    // 直接从 DOM 读 checkbox 当前状态：用户改了勾选即使没点"确定"也保存用户最后一次的选择，不依赖 pickedModels
+    const domModels=[...pPreset.querySelectorAll('#p-models-list input[data-model]:checked')].map((cb:any)=>cb.dataset.model as string)
+    const finalModels=domModels.length ? domModels : pickedModels.slice()
+    const newItem={ id: existingId || ('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)), name, type, model: model||(finalModels[0]||''), baseUrl, apiKey, models: finalModels }
     if(existingId){
       const idx=list.findIndex(x=>x.id===existingId)
       if(idx>=0) list[idx]=newItem; else list.push(newItem)
@@ -1906,13 +2136,27 @@ const pPost=mkPanel('post', `
       const r=await fetch(url, ac ? { signal: ac.signal } : undefined)
       if(!r.ok) throw new Error('HTTP '+r.status)
       const blob=await r.blob()
-      return URL.createObjectURL(blob)
+      const local=URL.createObjectURL(blob)
+      revokeSoon(local) // 自动释放，避免长会话中 blob URL 累积
+      return local
     }catch(e:any){
       // 任何下载失败（含超时/跨域/防盗链）都不应让生成流程失败，回退到可显示的原图 URL 或代理
       return hosted ? '/game-art-studio/api/proxy-image?url='+encodeURIComponent(url) : url
     }finally{
       if(timer) clearTimeout(timer)
     }
+  }
+  // 自动释放 blob URL：图片 / 导出 blob 这种"用完即弃"的 URL 走这个，能避免长时间使用累积内存
+  // 默认 60s 后释放（足够 <img> / <a>.click() 下载完成；过期后即使被引用也是空，对 UI 无影响）
+  function revokeSoon(url:string, ms=60000){
+    if(!url || !/^blob:/i.test(url)) return
+    setTimeout(()=>{ try{ URL.revokeObjectURL(url) }catch{} }, ms)
+  }
+  // 通用"用 blob URL 触发下载"工具：内部用 revokeSoon 自动回收，不再依赖散落的 setTimeout
+  function downloadBlob(blob:Blob, filename:string){
+    const u=URL.createObjectURL(blob); const a=document.createElement('a')
+    a.href=u; a.download=filename; a.click()
+    revokeSoon(u, 5000) // 5s 后释放，浏览器已下载到本地
   }
 
   function dataUrlToBlob(dataUrl:string): Blob {
@@ -1950,9 +2194,9 @@ const pPost=mkPanel('post', `
   async function callImageGen(prompt:string, provider:string, opts:any={}): Promise<string> {
     const keys=getKeys()
     const ref=opts.reference
-    // 免费网页版入口：不调 API，直接打开对应官方网页版让用户自行登录使用
+    // 免费网页版入口：不调 API，打开对应官方网页版；有联动服务时把提示词送达浏览器扩展自动填入
     if(provider.startsWith('web:')){
-      openWebPanel(provider.slice(4))
+      openWebPanel(provider.slice(4), prompt)
       return mockImage(prompt+' [已打开 '+provider.slice(4)+' 网页版]', opts)
     }
     // 本地 mock：用 canvas 生成占位图，保证无 Key 也能演示
@@ -1974,7 +2218,7 @@ const pPost=mkPanel('post', `
         if(ref) fd.append('image', dataUrlToBlob(ref), 'reference.png')
         const r=await fetch(endpoint,{ method:'POST', headers:{ 'Authorization':'Bearer '+preset.apiKey, 'Accept':'image/*' }, body:fd })
         if(!r.ok) throw new Error('第三方('+label+') '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-        const blob=await r.blob(); return URL.createObjectURL(blob)
+        const blob=await r.blob(); const u=URL.createObjectURL(blob); revokeSoon(u); return u
       }
       // OpenAI 兼容 / SiliconFlow 风格
       if(ref){
@@ -2010,7 +2254,7 @@ const pPost=mkPanel('post', `
       let r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) })
       if(r.status===400||r.status===422){ delete body.response_format; r=await fetch('https://api.openai.com/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify(body) }) }
       if(!r.ok) throw new Error('OpenAI '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-      const j=await r.json(); const url=j.data?.[0]?.url || j.data?.[0]?.b64_json && ('data:image/png;base64,'+j.data[0].b64_json)
+      const j=await r.json(); const b64=j.data?.[0]?.b64_json; const url=j.data?.[0]?.url || (b64 ? ('data:image/png;base64,'+b64) : null)
       if(!url) throw new Error('OpenAI 未返回图片')
       return await toLocalBlobUrl(url)
     }
@@ -2020,7 +2264,7 @@ const pPost=mkPanel('post', `
       if(ref) fd.append('image', dataUrlToBlob(ref), 'reference.png')
       const r=await fetch('https://api.stability.ai/v2beta/stable-image/generate/sd3',{ method:'POST', headers:{ 'Authorization':'Bearer '+key, 'Accept':'image/*' }, body:fd })
       if(!r.ok) throw new Error('Stability '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-      const blob=await r.blob(); return URL.createObjectURL(blob)
+      const blob=await r.blob(); const u=URL.createObjectURL(blob); revokeSoon(u); return u
     }
     if(provider==='siliconflow'){
       const key=keys.siliconflow
@@ -2057,6 +2301,135 @@ function mockImage(prompt:string, opts:any): string {
     g.fillStyle='rgba(255,255,255,0.6)'; g.font='11px monospace'; g.fillText((opts.view||'')+' · '+ (opts.style||'')+' · 本地演示',256,500)
     return c.toDataURL('image/png')
   }
+
+  // ---- Physics preset + AutoTile ----
+  ;(()=>{
+    const typeEl=pPreset.querySelector('#phys-type') as HTMLSelectElement
+    const nameEl=pPreset.querySelector('#phys-name') as HTMLInputElement
+    const shapeEl=pPreset.querySelector('#phys-shape') as HTMLSelectElement
+    const layerEl=pPreset.querySelector('#phys-layer') as HTMLInputElement
+    const maskEl=pPreset.querySelector('#phys-mask') as HTMLInputElement
+    const massEl=pPreset.querySelector('#phys-mass') as HTMLInputElement
+    const vxEl=pPreset.querySelector('#phys-vx') as HTMLInputElement
+    const vyEl=pPreset.querySelector('#phys-vy') as HTMLInputElement
+    const gravEl=pPreset.querySelector('#phys-gravity') as HTMLInputElement
+
+    function buildPhysicsTSCN(): string {
+      const type=typeEl.value, name=nameEl.value||'Player', shape=shapeEl.value
+      const layer=parseInt(layerEl.value)||1, mask=parseInt(maskEl.value)||1
+      const mass=parseFloat(massEl.value)||1.0
+      const vx=parseFloat(vxEl.value)||0, vy=parseFloat(vyEl.value)||0
+      const grav=parseFloat(gravEl.value)||1.0
+      const safe=name.replace(/[^a-zA-Z0-9_]/g,'_')
+      const shapes:Record<string,string>={ capsule:'CapsuleShape2D', circle:'CircleShape2D', rect:'RectangleShape2D', convex:'ConvexPolygonShape2D' }
+      const s2d:Record<string,string>={ capsule:'CollisionShape2D', circle:'CollisionShape2D', rect:'CollisionShape2D', convex:'CollisionShape2D' }
+      const lines=[
+        '[gd_scene load_steps=2 format=3]',
+        '',
+        '[node name="'+safe+'" type="'+typeEl.options[typeEl.selectedIndex].text.replace(/.*\(/,'').replace(')','')+'"]',
+      ]
+      if(type==='char') lines.push('max_fall_speed = 1000.0')
+      else if(type==='rigid'){ lines.push('mass = '+mass); lines.push('gravity_scale = '+grav) }
+      lines.push('collision_layer = '+layer)
+      lines.push('collision_mask = '+mask)
+      lines.push('')
+      lines.push('[node name="Collision" type="'+s2d[shape]+'" parent="."]')
+      lines.push('shape = SubResource("'+shapes[shape]+'")')
+      lines.push('')
+      lines.push('[sub_resource type="'+shapes[shape]+'" id="'+shapes[shape]+'"]')
+      if(shape==='capsule') lines.push('radius = 16.0\nheight = 32.0')
+      else if(shape==='circle') lines.push('radius = 16.0')
+      else if(shape==='rect') lines.push('size = Vector2(32, 32)')
+      else if(shape==='convex') lines.push('points = PackedVector2Array(Vector2(-16, -16), Vector2(16, -16), Vector2(16, 16), Vector2(-16, 16))')
+      return lines.join('\n')
+    }
+    function buildPhysicsGD(): string {
+      const type=typeEl.value, name=nameEl.value||'Player', safe=name.replace(/[^a-zA-Z0-9_]/g,'_')
+      if(type==='char') return 'extends CharacterBody2D\n\nfunc _ready() -> void:\n    pass\n\nfunc _physics_process(delta: float) -> void:\n    pass\n'
+      if(type==='rigid') return 'extends RigidBody2D\n\nfunc _ready() -> void:\n    pass\n'
+      return 'extends StaticBody2D\n'
+    }
+    pPreset.querySelector('#phys-export')!.addEventListener('click',()=>{
+      const tcn=buildPhysicsTSCN()
+      const blob=new Blob([tcn],{type:'text/plain'})
+      downloadBlob(blob, 'physics_'+Date.now()+'.tscn')
+      toast(pPreset.querySelector('#keys-status') as HTMLElement,'物理场景已导出 .tscn', true)
+    })
+    pPreset.querySelector('#phys-export-gd')!.addEventListener('click',()=>{
+      const gd=buildPhysicsGD()
+      downloadBlob(new Blob([gd],{type:'text/plain'}), 'physics_body.gd')
+      toast(pPreset.querySelector('#keys-status') as HTMLElement,'Godot 脚本已导出 .gd', true)
+    })
+  })()
+
+  // ---- AutoTile bitmask recognizer ----
+  ;(()=>{
+    const drop=pPreset.querySelector('#at-drop') as HTMLElement
+    const fileInput=pPreset.querySelector('#at-file') as HTMLInputElement
+    const runBtn=pPreset.querySelector('#at-run') as HTMLButtonElement
+    const exportBtn=pPreset.querySelector('#at-export') as HTMLButtonElement
+    const status=pPreset.querySelector('#at-status') as HTMLElement
+    const preview=pPreset.querySelector('#at-preview') as HTMLElement
+    const info=pPreset.querySelector('#at-info') as HTMLElement
+    let loadedTile:HTMLImageElement|null=null
+    let analyzed=false
+
+    drop.addEventListener('click',()=>fileInput.click())
+    drop.addEventListener('dragover',(e:any)=>{ e.preventDefault(); drop.style.borderColor='var(--accent)' })
+    drop.addEventListener('dragleave',()=>{ drop.style.borderColor='' })
+    drop.addEventListener('drop',(e:any)=>{ e.preventDefault(); drop.style.borderColor=''; const f=e.dataTransfer?.files?.[0]; if(f) loadTileFile(f) })
+    fileInput.addEventListener('change',()=>{ const f=fileInput.files?.[0]; if(f) loadTileFile(f) })
+
+    function loadTileFile(f:File){
+      const reader=new FileReader()
+      reader.onload=()=>{ const img=new Image(); img.onload=()=>{ loadedTile=img; analyzed=false; preview.innerHTML=''; const mk=document.createElement('canvas'); mk.width=img.naturalWidth; mk.height=img.naturalHeight; const g=mk.getContext('2d')!; g.drawImage(img,0,0); preview.innerHTML=''; preview.appendChild(mk); mk.style.maxWidth='100%'; mk.style.imageRendering='pixelated'; status.textContent='已加载 '+img.naturalWidth+'×'+img.naturalHeight; status.style.color='var(--ok)'; exportBtn.disabled=true; info.textContent='' }; img.src=reader.result as string }
+      reader.readAsDataURL(f)
+    }
+
+    function analyzeBitmask(): string {
+      if(!loadedTile) return ''
+      const w=loadedTile.naturalWidth, h=loadedTile.naturalHeight
+      const c=document.createElement('canvas'); c.width=w; c.height=h
+      const g=c.getContext('2d')!; g.drawImage(loadedTile,0,0)
+      const data=g.getImageData(0,0,w,h).data
+      // 瓦片大小假设为 48x48（或自动检测）
+      const tileSize=Math.min(w,h)
+      const cols=Math.round(w/tileSize), rows=Math.round(h/tileSize)
+      const getAlpha=(tx:number,ty:number):boolean=>{
+        const sx=Math.min(tx*tileSize,w-1), sy=Math.min(ty*tileSize,h-1)
+        return data[(sy*sx)*4+3]>10
+      }
+      // Godot 4 AutoTile bitmask (47-tile pattern)
+      // bit 0=top, bit 1=top-right, bit 2=right, bit 3=bottom-right, bit 4=bottom, bit 5=bottom-left, bit 6=left, bit 7=top-left
+      function tileMask(tx:number,ty:number):number{ let m=0; const t=getAlpha(tx,ty-1),tr=getAlpha(tx+1,ty-1),r=getAlpha(tx+1,ty),br=getAlpha(tx+1,ty+1),b=getAlpha(tx,ty+1),bl=getAlpha(tx-1,ty+1),l=getAlpha(tx-1,ty),tl=getAlpha(tx-1,ty-1); if(t||tr||tl) m|=1; if(tr||r||br) m|=2; if(r||br||l) m|=4; if(br||b||bl) m|=8; if(b||bl||br) m|=16; if(bl||l||tl) m|=32; if(l||tl||t) m|=64; if(tl||t||tr) m|=128; return m }
+      const bitmaskNames:Record<string,string>={}
+      let bitsSummary='已识别 '+cols+'×'+rows+' 瓦片，bitmask 分布:\n'
+      const seen=new Map<number,number>()
+      for(let ty=0;ty<rows;ty++) for(let tx=0;tx<cols;tx++){ const m=tileMask(tx,ty); seen.set(m,(seen.get(m)||0)+1); bitmaskNames[m]=(bitmaskNames[m]||'')+'('+tx+','+ty+')' }
+      for(const [m,count] of seen){ bitsSummary+='Bitmask '+(m>>>0)+': '+count+'个 '+bitmaskNames[m]+'\n' }
+      return bitsSummary
+    }
+
+    runBtn.addEventListener('click',()=>{
+      if(!loadedTile){ status.textContent='请先上传瓦片图'; status.style.color='var(--err)'; return }
+      const result=analyzeBitmask()
+      status.textContent='分析完成'; status.style.color='var(--ok)'
+      info.textContent=result.split('\n').slice(0,4).join('\n')
+      exportBtn.disabled=false; analyzed=true
+    })
+
+    exportBtn.addEventListener('click',()=>{
+      if(!loadedTile) return
+      const w=loadedTile.naturalWidth, h=loadedTile.naturalHeight
+      const tileSize=Math.min(w,h)
+      const cols=Math.round(w/tileSize)
+      const safeName='AutoTile_'+Date.now()
+      const tres=`[gd_resource type="TileSet" load_steps=2 format=3]\n\n[ext_resource type="Texture2D" path="res://tiles/autotile.png" id="1"]\n\n[resource]\ntile_size = Vector2i(${tileSize}, ${tileSize})\n# ${cols} 列, ${Math.round(h/tileSize)} 行\n`
+      downloadBlob(new Blob([tres],{type:'text/plain'}), safeName+'.tres')
+      downloadUrl(loadedTile.src, safeName+'_source.png')
+      status.textContent='已导出 TileSet.tres + 源图 PNG（拖入 Godot 即可使用）'; status.style.color='var(--ok)'
+    })
+  })()
 
   // ---- Character logic ----
   ;(()=>{
@@ -2119,6 +2492,17 @@ function mockImage(prompt:string, opts:any): string {
       }catch(e:any){
         toast(status,'送至序列帧失败：'+String(e.message||e).slice(0,80), false)
       }
+    })
+    // 🎮 导出角色场景：生成 Godot CharacterBody2D + SpriteFrames + 动画脚本
+    pChar.querySelector('#c-export-scene')!.addEventListener('click', async ()=>{
+      if(!lastUrl){ toast(status,'请先生成角色',false); return }
+      const view=(pChar.querySelector('#c-view') as HTMLSelectElement)?.value||'single'
+      const godotScript=`extends CharacterBody2D\n\n@onready var sprite: Sprite2D = $Sprite2D\n@onready var anim: AnimationPlayer = $AnimationPlayer\n\nfunc _ready():\n    anim.play("idle")\n\nfunc _physics_process(delta: float) -> void:\n    var dir := Input.get_axis("ui_left", "ui_right")\n    if dir != 0:\n        velocity.x = dir * (300.0 if Input.is_action_pressed("ui_accept") else 150.0)\n        sprite.flip_h = dir < 0\n        if anim.current_animation != "run": anim.play("walk" if abs(velocity.x) < 200 else "run")\n    else:\n        velocity.x = move_toward(velocity.x, 0, 20)\n        if anim.current_animation != "idle": anim.play("idle")\n    move_and_slide()\n`
+      const tcn=`[gd_scene load_steps=2 format=3]\n\n[ext_resource type="Script" path="res://characters/player.gd" id="1"]\n\n[node name="Player" type="CharacterBody2D"]\nscript = ExtResource("1")\n\n[node name="Sprite2D" type="Sprite2D" parent="."]\nposition = Vector2(0, -16)\n\n[node name="AnimationPlayer" type="AnimationPlayer" parent="."]\nanims/idle = SubResource("IdleAnim")\nanims/walk = SubResource("WalkAnim")\n\n[sub_resource type="Animation" id="IdleAnim"]\nresource_name = "idle"\nlength = 0.4\nloop = true\ntracks/0/type = "value"\ntracks/0/imported = false\ntracks/0/enabled = true\ntracks/0/path = NodePath("Sprite2D:frame")\ntracks/0/interp = 1\ntracks/0/loop_wrap = true\ntracks/0/keys = {\n"times": PackedFloat32Array(0, 0.2),\n"transitions": PackedFloat32Array(1, 1),\n"update": 1,\n"values": [0, 0]\n}\n\n[sub_resource type="Animation" id="WalkAnim"]\nresource_name = "walk"\nlength = 0.2\nloop = true\ntracks/0/type = "value"\ntracks/0/imported = false\ntracks/0/enabled = true\ntracks/0/path = NodePath("Sprite2D:frame")\ntracks/0/interp = 1\ntracks/0/loop_wrap = true\ntracks/0/keys = {\n"times": PackedFloat32Array(0, 0.1),\n"transitions": PackedFloat32Array(1, 1),\n"update": 1,\n"values": [0, 1]\n}\n`
+      const gdBlob=new Blob([godotScript],{type:'text/plain'})
+      downloadBlob(new Blob([tcn],{type:'text/plain'}),'player_scene.tscn')
+      setTimeout(()=>downloadBlob(gdBlob,'player.gd'),300)
+      toast(status,'已导出角色场景 + player.gd（'+view+',含 idle/walk 动画），拖入 Godot 即可运行',true)
     })
     // ⚡ 一键流水线：角色 → 序列帧 → 切片 → 打包 → 导出 SpriteFrames（一次跑完）
     pChar.querySelector('#c-to-sheet-auto')!.addEventListener('click', async ()=>{
@@ -2322,44 +2706,6 @@ function mockImage(prompt:string, opts:any): string {
       const dw=f.width*s, dh=f.height*s
       g.drawImage(f, (W-dw)>>1, (H-dh)>>1, dw, dh)
     }
-    // 自动清除邻帧/杂散渗漏与半透明残影：保留最大主体，清除半透明流光/鬼影及与主体不相交的独立块。
-    // 主体永远不清除——彻底避免把大块残影误当主体、反而删掉角色。
-    function cleanFrameBleed(cvs:HTMLCanvasElement){
-      const W=cvs.width, H=cvs.height, N=W*H
-      if(N<1) return
-      const g=cvs.getContext('2d')!; const img=g.getImageData(0,0,W,H); const d=img.data
-      // ① 先把半透明残影(alpha<96)真正清成透明——它们不成块、也不会被误当主体
-      let changed=false
-      for(let i=0;i<N;i++){ const a=d[i*4+3]; if(a>0 && a<96){ d[i*4+3]=0; changed=true } }
-      // ② 对"实心"像素做连通域：只保留最大主体，清除与主体包围盒不相交的独立块
-      const op=new Uint8Array(N)
-      for(let i=0;i<N;i++) op[i]=d[i*4+3]>=96?1:0
-      const label=new Int32Array(N).fill(-1)
-      const sizes:number[]=[]; const stack:number[]=[]; const bbox:{minX:number;minY:number;maxX:number;maxY:number}[]=[]; let comps=0
-      const near=(p:number)=>{ const x=p%W, y=(p/W)|0; const q:number[]=[]
-        if(x>0)q.push(p-1); if(x<W-1)q.push(p+1); if(y>0)q.push(p-W); if(y<H-1)q.push(p+W); return q }
-      for(let s=0;s<N;s++){
-        if(!op[s]||label[s]!==-1) continue
-        const cid=comps++; let sz=0; let minX=W,minY=H,maxX=0,maxY=0
-        stack.length=0; stack.push(s); label[s]=cid
-        while(stack.length){
-          const p=stack.pop()!; const x=p%W, y=(p/W)|0; sz++
-          if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y
-          for(const q of near(p)) if(op[q]&&label[q]===-1){ label[q]=cid; stack.push(q) }
-        }
-        sizes.push(sz); bbox.push({minX,minY,maxX,maxY})
-      }
-      if(comps>1){
-        let main=0; for(let i=1;i<comps;i++) if(sizes[i]>sizes[main]) main=i
-        const mb=bbox[main]
-        const intersects=(a:{minX:number;minY:number;maxX:number;maxY:number})=> a.minX<=mb.maxX && a.maxX>=mb.minX && a.minY<=mb.maxY && a.maxY>=mb.minY
-        for(let s=0;s<N;s++){
-          const cid=label[s]
-          if(cid!==-1 && cid!==main && !intersects(bbox[cid])){ const i=s*4; if(d[i+3]!==0){ d[i+3]=0; changed=true } }
-        }
-      }
-      if(changed) g.putImageData(img,0,0)
-    }
     function zoomPreview(){
       if(!frames.length) return toast(status,'无帧可播放',false)
       const ov=document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px'
@@ -2375,7 +2721,7 @@ function mockImage(prompt:string, opts:any): string {
     }
 
     async function sliceFromFile(file:File, presetGrid?:[number,number]){
-      const url=URL.createObjectURL(file); const img=await loadImage(url)
+      const url=URL.createObjectURL(file); const img=await loadImage(url); revokeSoon(url) // 已绘制到 canvas，blob URL 可释放
       // 智能切分：自动检测行列；若提供了「序列布局」则直接按该网格切分（不再用检测覆盖）
       let grid:any
       if(presetGrid){
@@ -2510,7 +2856,7 @@ function mockImage(prompt:string, opts:any): string {
         animations=[{ name:'default', frames: frames.map((_,i)=>i), speed:fps }]
       }
       const mf={ meta:{ image:'spritesheet.png', size:[packCanvas.width, packCanvas.height], frames:frames.length, cols:perRow, rows:Math.max(1,Math.ceil(frames.length/perRow)), animation_mode: dirRows?'directional':'single' }, frames: frameList, godot:{ type:'SpriteFrames', animations } }
-      const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=url; b.download='SpriteFrames.json'; b.click()
+      const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); downloadBlob(blob,'SpriteFrames.json')
       // Godot 原生 .tres：引用同目录同名 PNG,拖入项目即可用（零手动配置）
       const at=document.createElement('a'); at.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildSpriteFramesTres(pngName, perRow, animations, w, h)); at.download='SpriteFrames_'+ts+'.tres'; at.click()
       pushHistory({ kind:'export', what:'spritesheet', at:Date.now() })
@@ -2559,6 +2905,46 @@ function mockImage(prompt:string, opts:any): string {
       }
     })
   })()
+  // 自动清除邻帧/杂散渗漏与半透明残影：保留最大主体，清除半透明流光/鬼影及与主体不相交的独立块。
+  // 主体永远不清除——彻底避免把大块残影误当主体、反而删掉角色。
+  // 注：原本是 sheet 模块 IIFE 内部的局部函数，导致 seq / pipe 模块里的"框选分离"和"流水线去背"都拿不到而抛 `cleanFrameBleed is not defined`。
+  // 提到 buildStudio 顶层(同 cropToContent / packRow / removeBackground 等工具函数一处),三个模块共用同一份实现,行为完全一致。
+  const cleanFrameBleed=(cvs:HTMLCanvasElement)=>{
+    const W=cvs.width, H=cvs.height, N=W*H
+    if(N<1) return
+    const g=cvs.getContext('2d')!; const img=g.getImageData(0,0,W,H); const d=img.data
+    // ① 先把半透明残影(alpha<96)真正清成透明——它们不成块、也不会被误当主体
+    let changed=false
+    for(let i=0;i<N;i++){ const a=d[i*4+3]; if(a>0 && a<96){ d[i*4+3]=0; changed=true } }
+    // ② 对"实心"像素做连通域：只保留最大主体，清除与主体包围盒不相交的独立块
+    const op=new Uint8Array(N)
+    for(let i=0;i<N;i++) op[i]=d[i*4+3]>=96?1:0
+    const label=new Int32Array(N).fill(-1)
+    const sizes:number[]=[]; const stack:number[]=[]; const bbox:{minX:number;minY:number;maxX:number;maxY:number}[]=[]; let comps=0
+    const near=(p:number)=>{ const x=p%W, y=(p/W)|0; const q:number[]=[]
+      if(x>0)q.push(p-1); if(x<W-1)q.push(p+1); if(y>0)q.push(p-W); if(y<H-1)q.push(p+W); return q }
+    for(let s=0;s<N;s++){
+      if(!op[s]||label[s]!==-1) continue
+      const cid=comps++; let sz=0; let minX=W,minY=H,maxX=0,maxY=0
+      stack.length=0; stack.push(s); label[s]=cid
+      while(stack.length){
+        const p=stack.pop()!; const x=p%W, y=(p/W)|0; sz++
+        if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y
+        for(const q of near(p)) if(op[q]&&label[q]===-1){ label[q]=cid; stack.push(q) }
+      }
+      sizes.push(sz); bbox.push({minX,minY,maxX,maxY})
+    }
+    if(comps>1){
+      let main=0; for(let i=1;i<comps;i++) if(sizes[i]>sizes[main]) main=i
+      const mb=bbox[main]
+      const intersects=(a:{minX:number;minY:number;maxX:number;maxY:number})=> a.minX<=mb.maxX && a.maxX>=mb.minX && a.minY<=mb.maxY && a.maxY>=mb.minY
+      for(let s=0;s<N;s++){
+        const cid=label[s]
+        if(cid!==-1 && cid!==main && !intersects(bbox[cid])){ const i=s*4; if(d[i+3]!==0){ d[i+3]=0; changed=true } }
+      }
+    }
+    if(changed) g.putImageData(img,0,0)
+  }
   // ---- 单帧动画工作区（分治策略）----
   ;(()=>{
     const promptsEl= pSeq.querySelector('#q-prompts') as HTMLTextAreaElement
@@ -2662,9 +3048,7 @@ function mockImage(prompt:string, opts:any): string {
       if(!list.length) return toast(status,'无帧可合成 GIF',false)
       const fps=parseInt(fpsEl.value)||8
       const blob=buildGif(list, fps, true)
-      const url=URL.createObjectURL(blob)
-      const a=document.createElement('a'); a.href=url; a.download='animation_'+Date.now()+'.gif'; a.click()
-      setTimeout(()=>URL.revokeObjectURL(url), 5000)
+      downloadBlob(blob,'animation_'+Date.now()+'.gif')
       toast(status,'已合成并下载 GIF（'+list.length+' 帧 @ '+fps+' FPS）', true)
     })
 
@@ -2690,9 +3074,9 @@ function mockImage(prompt:string, opts:any): string {
       const fw=list[0].width, fh=list[0].height, fps=parseInt(fpsEl.value)||8, perRow=list.length
       const animations=[{ name:'default', frames:list.map((_,i)=>i), speed:fps, loop:true }]
       const mf={ meta:{ image:pngName, size:[sheet.width,sheet.height], frames:list.length, cols:perRow, rows:1, animation_mode:'single' }, frames:list.map((_,i)=>({ name:'frame_'+i, region:[i*fw,0,fw,fh], duration:1/fps })), godot:{ type:'SpriteFrames', animations } }
-      const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const bu=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=bu; b.download='SpriteFrames.json'; b.click()
+      const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const bu=URL.createObjectURL(blob); const b=document.createElement('a'); b.href=bu; b.download='SpriteFrames.json'; b.click(); revokeSoon(bu, 5000)
       const at=document.createElement('a'); at.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildSpriteFramesTres(pngName, perRow, animations, fw, fh)); at.download='SpriteFrames_'+ts+'.tres'; at.click()
-      const gifBlob=buildGif(list, fps, true); const gu=URL.createObjectURL(gifBlob); const g=document.createElement('a'); g.href=gu; g.download='animation_'+ts+'.gif'; g.click(); setTimeout(()=>{URL.revokeObjectURL(bu);URL.revokeObjectURL(gu)},5000)
+      const gifBlob=buildGif(list, fps, true); downloadBlob(gifBlob,'animation_'+ts+'.gif')
       pushHistory({ kind:'spritesheet', file:'seqframe', cols:perRow, rows:1, count:list.length })
       toast(status,'已导出 PNG + SpriteFrames.json/.tres + GIF（'+list.length+' 帧）', true)
     })
@@ -2885,13 +3269,13 @@ function mockImage(prompt:string, opts:any): string {
         rawFrames=[]
         // 第1步 切割
         if(mode==='sheet' && importedFiles.length===1){
-          const img=await loadImage(URL.createObjectURL(importedFiles[0]))
+          const u=URL.createObjectURL(importedFiles[0]); const img=await loadImage(u); revokeSoon(u)
           const sheetImg=imgToCanvas(img)
           const boxes=autoBoxProjection(sheetImg)
           rawFrames=boxes.map(r=> cropSheet(sheetImg, r))
           status.textContent='整表自动切分：'+rawFrames.length+' 帧。'
         } else {
-          for(const f of importedFiles){ const img=await loadImage(URL.createObjectURL(f)); rawFrames.push(imgToCanvas(img)) }
+          for(const f of importedFiles){ const u=URL.createObjectURL(f); const img=await loadImage(u); revokeSoon(u); rawFrames.push(imgToCanvas(img)) }
           status.textContent='多张单帧：'+rawFrames.length+' 帧。'
         }
         setProg(30)
@@ -3090,6 +3474,7 @@ function mockImage(prompt:string, opts:any): string {
       canvas.width=img.naturalWidth||img.width; canvas.height=img.naturalHeight||img.height
       const g=canvas.getContext('2d')!; g.drawImage(img,0,0); originalData=g.getImageData(0,0,canvas.width,canvas.height)
       orig.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; im.style.maxHeight='130px'; orig.appendChild(im)
+      revokeSoon(url, 8000) // 8s 后释放，足够预览渲染完成
       result.innerHTML='<span class="gas-note">等待抠图…</span>'
       im.style.cursor = modeEl.value==='wand' ? 'crosshair' : 'pointer'
       im.onclick=(e)=>{
@@ -3296,7 +3681,8 @@ function mockImage(prompt:string, opts:any): string {
         const r=await fetch('https://api.replicate.com/v1/models/cjwbw/rembg/predictions',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+keys.replicate }, body:JSON.stringify({ input: { image: dataUrl } }) })
         if(!r.ok) throw new Error('Replicate '+r.status+': '+await r.text().then(t=>t.slice(0,120)))
         const pred=await r.json()
-        for(let i=0;i<40;i++){
+        const MAX_WAIT=90 // 秒，超时则回退本地抠图
+        for(let i=0;i<MAX_WAIT;i++){
           await new Promise(res=>setTimeout(res,1000))
           const pr=await fetch(pred.urls?.get,{ headers:{ 'Authorization':'Bearer '+keys.replicate } })
           const pj=await pr.json()
@@ -3304,14 +3690,15 @@ function mockImage(prompt:string, opts:any): string {
             const outUrl=Array.isArray(pj.output)?pj.output[0]:pj.output
             const img=new Image(); img.crossOrigin='anonymous'; img.src=outUrl; await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej })
             canvas.width=img.naturalWidth; canvas.height=img.naturalHeight; const g=canvas.getContext('2d')!; g.drawImage(img,0,0)
-            renderResult(); toast(status,'AI 抠图完成')
+            renderResult(); toast(status,'AI 抠图完成 ✓')
             return
           }
-          if(pj.status==='failed') throw new Error('Replicate 处理失败')
+          if(pj.status==='failed') throw new Error('Replicate 处理失败（'+(pj.error||'').slice(0,60)+'）')
+          if(i%10===0 && i>0) toast(status,'AI 抠图中…('+(i)+'s/'+MAX_WAIT+'s)，请稍候', true)
         }
-        throw new Error('AI 抠图超时')
+        throw new Error('AI 抠图等待超 ' + MAX_WAIT + ' 秒（网络慢或模型排队中），已自动切换本地智能抠图')
       }catch(e:any){
-        toast(status,'AI 抠图失败，已回退本地智能抠背景：'+String(e.message||e).slice(0,80), false)
+        toast(status,'AI 抠图失败，已回退本地智能抠背景：'+String(e.message||e).slice(0,100), false)
         doAuto()
       }
     }
@@ -3369,7 +3756,7 @@ function mockImage(prompt:string, opts:any): string {
     function applyBigZoom(){ if(!bigImg || !bigImg.src) return; const nw=parseInt(bigImg.dataset.naturalWidth||'2048'); bigImg.style.width=Math.floor(nw*bigZoom)+'px'; bigImg.style.height='auto' }
     function setBigMap(src:string,w:number,h:number){ bigMapUrl=src; bigImg.src=src; bigImg.style.display='block'; bigImg.dataset.naturalWidth=String(w); bigImg.dataset.naturalHeight=String(h); if(bigEmpty) bigEmpty.style.display='none'; fitBigMap() }
 
-    fileInput.addEventListener('change', async()=>{ const f=fileInput.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); const img=await loadImg(url); showPreview(img,true) })
+    fileInput.addEventListener('change', async()=>{ const f=fileInput.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); const img=await loadImg(url); showPreview(img,true); revokeSoon(url, 8000) })
 
     pMap.querySelector('#map-ref')!.addEventListener('change', (e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
@@ -3483,9 +3870,8 @@ function mockImage(prompt:string, opts:any): string {
       const tsUrl=ts.toDataURL('image/png')
       const json:any={ godot:'TileSet', tile_size:tileSize, columns:cols, rows:rows, image:'tileset.png', tiles:[] }
       for(let i=0;i<cols*rows;i++) json.tiles.push({ id:i, region:[(i%cols)*tileSize, Math.floor(i/cols)*tileSize, tileSize, tileSize], collision:false })
-      const jblob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'}); const jurl=URL.createObjectURL(jblob)
       const ts3=Date.now()
-      downloadDataUrl(tsUrl,'tileset_'+ts3+'.png'); downloadDataUrl(jurl,'TileSet.json')
+      downloadDataUrl(tsUrl,'tileset_'+ts3+'.png'); downloadBlob(new Blob([JSON.stringify(json,null,2)],{type:'application/json'}),'TileSet.json')
       // Godot 原生 .tres：引用同目录 tileset PNG,拖入即用
       const t3=document.createElement('a'); t3.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildTileSetTres('tileset_'+ts3+'.png', cols, rows, tileSize)); t3.download='TileSet_'+ts3+'.tres'; t3.click()
       toast(status,'已切成 TileSet：'+cols+'×'+rows+'（'+ts.width+'×'+ts.height+'）+ TileSet.tres（PNG 同目录拖入 Godot 即用）', true)
@@ -3527,7 +3913,7 @@ function mockImage(prompt:string, opts:any): string {
     function loadImage(src:string):Promise<HTMLImageElement>{ return new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src }) }
 
     async function handleFile(file:File){
-      const url=URL.createObjectURL(file); loadedImg=await loadImage(url)
+      const url=URL.createObjectURL(file); loadedImg=await loadImage(url); revokeSoon(url, 8000)
       preview.innerHTML=''; const im=document.createElement('img'); im.src=url; im.style.maxWidth='100%'; im.style.maxHeight='180px'; preview.appendChild(im)
       resultUrl=''; dlBtn.disabled=true; toast(status,'已上传，选择操作后点「执行」')
     }
@@ -3582,6 +3968,32 @@ function mockImage(prompt:string, opts:any): string {
           const target=Math.max(1, parseInt(paramEl.value)||64)
           canvas.width=target; canvas.height=Math.max(1, Math.round(h*target/w)); const g2=canvas.getContext('2d')!; g2.imageSmoothingEnabled=false; g2.clearRect(0,0,target,canvas.height); g2.drawImage(loadedImg,0,0,target,canvas.height)
           toast(status,'尺寸调整完成 → '+canvas.width+'×'+canvas.height, true)
+        } else if(op==='9patch'){
+          // 9-patch: UI 面板九宫格 + 生成 Godot StyleBoxTexture 资源
+          const imgData=g.getImageData(0,0,w,h); const d=imgData.data
+          // 自动检测:第一行/第一列的黑色像素 = stretch 区
+          let stretchTop=0, stretchLeft=0
+          outer: for(let y=0;y<h;y++){ for(let x=0;x<w;x++){ const i=(y*w+x)*4; if(d[i]>10||d[i+1]>10||d[i+2]>10){ stretchTop=y; break outer } } }
+          outer: for(let x=0;x<w;x++){ for(let y=0;y<h;y++){ const i=(y*w+x)*4; if(d[i]>10||d[i+1]>10||d[i+2]>10){ stretchLeft=x; break outer } } }
+          // 第二遍检测 stretchBottom/Right (从底部/右部往内)
+          let stretchBottom=h, stretchRight=w
+          outer: for(let y=h-1;y>=0;y--){ for(let x=0;x<w;x++){ const i=(y*w+x)*4; if(d[i]>10||d[i+1]>10||d[i+2]>10){ stretchBottom=y+1; break outer } } }
+          outer: for(let x=w-1;x>=0;x--){ for(let y=0;y<h;y++){ const i=(y*w+x)*4; if(d[i]>10||d[i+1]>10||d[i+2]>10){ stretchRight=x+1; break outer } } }
+          const marginL=stretchLeft, marginR=w-stretchRight, marginT=stretchTop, marginB=h-stretchBottom
+          // 生成 .tres (Godot 4 StyleBoxTexture)
+          const tres=`[gd_resource type="StyleBoxTexture" load_steps=2 format=3]\n\n[ext_resource type="Texture2D" path="res://ui/panel.png" id="1"]\n\n[resource]\ntexture = ExtResource("1")\nregion_rect = Rect2(${stretchLeft}, ${stretchTop}, ${stretchRight-stretchLeft}, ${stretchBottom-stretchTop})\nmargin_left = ${marginL}\nmargin_right = ${marginR}\nmargin_top = ${marginT}\nmargin_bottom = ${marginB}\n`
+          const patchCanvas=document.createElement('canvas'); patchCanvas.width=w; patchCanvas.height=h
+          const pg=patchCanvas.getContext('2d')!; pg.imageSmoothingEnabled=false; pg.drawImage(loadedImg,0,0)
+          const pngData=patchCanvas.toDataURL('image/png')
+          downloadUrl(pngData,'9patch_panel.png')
+          setTimeout(()=>downloadBlob(new Blob([tres],{type:'text/plain'}),'panel_stylebox.tres'),300)
+          canvas.width=w; canvas.height=h; const pg2=canvas.getContext('2d')!; pg2.imageSmoothingEnabled=false; pg2.clearRect(0,0,w,h); pg2.drawImage(loadedImg,0,0)
+          // 在预览上画 9 宫格标记
+          pg2.strokeStyle='rgba(255,100,100,0.7)'; pg2.lineWidth=1; pg2.setLineDash([4,4])
+          pg2.strokeRect(stretchLeft+0.5,0.5,w-stretchLeft-stretchRight-1,stretchTop-0.5)
+          pg2.strokeStyle='rgba(100,100,255,0.7)'
+          pg2.strokeRect(stretchLeft+0.5,stretchBottom+0.5,w-stretchLeft-stretchRight-1,h-stretchBottom-stretchTop-1)
+          toast(status,'9-patch 已导出 PNG + StyleBoxTexture.tres（可调边距: 左'+marginL+' 右'+marginR+' 上'+marginT+' 下'+marginB+'）', true)
         }
         resultUrl=canvas.toDataURL('image/png')
         preview.innerHTML=''; const im=document.createElement('img'); im.src=resultUrl; im.style.maxWidth='100%'; im.style.maxHeight='180px'; im.style.imageRendering='pixelated'; preview.appendChild(im)
@@ -3724,7 +4136,7 @@ function mockImage(prompt:string, opts:any): string {
     const loadImg=(src:string)=>new Promise<HTMLImageElement>((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=src })
     pScene.querySelector('#sc-upload')!.addEventListener('change', async(e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
-      const url=URL.createObjectURL(f); sceneImg=await loadImg(url); toast(status,'场景底图已加载 ✓')
+      const url=URL.createObjectURL(f); sceneImg=await loadImg(url); revokeSoon(url, 8000); toast(status,'场景底图已加载 ✓')
     })
     pScene.querySelector('#sc-gen')!.addEventListener('click', async()=>{
       const prompt=(pScene.querySelector('#sc-prompt') as HTMLInputElement)?.value.trim()
@@ -3746,6 +4158,881 @@ function mockImage(prompt:string, opts:any): string {
       const id=await addToLibrary('scene','场景 '+new Date().toLocaleTimeString()+' '+WEATHER_DB[weather].name, canvas.toDataURL('image/png'))
       toast(status,'已入库 '+id)
     })
+
+    // ===================== 🎮 关卡编辑器 =====================
+    ;(()=>{
+      // ---- 状态 ----
+      type SpriteItem={ id:string, name:string, url:string, w:number, h:number, img?:HTMLImageElement }
+      type PlacedSprite={ id:string, spriteId:string, name:string, url:string, x:number, y:number, w:number, h:number, scale:number, rot:number, opacity:number, locked:boolean, layerId:string, img?:HTMLImageElement, frameCount?:number, frameW?:number, frameH?:number, frame?:number, fps?:number, lastFrameTime?:number }
+      type Layer={ id:string, name:string, visible:boolean, locked:boolean, opacity:number, blendMode:string, color:string, thumbCanvas?:HTMLCanvasElement }
+      type WaterRegion={ id:string, points:[number,number][], animType:'frame'|'particle'|'shader', color:string, speed:number, layerId:string }
+      type ParticleRegion={ id:string, x:number, y:number, w:number, h:number, kind:'fire'|'smoke'|'sparkle'|'rain'|'snow'|'custom', params:Record<string,number>, layerId:string }
+      type EdHistoryEntry={ sprites:PlacedSprite[], layers:Layer[], waters:WaterRegion[], particles:ParticleRegion[], bgUrl:string|null }
+
+      const W=960, H=540
+      const edCanvas=pScene.querySelector('#sc-ed-canvas') as HTMLCanvasElement
+      const edOverlay=pScene.querySelector('#sc-ed-overlay') as HTMLCanvasElement
+      const edCtx=edCanvas.getContext('2d')!
+      const edOverlayCtx=edOverlay.getContext('2d')!
+      let zoom=1, panX=0, panY=0
+      let activeTool='select'
+      let selectedId:string|null=null
+      let dragSprite:PlacedSprite|null=null
+      let dragStartX=0, dragStartY=0, spriteStartX=0, spriteStartY=0
+      let isPanning=false, panStartX=0, panStartY=0, panOriginX=0, panOriginY=0
+      let isDrawing=false, drawColor='#3b62a0', drawSize=16
+      let currentLayerId='layer-default'
+      let bgImage:HTMLImageElement|null=null, bgUrl:string|null=null
+      const sprites:PlacedSprite[]=[]
+      const layers:Layer[]=[{ id:'layer-default', name:'默认图层', visible:true, locked:false, opacity:1, blendMode:'normal', color:'#4a9eff' }]
+      const waters:WaterRegion[]=[]
+      const particles:ParticleRegion[]=[]
+      const history:EdHistoryEntry[]=[]
+      let histIdx=-1
+
+      function snap(v:number,n=4){ return Math.round(v/n)*n }
+      function genId(){ return Math.random().toString(36).slice(2,9) }
+      function pushHist(){
+        histIdx++; history.length=histIdx+1
+        history.push({ sprites:JSON.parse(JSON.stringify(sprites)), layers:JSON.parse(JSON.stringify(layers)), waters:JSON.parse(JSON.stringify(waters)), particles:JSON.parse(JSON.stringify(particles)), bgUrl:bgUrl })
+      }
+
+      // ---- 画布初始化 ----
+      function initCanvas(){
+        edCanvas.width=W; edCanvas.height=H
+        edOverlay.width=W; edOverlay.height=H
+        const wrap=pScene.querySelector('#sc-ed-canvas-wrap') as HTMLElement
+        const wrapW=wrap.clientWidth, wrapH=wrap.clientHeight
+        zoom=Math.min(wrapW/W, wrapH/H)
+        edCanvas.style.width=W*zoom+'px'; edCanvas.style.height=H*zoom+'px'
+        edOverlay.style.width=W*zoom+'px'; edOverlay.style.height=H*zoom+'px'
+        edOverlay.style.cursor='default'
+        render()
+      }
+
+      // ---- 渲染 ----
+      function render(){
+        const ctx=edCtx
+        ctx.clearRect(0,0,W,H)
+        // 背景
+        if(bgImage){ ctx.drawImage(bgImage,0,0,W,H) }
+        else { ctx.fillStyle='#1a2030'; ctx.fillRect(0,0,W,H) }
+        // 水面区域
+        for(const w2 of waters){
+          if(!layers.find(l=>l.id===w2.layerId)?.visible) continue
+          if(w2.animType==='frame'){
+            const t=Date.now()/1000, freq=w2.speed
+            const waveH=3
+            ctx.save()
+            ctx.beginPath()
+            if(w2.points.length>2) { ctx.moveTo(w2.points[0][0],w2.points[0][1]); for(let i=1;i<w2.points.length;i++) ctx.lineTo(w2.points[i][0],w2.points[i][1]); ctx.closePath() }
+            else { ctx.rect(0,0,W,H) }
+            ctx.clip()
+            const imgData=ctx.getImageData(0,0,W,H)
+            const d=imgData.data
+            for(let y=0;y<H;y++){
+              const wave=Math.sin(y*0.05+t*freq)*waveH
+              for(let x=0;x<W;x++){
+                const nx=(x+wave+W)%W, ny=y
+                const ni=(ny*W+nx)*4, oi=(y*W+x)*4
+                d[oi]=d[ni]; d[oi+1]=d[ni+1]; d[oi+2]=d[ni+2]; d[oi+3]=d[ni+3]
+              }
+            }
+            ctx.putImageData(imgData,0,0)
+            ctx.globalAlpha=0.35; ctx.fillStyle=w2.color; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1
+            ctx.restore()
+          } else if(w2.animType==='particle'){
+            drawWaterParticles(ctx, w2)
+          }
+        }
+        // 粒子特效
+        const t=Date.now()/1000
+        for(const p of particles){
+          if(!layers.find(l=>l.id===p.layerId)?.visible) continue
+          drawParticles(ctx, p, t)
+        }
+        // 精灵(按 y 排序)
+        const sorted=[...sprites].sort((a,b)=>a.y-b.y)
+        for(const sp of sorted){
+          if(!layers.find(l=>l.id===sp.layerId)?.visible) continue
+          if(sp.opacity<0.05) continue
+          ctx.save()
+          ctx.globalAlpha=sp.opacity
+          if(sp.rot) ctx.translate(sp.x+sp.w/2, sp.y+sp.h/2), ctx.rotate(sp.rot*Math.PI/180)
+          else ctx.translate(sp.x, sp.y)
+          if(sp.img){
+            if(sp.frameCount && sp.frameCount>1 && sp.frameW && sp.frameH){
+              // 序列帧动画：每帧宽度 frameW，高度 frameH，水平排列
+              const fi=sp.frame||0, sx=fi*sp.frameW
+              ctx.drawImage(sp.img, sx, 0, sp.frameW, sp.frameH, 0, 0, sp.w, sp.h)
+            } else {
+              ctx.drawImage(sp.img, 0, 0, sp.w, sp.h)
+            }
+          }
+          ctx.restore()
+        }
+        renderOverlay()
+      }
+
+      function drawWaterParticles(ctx:CanvasRenderingContext2D, w2:WaterRegion){
+        const t=Date.now()/1000
+        ctx.save()
+        if(w2.points.length>2){ ctx.beginPath(); ctx.moveTo(w2.points[0][0],w2.points[0][1]); for(let i=1;i<w2.points.length;i++) ctx.lineTo(w2.points[i][0],w2.points[i][1]); ctx.closePath(); ctx.clip() }
+        for(let i=0;i<60;i++){
+          const hash=(n:number)=>{ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x) }
+          const px=hash(i)*W, py=(hash(i+50)*H+t*w2.speed*30*(0.5+hash(i+3)))%H
+          const pr=2+hash(i+7)*3
+          ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
+          ctx.fillStyle='rgba(200,230,255,'+(0.3+hash(i+9)*0.5)+')'; ctx.fill()
+        }
+        ctx.restore()
+      }
+
+      function drawParticles(ctx:CanvasRenderingContext2D, p:ParticleRegion, t:number){
+        const hash=(n:number)=>{ let x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x) }
+        const n=Math.round(p.params.amount||30), cx=p.x+p.w/2, cy=p.y+p.h/2
+        ctx.save()
+        if(p.kind==='fire'){
+          for(let i=0;i<n;i++){
+            const px=cx+(hash(i)-0.5)*p.w*0.6
+            const py=cy+t*p.params.speed*20*(0.5+hash(i+3))%p.h - p.h*0.3
+            const pr=3+hash(i+7)*5
+            const alpha=Math.max(0,1-(py-cy+p.h*0.3)/(p.h*0.8))*0.8
+            ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
+            ctx.fillStyle='rgba(255,'+Math.round(100+hash(i)*155)+',0,'+alpha.toFixed(2)+')'; ctx.fill()
+          }
+        } else if(p.kind==='sparkle'){
+          for(let i=0;i<n;i++){
+            const px=cx+(hash(i)-0.5)*p.w, py=cy+(hash(i+50)-0.5)*p.h
+            const pr=1+hash(i+9)*2, tw=0.5+Math.sin(t*3+i*0.7)*0.5
+            ctx.beginPath(); ctx.arc(px,py,pr*tw,0,Math.PI*2)
+            ctx.fillStyle='rgba(255,255,200,'+(0.3+hash(i+8)*0.7)+')'; ctx.fill()
+          }
+        } else if(p.kind==='smoke'){
+          for(let i=0;i<n;i++){
+            const px=cx+(hash(i)-0.5)*p.w*0.5, py=cy-t*p.params.speed*15*(0.5+hash(i+3))%p.h
+            const pr=5+hash(i+7)*10, alpha=0.2+hash(i+5)*0.3
+            ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2)
+            ctx.fillStyle='rgba(150,150,150,'+alpha.toFixed(2)+')'; ctx.fill()
+          }
+        } else {
+          // rain/snow fallback
+          for(let i=0;i<n;i++){
+            const px=(hash(i)*W+t*50*p.params.speed*(0.5+hash(i+3)))%W, py=(hash(i+50)*H+t*30*(0.5+hash(i+1)))%H
+            const pr=p.kind==='rain'?1:2+hash(i+7)*2
+            ctx.beginPath(); ctx.arc(px%p.w+cx-p.w/2,py%p.h+cy-p.h/2,pr,0,Math.PI*2)
+            ctx.fillStyle=p.kind==='rain'?'rgba(180,200,255,0.5)':'rgba(255,255,255,0.7)'; ctx.fill()
+          }
+        }
+        ctx.restore()
+      }
+
+      function renderOverlay(){
+        const ctx=edOverlayCtx
+        ctx.clearRect(0,0,W,H)
+        ctx.save()
+        ctx.scale(zoom,zoom)
+        // 选中高亮
+        if(selectedId){
+          const sp=sprites.find(s=>s.id===selectedId)
+          if(sp){ ctx.strokeStyle='#00e5ff'; ctx.lineWidth=2/zoom; ctx.setLineDash([4/zoom,4/zoom]); ctx.strokeRect(sp.x-2,sp.y-2,sp.w+4,sp.h+4) }
+        }
+        // 水面选区
+        for(const w2 of waters){
+          if(w2.points.length<3) continue
+          ctx.beginPath(); ctx.moveTo(w2.points[0][0],w2.points[0][1])
+          for(let i=1;i<w2.points.length;i++) ctx.lineTo(w2.points[i][0],w2.points[i][1]); ctx.closePath()
+          ctx.strokeStyle='rgba(100,180,255,0.8)'; ctx.lineWidth=2/zoom; ctx.setLineDash([3/zoom,3/zoom]); ctx.stroke()
+        }
+        ctx.restore()
+      }
+
+      // ---- 事件处理 ----
+      function canvasXY(e:MouseEvent){
+        const r=edCanvas.getBoundingClientRect()
+        return { x:(e.clientX-r.left)/zoom, y:(e.clientY-r.top)/zoom }
+      }
+      edCanvas.addEventListener('mousedown',(e: MouseEvent)=>{
+        const {x,y}=canvasXY(e)
+        if(activeTool==='pan'){
+          isPanning=true; panStartX=e.clientX; panStartY=e.clientY; panOriginX=panX; panOriginY=panY; return
+        }
+        if(activeTool==='select'){
+          // 逆序找(最上层先)
+          const found=[...sprites].reverse().find(sp=>{
+            const l=layers.find(l=>l.id===sp.layerId)
+            if(!l?.visible||l.locked) return false
+            return x>=sp.x&&x<=sp.x+sp.w&&y>=sp.y&&y<=sp.y+sp.h
+          })
+          if(found){ selectedId=found.id; dragSprite=found; dragStartX=x; dragStartY=y; spriteStartX=found.x; spriteStartY=found.y }
+          else selectedId=null
+          render(); return
+        }
+        if(activeTool==='water-brush'||activeTool==='land-brush'||activeTool==='eraser'){
+          isDrawing=true; paintAt(x,y); return
+        }
+        if(activeTool==='particle'){
+          // 点击画布添加粒子区域
+          const kind=prompt('粒子类型:\nfire=火焰\nsmoke=烟雾\nsparkle=闪光\nrain=雨\nsnow=雪\n输入类型名:')||'sparkle'
+          const pr={ amount:40, speed:1, size:3 }
+          const p:ParticleRegion={ id:genId(), x:x-32, y:y-32, w:64, h:64, kind:kind as any, params:pr, layerId:currentLayerId }
+          particles.push(p); pushHist()
+          toast(pScene.querySelector('#sc-status') as HTMLElement,'已添加粒子特效: '+kind+'，可在属性面板调整', true)
+          render(); return
+        }
+      })
+
+      // 双击 = 取消选择 / 重置缩放，不要冒泡到全局 preview-click 放大镜
+      edCanvas.addEventListener('dblclick',(e:MouseEvent)=>{
+        e.stopPropagation()
+        // 重置 zoom 到 1
+        if(zoom !== 1){ zoom=1; panX=0; panY=0; applyPan(); }
+        else { selectedId=null; render() }
+      })
+      edOverlay.addEventListener('dblclick',(e:MouseEvent)=>{ e.stopPropagation() })
+      edCanvas.addEventListener('mousemove',(e:MouseEvent)=>{
+        const {x,y}=canvasXY(e)
+        if(isPanning){
+          panX=panOriginX+(e.clientX-panStartX)
+          panY=panOriginY+(e.clientY-panStartY)
+          applyPan(); return
+        }
+        if(dragSprite){
+          const nx=Math.max(0,Math.min(W-dragSprite.w, snap(x-(dragStartX-spriteStartX))))
+          const ny=Math.max(0,Math.min(H-dragSprite.h, snap(y-(dragStartY-spriteStartY))))
+          dragSprite.x=nx; dragSprite.y=ny
+          updatePropsPanel(); render(); return
+        }
+        if(isDrawing){ paintAt(x,y) }
+      })
+      edCanvas.addEventListener('mouseup',()=>{
+        if(isDrawing){ isDrawing=false; pushHist() }
+        if(dragSprite){ dragSprite=null; pushHist() }
+        isPanning=false
+      })
+      edCanvas.addEventListener('dblclick',()=>{
+        if(selectedId){ sprites.splice(sprites.findIndex(s=>s.id===selectedId),1); selectedId=null; render(); pushHist() }
+      })
+      // 滚轮缩放
+      edCanvas.addEventListener('wheel',(e:WheelEvent)=>{
+        e.preventDefault()
+        const z=zoom*(e.deltaY<0?1.1:0.9)
+        zoom=Math.max(0.1,Math.min(4,z))
+        edCanvas.style.width=W*zoom+'px'; edCanvas.style.height=H*zoom+'px'
+        edOverlay.style.width=W*zoom+'px'; edOverlay.style.height=H*zoom+'px'
+        ;(pScene.querySelector('#sc-ed-zoom') as HTMLInputElement).value=String(Math.round(zoom*100))
+        ;(pScene.querySelector('#sc-ed-zoom-label') as HTMLElement).textContent=Math.round(zoom*100)+'%'
+      })
+      function applyPan(){
+        edCanvas.style.transform=`translate(${panX}px,${panY}px)`
+        edOverlay.style.transform=`translate(${panX}px,${panY}px)`
+      }
+
+      // ---- 笔刷绘制 ----
+      function paintAt(x:number,y:number){
+        const size=drawSize
+        const color=activeTool==='eraser'?'#1a2030':activeTool==='water-brush'?'#3b62a0':'#4a7a3a'
+        edCtx.save()
+        if(activeTool==='eraser'){ edCtx.globalCompositeOperation='destination-out'; edCtx.fillStyle='rgba(0,0,0,1)' }
+        else edCtx.fillStyle=color
+        edCtx.beginPath(); edCtx.arc(x,y,size/2,0,Math.PI*2); edCtx.fill()
+        edCtx.restore()
+      }
+
+      // ---- 工具栏 ----
+      pScene.querySelectorAll<HTMLButtonElement>('.sc-ed-tool').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+          activeTool=btn.dataset.tool||'select'
+          edOverlay.style.cursor=activeTool==='pan'?'grab':activeTool==='select'?'default':'crosshair'
+          pScene.querySelectorAll('.sc-ed-tool').forEach(b=>b.classList.remove('active'))
+          if(activeTool!=='select') btn.classList.add('active')
+        })
+      })
+      ;(pScene.querySelector('#sc-ed-brush-size') as HTMLInputElement).addEventListener('input',(e:any)=>{ drawSize=parseInt(e.target.value)||16 })
+
+      // ---- 素材面板加载 ----
+      async function loadSpritePalette(){
+        const pal=pScene.querySelector('#sc-ed-sprite-palette') as HTMLElement
+        pal.innerHTML='<div class="gas-note" style="font-size:10px">加载中...</div>'
+        const items=await getAllAssetItems()
+        pal.innerHTML=''
+        if(!items.length){ pal.innerHTML='<div class="gas-note" style="font-size:10px">暂无素材<br>请先在「素材总管」入库</div>'; return }
+        const shown=items.slice(0,30)
+        for(const item of shown){
+          const btn=document.createElement('button')
+          btn.style.cssText='background:#252a2e;border:1px solid var(--border);border-radius:4px;padding:2px 4px;cursor:grab;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text);width:100%;text-align:left'
+          btn.textContent='🖼 '+item.name.slice(0,12)
+          btn.draggable=true
+          btn.addEventListener('dragstart',(e:DragEvent)=>{
+            e.dataTransfer!.setData('sprite-id',item.id)
+            e.dataTransfer!.setData('sprite-name',item.name)
+            e.dataTransfer!.setData('sprite-url',item.url)
+          })
+          btn.addEventListener('click',()=>{
+            placeSprite(item.url, item.name, W/2-32, H/2-32)
+          })
+          pal.appendChild(btn)
+        }
+      }
+
+      edCanvas.addEventListener('dragover',(e:DragEvent)=>e.preventDefault())
+      edCanvas.addEventListener('drop',(e:DragEvent)=>{
+        e.preventDefault()
+        const name=e.dataTransfer!.getData('sprite-name')
+        const url=e.dataTransfer!.getData('sprite-url')
+        if(!url) return
+        const {x,y}=canvasXY(e as unknown as MouseEvent)
+        placeSprite(url, name, snap(x-32), snap(y-32))
+      })
+
+      function placeSprite(url:string, name:string, x:number, y:number){
+        const img=new Image(); img.crossOrigin='anonymous'
+        img.onload=()=>{
+          const scale=Math.min(64/Math.max(img.width,1), 64/Math.max(img.height,1))
+          const w=Math.round(img.width*scale), h=Math.round(img.height*scale)
+          const sp:PlacedSprite={ id:genId(), spriteId:genId(), name, url, x:Math.max(0,Math.min(W-w,x)), y:Math.max(0,Math.min(H-h,y)), w, h, scale:1, rot:0, opacity:1, locked:false, layerId:currentLayerId, img }
+          sprites.push(sp); selectedId=sp.id
+          render(); updateLayerPanel(); updatePropsPanel(); loadSpritePalette(); pushHist()
+          const edStatus=pScene.querySelector('#sc-status') as HTMLElement
+          if(edStatus) edStatus.textContent='已放置: '+name
+        }
+        img.onerror=()=>{ toast(pScene.querySelector('#sc-status') as HTMLElement,'素材加载失败: '+name,false) }
+        img.src=url
+      }
+
+      // ---- 图层面板 ----
+      function updateLayerPanel(){
+        const panel=pScene.querySelector('#sc-ed-layers') as HTMLElement
+        panel.innerHTML=''
+        const activeId=currentLayerId
+
+        // 底图行（不可拖拽）
+        const bgDiv=document.createElement('div')
+        bgDiv.className='sc-layer-item'
+        bgDiv.style.cssText='margin-bottom:2px;opacity:0.75'
+        bgDiv.innerHTML=`<button class="ly-vis" id="bg-vis-btn" title="显示/隐藏底图">${bgUrl?'👁':'👁‍🗨'}</button>
+          <div class="ly-thumb" style="background:#2a3a2a;font-size:9px">🗺</div>
+          <span class="ly-name" style="cursor:default;font-size:10px;color:var(--muted)">底图${bgUrl?' ✓':' (空)'}</span>`
+        bgDiv.querySelector('#bg-vis-btn')!.addEventListener('click',(e:any)=>{
+          e.stopPropagation()
+          if(bgUrl){ bgUrl=null; bgImage=null } else {
+            const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'
+            inp.onchange=()=>{ const f=inp.files?.[0]; if(!f) return; const u=URL.createObjectURL(f); const img=new Image(); img.onload=()=>{ bgImage=img; bgUrl=u; revokeSoon(u,60000); render(); updateLayerPanel() }; img.src=u }
+            inp.click()
+          }
+          updateLayerPanel()
+        })
+        panel.appendChild(bgDiv)
+
+        // 水面行
+        if(waters.length){
+          const wDiv=document.createElement('div')
+          wDiv.className='sc-layer-item'
+          wDiv.innerHTML=`<button class="ly-vis" title="显示/隐藏水面">💧</button>
+            <div class="ly-thumb" style="background:#1a2a3a;font-size:9px">💧</div>
+            <span class="ly-name" style="cursor:default;font-size:10px">水面 ${waters.length} 区域</span>
+            <span class="ly-sprite-count">${waters.length}🌊</span>`
+          wDiv.addEventListener('click',()=>{ currentLayerId='__water__'; updateLayerPanel() })
+          panel.appendChild(wDiv)
+        }
+
+        // 粒子行
+        if(particles.length){
+          const pDiv=document.createElement('div')
+          pDiv.className='sc-layer-item'
+          pDiv.innerHTML=`<button class="ly-vis" title="显示/隐藏粒子">☄️</button>
+            <div class="ly-thumb" style="background:#1a1a2a;font-size:9px">✨</div>
+            <span class="ly-name" style="cursor:default;font-size:10px">粒子特效 ${particles.length} 个</span>
+            <span class="ly-sprite-count">${particles.length}✨</span>`
+          pDiv.addEventListener('click',()=>{ currentLayerId='__particle__'; updateLayerPanel() })
+          panel.appendChild(pDiv)
+        }
+
+        // 精灵图层（从下到上渲染，所以 reverse）
+        for(const ly of [...layers].reverse()){
+          const isActive=ly.id===activeId
+          const spriteCount=sprites.filter(s=>s.layerId===ly.id).length
+          const div=document.createElement('div')
+          div.className='sc-layer-item'+(isActive?' active':'')
+          div.dataset.layerId=ly.id
+          div.draggable=true
+          div.innerHTML=`
+            <button class="ly-vis ${ly.visible?'':'hidden'}" data-ly-vis="${ly.id}" title="${ly.visible?'隐藏':'显示'}图层">${ly.visible?'👁':'👁‍🗨'}</button>
+            <button class="ly-lock ${ly.locked?'locked':''}" data-ly-lock="${ly.id}" title="${ly.locked?'解锁':'锁定'}图层">${ly.locked?'🔒':'🔓'}</button>
+            <div class="ly-thumb" id="ly-thumb-${ly.id}" style="background:${ly.color}20;border-color:${ly.color}40">${ly.name[0]||'L'}</div>
+            <span class="ly-name" data-ly-name="${ly.id}" title="${ly.name}（双击重命名）">${ly.name}</span>
+            <span class="ly-op" data-ly-op="${ly.id}" title="点击调整透明度">${Math.round(ly.opacity*100)}%</span>
+            <span class="ly-sprite-count">${spriteCount}🖼</span>
+          `
+          // 点击选中图层
+          div.addEventListener('click',(e:any)=>{
+            const t=e.target as HTMLElement
+            if(t.classList.contains('ly-vis')||t.classList.contains('ly-lock')||t.classList.contains('ly-op')) return
+            currentLayerId=ly.id; updateLayerPanel()
+          })
+          // 可见性切换
+          div.querySelector(`[data-ly-vis="${ly.id}"]`)!.addEventListener('click',(e:any)=>{ e.stopPropagation(); ly.visible=!ly.visible; render(); updateLayerPanel() })
+          // 锁定切换
+          div.querySelector(`[data-ly-lock="${ly.id}"]`)!.addEventListener('click',(e:any)=>{ e.stopPropagation(); ly.locked=!ly.locked; updateLayerPanel() })
+          // 双击重命名
+          const nameSpan=div.querySelector(`[data-ly-name="${ly.id}"]`) as HTMLElement
+          nameSpan.addEventListener('dblclick',(e:any)=>{ e.stopPropagation(); startRenameLayer(ly.id) })
+          // 透明度点击 → prompt 调整
+          div.querySelector(`[data-ly-op="${ly.id}"]`)!.addEventListener('click',(e:any)=>{ e.stopPropagation()
+            const v=prompt('图层透明度 0-100:',String(Math.round(ly.opacity*100)))
+            if(v!==null){ ly.opacity=Math.max(0,Math.min(1,+v/100)); render(); updateLayerPanel() }
+          })
+          // 拖拽排序
+          div.addEventListener('dragstart',(e:DragEvent)=>{ e.dataTransfer!.setData('layer-drag',ly.id); div.classList.add('dragging') })
+          div.addEventListener('dragend',()=>{ div.classList.remove('dragging') })
+          div.addEventListener('dragover',(e:DragEvent)=>{ if(e.dataTransfer?.types.includes('layer-drag')){ e.preventDefault(); div.classList.add('drag-over') } })
+          div.addEventListener('dragleave',()=>{ div.classList.remove('drag-over') })
+          div.addEventListener('drop',(e:DragEvent)=>{ e.preventDefault(); div.classList.remove('drag-over')
+            const dragId=e.dataTransfer?.getData('layer-drag'); if(!dragId||dragId===ly.id) return
+            const fromIdx=layers.findIndex(l=>l.id===dragId), toIdx=layers.findIndex(l=>l.id===ly.id)
+            if(fromIdx<0||toIdx<0) return
+            const [moved]=layers.splice(fromIdx,1); layers.splice(toIdx,0,moved)
+            pushHist(); updateLayerPanel()
+          })
+          // 右键菜单
+          div.addEventListener('contextmenu',(e:MouseEvent)=>{ e.preventDefault(); showLayerCtx(e, ly.id) })
+          panel.appendChild(div)
+        }
+
+        // 空状态提示
+        if(!layers.length){
+          panel.innerHTML+='<div style="text-align:center;padding:16px 0;color:var(--muted);font-size:11px">无图层<br><span style="font-size:10px">点 + 新建</span></div>'
+        }
+      }
+
+      function startRenameLayer(id:string){
+        const panel=pScene.querySelector('#sc-ed-layers') as HTMLElement
+        const ly=layers.find(l=>l.id===id); if(!ly) return
+        const nameSpan=panel.querySelector(`[data-ly-name="${id}"]`) as HTMLElement
+        if(!nameSpan) return
+        const inp=document.createElement('input')
+        inp.className='ly-name-input'
+        inp.value=ly.name
+        nameSpan.replaceWith(inp); inp.focus(); inp.select()
+        const commit=()=>{ const v=inp.value.trim(); if(v) ly.name=v; updateLayerPanel(); pushHist() }
+        inp.addEventListener('blur',commit)
+        inp.addEventListener('keydown',(e:any)=>{ if(e.key==='Enter'){ inp.blur() } else if(e.key==='Escape'){ updateLayerPanel() } })
+      }
+
+      let ctxMenuEl:HTMLElement|null=null
+      function showLayerCtx(e:MouseEvent, id:string){
+        ctxMenuEl?.remove()
+        const ly=layers.find(l=>l.id===id); if(!ly) return
+        const idx=layers.findIndex(l=>l.id===id)
+        const div=document.createElement('div')
+        div.className='sc-layer-ctx'
+        div.style.left=e.clientX+'px'; div.style.top=e.clientY+'px'
+        div.innerHTML=`
+          <div class="sc-layer-ctx-item" data-action="rename" data-id="${id}">✏️ 重命名</div>
+          <div class="sc-layer-ctx-item" data-action="dup" data-id="${id}">⧉ 复制图层</div>
+          <div class="sc-layer-ctx-sep"></div>
+          <div class="sc-layer-ctx-item" data-action="new" data-id="${id}">+ 新建图层</div>
+          <div class="sc-layer-ctx-item" data-action="up" data-id="${id}">⬆ 上移</div>
+          <div class="sc-layer-ctx-item" data-action="down" data-id="${id}">⬇ 下移</div>
+          <div class="sc-layer-ctx-item" data-action="top" data-id="${id}">⏫ 置顶</div>
+          <div class="sc-layer-ctx-item" data-action="bottom" data-id="${id}">⏬ 置底</div>
+          <div class="sc-layer-ctx-sep"></div>
+          <div class="sc-layer-ctx-item" data-action="opacity" data-id="${id}">◐ 调整透明度...</div>
+          <div class="sc-layer-ctx-item" data-action="color" data-id="${id}">🎨 图层颜色...</div>
+          <div class="sc-layer-ctx-sep"></div>
+          <div class="sc-layer-ctx-item danger" data-action="delete" data-id="${id}">🗑 删除图层</div>
+        `
+        div.addEventListener('click',(ev:any)=>{
+          const act=ev.target.closest('[data-action]')?.dataset.action
+          const ly2=layers.find(l=>l.id===id); const idx2=layers.findIndex(l=>l.id===id)
+          ctxMenuEl?.remove(); ctxMenuEl=null
+          if(!ly2) return
+          if(act==='rename') startRenameLayer(id)
+          else if(act==='dup'){ const nly:Layer={...ly2, id:genId(), name:ly2.name+' (副本)'}; layers.splice(idx2,0,nly); currentLayerId=nly.id; pushHist(); updateLayerPanel() }
+          else if(act==='new'){ const nl:Layer={ id:genId(), name:'图层 '+(layers.length+1), visible:true, locked:false, opacity:1, blendMode:'normal', color:'#'+Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0') }; layers.push(nl); currentLayerId=nl.id; pushHist(); updateLayerPanel() }
+          else if(act==='up'&&idx2<layers.length-1){ [layers[idx2],layers[idx2+1]]=[layers[idx2+1],layers[idx2]]; pushHist(); updateLayerPanel() }
+          else if(act==='down'&&idx2>0){ [layers[idx2],layers[idx2-1]]=[layers[idx2-1],layers[idx2]]; pushHist(); updateLayerPanel() }
+          else if(act==='top'){ const [m]=layers.splice(idx2,1); layers.push(m); pushHist(); updateLayerPanel() }
+          else if(act==='bottom'){ const [m]=layers.splice(idx2,1); layers.unshift(m); pushHist(); updateLayerPanel() }
+          else if(act==='opacity'){ const v=prompt('图层透明度 0-100:',String(Math.round(ly2.opacity*100))); if(v!==null){ ly2.opacity=Math.max(0,Math.min(1,+v/100)); render(); updateLayerPanel() } }
+          else if(act==='color'){ const v=prompt('图层颜色 (hex如 #ff6644):',ly2.color); if(v&&/^#[0-9a-fA-F]{6}$/.test(v)){ ly2.color=v; updateLayerPanel() } }
+          else if(act==='delete'){ if(layers.length<=1){ toast(pScene.querySelector('#sc-status') as HTMLElement,'至少保留一个图层',false); return }; layers.splice(idx2,1); if(currentLayerId===id) currentLayerId=layers[Math.max(0,idx2-1)].id; pushHist(); updateLayerPanel() }
+        })
+        document.body.appendChild(div)
+        ctxMenuEl=div
+        setTimeout(()=>{ document.addEventListener('click',()=>{ ctxMenuEl?.remove(); ctxMenuEl=null }, { once: true }) },0)
+      }
+
+      // 图层工具栏事件
+      pScene.querySelector('#sc-ed-layer-add')!.addEventListener('click',()=>{
+        const colors=['#4a9eff','#ff6b6b','#51cf66','#ffd43b','#cc5de8','#ff922b','#20c997','#f783ac']
+        const nl:Layer={ id:genId(), name:'图层 '+(layers.length+1), visible:true, locked:false, opacity:1, blendMode:'normal', color:colors[layers.length%colors.length] }
+        layers.push(nl); currentLayerId=nl.id; pushHist(); updateLayerPanel()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'已添加图层: '+nl.name, true)
+      })
+      pScene.querySelector('#sc-ed-layer-del')!.addEventListener('click',()=>{
+        const ly=layers.find(l=>l.id===currentLayerId)
+        if(layers.length<=1){ toast(pScene.querySelector('#sc-status') as HTMLElement,'至少保留一个图层',false); return }
+        const idx=layers.findIndex(l=>l.id===currentLayerId)
+        layers.splice(idx,1); currentLayerId=layers[Math.max(0,idx-1)].id
+        // 把属于该图层的精灵也删掉
+        for(let i=sprites.length-1;i>=0;i--) if(sprites[i].layerId===(ly as any).id) sprites.splice(i,1)
+        if(selectedId&&sprites.find(s=>s.id===selectedId)) selectedId=null
+        pushHist(); updateLayerPanel(); render()
+      })
+      pScene.querySelector('#sc-ed-layer-dup')!.addEventListener('click',()=>{
+        const ly=layers.find(l=>l.id===currentLayerId); if(!ly) return
+        const idx=layers.findIndex(l=>l.id===currentLayerId)
+        const nly:Layer={ ...ly, id:genId(), name:ly.name+' (副本)' }
+        layers.splice(idx+1,0,nly)
+        // 复制同图层精灵
+        for(const sp of sprites) if(sp.layerId===ly.id){ const nsp={...sp, id:genId(), layerId:nly.id}; sprites.push(nsp) }
+        currentLayerId=nly.id; pushHist(); updateLayerPanel()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'已复制图层: '+nly.name, true)
+      })
+      pScene.querySelector('#sc-ed-layer-merge')!.addEventListener('click',()=>{
+        const idx=layers.findIndex(l=>l.id===currentLayerId)
+        if(idx>=layers.length-1){ toast(pScene.querySelector('#sc-status') as HTMLElement,'没有可合并的下层图层',false); return }
+        const [top,bottom]=[layers[idx],layers[idx+1]]
+        // 把 top 的精灵移到 bottom
+        for(const sp of sprites) if(sp.layerId===top.id) sp.layerId=bottom.id
+        layers.splice(idx,1); currentLayerId=bottom.id
+        pushHist(); updateLayerPanel(); render()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'已向下合并图层', true)
+      })
+      pScene.querySelector('#sc-ed-lock-all')!.addEventListener('click',()=>{
+        const allLocked=layers.every(l=>l.locked)
+        layers.forEach(l=>l.locked=!allLocked); updateLayerPanel()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,allLocked?'已全部解锁':'已全部锁定', true)
+      })
+      pScene.querySelector('#sc-ed-hide-all')!.addEventListener('click',()=>{
+        layers.forEach(l=>l.visible=false); render(); updateLayerPanel()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'已隐藏所有图层', true)
+      })
+      pScene.querySelector('#sc-ed-show-all')!.addEventListener('click',()=>{
+        layers.forEach(l=>l.visible=true); render(); updateLayerPanel()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'已显示所有图层', true)
+      })
+
+      // ---- 属性面板 ----
+      function updatePropsPanel(){
+        const panel=pScene.querySelector('#sc-ed-props') as HTMLElement
+        if(!selectedId){ panel.innerHTML='<div class="gas-note" style="font-size:10px">选中素材查看属性</div>'; return }
+        const sp=sprites.find(s=>s.id===selectedId); if(!sp){ panel.innerHTML='<div class="gas-note" style="font-size:10px">选中素材查看属性</div>'; return }
+        const isAnim=!!(sp.frameCount&&sp.frameCount>1)
+        panel.innerHTML=`
+          <div style="margin-bottom:6px;font-weight:bold;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sp.name}</div>
+          <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">X</span><input class="gas-input" id="sp-x" type="number" value="${Math.round(sp.x)}" style="flex:1;font-size:11px;padding:2px 4px"></div>
+          <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">Y</span><input class="gas-input" id="sp-y" type="number" value="${Math.round(sp.y)}" style="flex:1;font-size:11px;padding:2px 4px"></div>
+          <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">W</span><input class="gas-input" id="sp-w" type="number" value="${Math.round(sp.w)}" style="flex:1;font-size:11px;padding:2px 4px"></div>
+          <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">H</span><input class="gas-input" id="sp-h" type="number" value="${Math.round(sp.h)}" style="flex:1;font-size:11px;padding:2px 4px"></div>
+          <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">旋转</span><input class="gas-input" id="sp-rot" type="number" value="${sp.rot}" min="-180" max="180" style="flex:1;font-size:11px;padding:2px 4px"></div>
+          <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">透明</span><input class="gas-input" id="sp-op" type="range" min="0" max="100" value="${Math.round(sp.opacity*100)}" style="flex:1"></div>
+          <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px">🎬 序列帧动画</div>
+            <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">帧数</span><input class="gas-input" id="sp-fc" type="number" value="${sp.frameCount||1}" min="1" max="64" style="flex:1;font-size:11px;padding:2px 4px"></div>
+            <div class="gas-row" style="margin-bottom:4px"><span style="flex:0 0 40px;color:var(--muted)">FPS</span><input class="gas-input" id="sp-fps" type="number" value="${sp.fps||8}" min="1" max="60" style="flex:1;font-size:11px;padding:2px 4px"></div>
+            <div style="font-size:9px;color:${isAnim?'var(--ok)':'var(--muted)'};margin-top:2px">${isAnim?'● 播放中':'○ 静态图片（填帧数>1开启动画）'}</div>
+          </div>
+          <div style="margin-top:6px;font-size:10px;color:var(--muted)">双击画布重置缩放/取消选择</div>
+        `
+        ;(panel.querySelector('#sp-x') as HTMLInputElement).addEventListener('change',(e:any)=>{ sp.x=Math.max(0,Math.min(W-sp.w,+e.target.value)); render(); pushHist() })
+        ;(panel.querySelector('#sp-y') as HTMLInputElement).addEventListener('change',(e:any)=>{ sp.y=Math.max(0,Math.min(H-sp.h,+e.target.value)); render(); pushHist() })
+        ;(panel.querySelector('#sp-w') as HTMLInputElement).addEventListener('change',(e:any)=>{ sp.w=Math.max(1,+e.target.value); render(); pushHist() })
+        ;(panel.querySelector('#sp-h') as HTMLInputElement).addEventListener('change',(e:any)=>{ sp.h=Math.max(1,+e.target.value); render(); pushHist() })
+        ;(panel.querySelector('#sp-rot') as HTMLInputElement).addEventListener('change',(e:any)=>{ sp.rot=+e.target.value; render(); pushHist() })
+        ;(panel.querySelector('#sp-op') as HTMLInputElement).addEventListener('input',(e:any)=>{ sp.opacity=+e.target.value/100; render() })
+        ;(panel.querySelector('#sp-op') as HTMLInputElement).addEventListener('change',()=>pushHist())
+        ;(panel.querySelector('#sp-fc') as HTMLInputElement).addEventListener('change',(e:any)=>{
+          const fc=Math.max(1,Math.min(64,+e.target.value))
+          sp.frameCount=fc; sp.frameW=Math.round(sp.w/fc); sp.frameH=sp.h; sp.frame=0; sp.lastFrameTime=0
+          render(); pushHist()
+        })
+        ;(panel.querySelector('#sp-fps') as HTMLInputElement).addEventListener('change',(e:any)=>{ sp.fps=Math.max(1,Math.min(60,+e.target.value)); render() })
+      }
+
+      // ---- 地图底图导入 ----
+      pScene.querySelector('#sc-ed-import-map')!.addEventListener('click',()=>{
+        const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'
+        inp.onchange=()=>{ const f=inp.files?.[0]; if(!f) return
+          const u=URL.createObjectURL(f)
+          const img=new Image(); img.onload=()=>{
+            bgImage=img; bgUrl=u; revokeSoon(u,60000)
+            // 同步到素材库
+            const edStatus=pScene.querySelector('#sc-status') as HTMLElement
+            if(edStatus) edStatus.textContent='已导入地图底图: '+f.name+' ('+img.width+'×'+img.height+')'
+            render(); updateLayerPanel()
+          }; img.src=u
+        }; inp.click()
+      })
+
+      // ---- 智能提取元素 ----
+      pScene.querySelector('#sc-ed-extract')!.addEventListener('click',async()=>{
+        if(!bgImage){ toast(pScene.querySelector('#sc-status') as HTMLElement,'请先导入地图底图',false); return }
+        const cvs=document.createElement('canvas'); cvs.width=bgImage.naturalWidth; cvs.height=bgImage.naturalHeight
+        const ctx=cvs.getContext('2d')!; ctx.drawImage(bgImage,0,0)
+        const imgData=ctx.getImageData(0,0,cvs.width,cvs.height); const d=imgData.data
+        const W2=cvs.width, H2=cvs.height
+        const visited=new Uint8Array(W2*H2)
+        const colors:Record<string,[number,number,number]>={
+          water:[59,98,160], land:[74,122,58], sand:[230,210,160], tree:[40,80,40], grass:[80,140,50]
+        }
+        const colorDist=(a:[number,number,number],b:number[])=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])+Math.abs(a[2]-b[2])
+        const matches=(px:number,py:number,cls:[number,number,number])=>{
+          if(px<0||px>=W2||py<0||py>=H2) return false
+          const i=(py*W2+px)*4
+          return colorDist([d[i],d[i+1],d[i+2]],cls)<80
+        }
+        const flood=(sx:number,sy:number,cls:[number,number,number])=>{
+          const comps:[number,number][]=[]
+          const stack:number[][]=[[sx,sy]]; visited[sy*W2+sx]=1
+          while(stack.length){
+            const [cx2,cy2]=stack.pop()!
+            comps.push([cx2,cy2])
+            for(const [dx,dy] of[[1,0],[-1,0],[0,1],[0,-1]]){
+              const nx=cx2+dx, ny=cy2+dy
+              if(nx>=0&&nx<W2&&ny>=0&&ny<H2&&!visited[ny*W2+nx]&&matches(nx,ny,cls)) visited[ny*W2+nx]=1, stack.push([nx,ny])
+            }
+          }
+          return comps
+        }
+        const results:{x:number,y:number,w:number,h:number,cls:string}[]=[]
+        const clsList=Object.entries(colors) as [string,[number,number,number]][]
+        for(let y=0;y<H2;y+=4) for(let x=0;x<W2;x+=4){
+          if(visited[y*W2+x]) continue
+          for(const [clsName,cls] of clsList){
+            if(matches(x,y,cls)){
+              const comps=flood(x,y,cls)
+              if(comps.length<16) continue
+              const xs=comps.map(c=>c[0]), ys=comps.map(c=>c[1])
+              const minX=Math.min(...xs), maxX=Math.max(...xs), minY=Math.min(...ys), maxY=Math.max(...ys)
+              results.push({ x:minX, y:minY, w:maxX-minX+1, h:maxY-minY+1, cls:clsName })
+              for(const [cx2,cy2] of comps) visited[cy2*W2+cx2]=1
+              break
+            }
+          }
+        }
+        const edStatus=pScene.querySelector('#sc-status') as HTMLElement
+        if(edStatus) edStatus.textContent='提取完成: '+results.length+' 个元素'
+        // 把提取的元素作为精灵加入
+        const scaleX=W/bgImage.naturalWidth, scaleY=H/bgImage.naturalHeight
+        for(const r of results.slice(0,20)){
+          const sc=document.createElement('canvas'); sc.width=r.w; sc.height=r.h; const sctx=sc.getContext('2d')!
+          sctx.drawImage(bgImage, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h)
+          const dataUrl=sc.toDataURL('image/png')
+          const img2=new Image(); await new Promise<void>(res=>{ img2.onload=()=>res(); img2.onerror=()=>res(); img2.src=dataUrl })
+          const sw=Math.round(r.w*scaleX), sh=Math.round(r.h*scaleY)
+          const sp:PlacedSprite={ id:genId(), spriteId:genId(), name:'['+r.cls+']', url:dataUrl, x:Math.round(r.x*scaleX), y:Math.round(r.y*scaleY), w:sw, h:sh, scale:1, rot:0, opacity:1, locked:false, layerId:currentLayerId, img:img2 }
+          sprites.push(sp)
+        }
+        render(); loadSpritePalette(); updateLayerPanel(); pushHist()
+        toast(edStatus,'提取了 '+Math.min(results.length,20)+' 个元素，自动放置在画布上',true)
+      })
+
+      // ---- 海水动画 ----
+      pScene.querySelector('#sc-ed-water')!.addEventListener('click',()=>{
+        const mode=(prompt('海水动画模式:\n1=帧动画(波浪波动)\n2=粒子(泡沫飞溅)\n3=着色器(正弦波动)\n输入数字(1-3):')||'1').trim()
+        const w2:WaterRegion={ id:genId(), points:[], animType:mode==='2'?'particle':mode==='3'?'shader':'frame', color:'rgba(59,98,160,0.5)', speed:1.5, layerId:currentLayerId }
+        // 全屏作为水面
+        w2.points=[[0,0],[W,0],[W,H],[0,H]]
+        waters.push(w2)
+        render(); updateLayerPanel()
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'海水动画已添加(模式:'+w2.animType+')，可在属性面板调整参数',true)
+      })
+
+      // ---- 导出 .tscn ----
+      pScene.querySelector('#sc-ed-export-tscn')!.addEventListener('click',()=>{
+        const projectName=(pScene.querySelector('#e-name') as HTMLInputElement)?.value||'MyGodotGame'
+        const safeName=projectName.replace(/[^a-zA-Z0-9_]/g,'_')
+        const lines:string[]=[
+          '[gd_scene load_steps='+(2+sprites.length*2+(waters.length?2:0)+(particles.length>0?particles.length:0))+' format=3]',
+          '',
+          '[ext_resource type="Script" path="res://scenes/'+safeName+'.gd"] id="1"',
+        ]
+        let extIdx=2
+        const resMap:Record<string,number>={}
+        for(const sp of sprites){
+          if(!resMap[sp.url]){ resMap[sp.url]=extIdx++; lines.push('[ext_resource type="Texture2D" path="res://assets/sprites/'+sp.name.replace(/[^a-zA-Z0-9_.]/g,'_')+'.png" id="'+resMap[sp.url]+'"]') }
+        }
+        lines.push('')
+        lines.push('[node name="'+safeName+'_Scene" type="Node2D"]')
+        lines.push('script = ExtResource("1")')
+        lines.push('')
+        let nodeIdx=1
+        if(bgUrl){
+          lines.push('[node name="Background" type="Sprite2D" parent="."]')
+          lines.push('position = Vector2('+W+'/2, '+H+'/2)')
+          const bgRes=resMap[bgUrl]||(resMap[bgUrl]=extIdx++)
+          lines.push('texture = ExtResource("'+bgRes+'")')
+          lines.push(''); nodeIdx++
+        }
+        // 水面节点
+        if(waters.length){
+          lines.push('[node name="WaterLayer" type="Node2D" parent="."]')
+          if(waters[0].animType==='particle'){
+            lines.push('')
+            lines.push('[node name="FoamParticles" type="CPUParticles2D" parent="WaterLayer"]')
+            lines.push('position = Vector2('+W+'/2, '+H+'/2)')
+            lines.push('amount = 80')
+            lines.push('lifetime = 4.0')
+            lines.push('speed = 60.0')
+            lines.push('gravity = Vector2(0, 20)')
+            lines.push('color = Color(0.78, 0.9, 1, 0.6)')
+            lines.push('spread = 180.0')
+          } else if(waters[0].animType==='shader'){
+            lines.push('')
+            lines.push('[node name="WaterShader" type="Sprite2D" parent="WaterLayer"]')
+            lines.push('position = Vector2('+W+'/2, '+H+'/2)')
+            lines.push('modulate = Color(0.23, 0.38, 0.63, 0.7)')
+            lines.push('shader/material = SubResource("WaterMat")')
+          }
+          lines.push('')
+        }
+        // 粒子节点
+        for(const p of particles){
+          const pkind:Record<string,string>={ fire:'CPUParticles2D', smoke:'CPUParticles2D', sparkle:'CPUParticles2D', rain:'CPUParticles2D', snow:'CPUParticles2D', custom:'CPUParticles2D' }
+          lines.push('[node name="Particle_'+p.id.slice(-4)+'" type="'+pkind[p.kind]+'" parent="."]')
+          lines.push('position = Vector2('+Math.round(p.x+p.w/2)+', '+Math.round(p.y+p.h/2)+')')
+          lines.push('amount = '+Math.round(p.params.amount||30))
+          lines.push('lifetime = 3.0')
+          lines.push('speed = '+(p.params.speed||1)*50)
+          const pcolors:Record<string,string>={ fire:'Color(1, 0.5, 0, 0.8)', smoke:'Color(0.6, 0.6, 0.6, 0.3)', sparkle:'Color(1, 1, 0.8, 0.9)', rain:'Color(0.7, 0.8, 1, 0.5)', snow:'Color(1, 1, 1, 0.7)', custom:'Color(1, 1, 1, 0.8)' }
+          lines.push('color = '+pcolors[p.kind])
+          if(p.kind==='smoke'){ lines.push('gravity = Vector2(0, -30)'); lines.push('spread = 20.0') }
+          else if(p.kind==='fire'){ lines.push('gravity = Vector2(0, -80)'); lines.push('spread = 40.0') }
+          else if(p.kind==='sparkle'){ lines.push('gravity = Vector2(0, 0)'); lines.push('speed = 0.5'); lines.push('amount = '+(Math.round(p.params.amount||30)*2)) }
+          lines.push('')
+          nodeIdx++
+        }
+        // 精灵节点
+        for(const sp of sprites){
+          const nodeName='Sprite_'+nodeIdx+'_'+sp.name.replace(/[^a-zA-Z0-9_]/g,'_').slice(0,10)
+          lines.push('[node name="'+nodeName+'" type="Sprite2D" parent="."]')
+          lines.push('position = Vector2('+Math.round(sp.x+sp.w/2)+', '+Math.round(sp.y+sp.h/2)+')')
+          lines.push('scale = Vector2('+sp.w+', '+sp.h+')')
+          if(sp.rot) lines.push('rotation = '+sp.rot)
+          if(sp.opacity<1) lines.push('modulate = Color(1,1,1,'+sp.opacity.toFixed(2)+')')
+          const resId=resMap[sp.url]
+          if(resId) lines.push('texture = ExtResource("'+resId+'")')
+          lines.push(''); nodeIdx++
+        }
+        lines.push('[sub_resource type="GDScript" id="SceneScript"]')
+        lines.push('script/source = "extends Node2D\\n\\nfunc _ready():\\n    pass"')
+        lines.push('')
+        lines.push('[sub_resource type="Environment" id="WaterMat"]')
+        lines.push('background_mode = 4')
+        lines.push('')
+        lines.push('[connection signal="ready" from="." to="." method="_ready"]')
+        lines.push('')
+        lines.push('[connection signal="input_event" from="." to="." method="_on_input_event"]')
+
+        const tcn='[gd_scene load_steps=1 format=3]\n\n[node name="'+safeName+'_Scene" type="Node2D"]\n\n# === Godot-Arter 关卡编辑器导出 ===\n# 精灵数: '+sprites.length+'  水面: '+waters.length+'  底图: '+(bgUrl?'有':'无')+'\n\n'
+        const blob=new Blob([tcn+lines.join('\n')],{type:'text/plain'})
+        downloadBlob(blob, safeName+'_scene.tscn')
+        toast(pScene.querySelector('#sc-status') as HTMLElement,'已导出 '+safeName+'_scene.tscn（'+sprites.length+' 个精灵）',true)
+      })
+
+      // ---- Tab 切换 ----
+      pScene.querySelector('#sc-tab-weather')!.addEventListener('click',()=>{
+        ;(pScene.querySelector('#sc-tab-weather') as HTMLButtonElement).className='gas-btn'
+        ;(pScene.querySelector('#sc-tab-editor') as HTMLButtonElement).className='gas-btn ghost'
+        ;(pScene.querySelector('#sc-weather-section') as HTMLElement).style.display='block'
+        ;(pScene.querySelector('#sc-editor-card') as HTMLElement).style.display='none'
+      })
+      pScene.querySelector('#sc-tab-editor')!.addEventListener('click',()=>{
+        ;(pScene.querySelector('#sc-tab-weather') as HTMLButtonElement).className='gas-btn ghost'
+        ;(pScene.querySelector('#sc-tab-editor') as HTMLButtonElement).className='gas-btn'
+        ;(pScene.querySelector('#sc-weather-section') as HTMLElement).style.display='none'
+        ;(pScene.querySelector('#sc-editor-card') as HTMLElement).style.display='block'
+        initCanvas(); updateLayerPanel(); loadSpritePalette()
+      })
+
+      // ---- 缩放控制 ----
+      ;(pScene.querySelector('#sc-ed-zoom') as HTMLInputElement).addEventListener('input',(e:any)=>{
+        zoom=Math.max(0.1,Math.min(4,+e.target.value/100))
+        edCanvas.style.width=W*zoom+'px'; edCanvas.style.height=H*zoom+'px'
+        edOverlay.style.width=W*zoom+'px'; edOverlay.style.height=H*zoom+'px'
+        ;(pScene.querySelector('#sc-ed-zoom-label') as HTMLElement).textContent=Math.round(zoom*100)+'%'
+      })
+
+      // ---- 撤销 ----
+      pScene.querySelector('#sc-ed-undo')!.addEventListener('click',()=>{
+        if(histIdx<=0) return
+        histIdx--
+        const h=history[histIdx]
+        sprites.length=0; sprites.push(...JSON.parse(JSON.stringify(h.sprites)))
+        layers.length=0; layers.push(...JSON.parse(JSON.stringify(h.layers)))
+        waters.length=0; waters.push(...JSON.parse(JSON.stringify(h.waters)))
+        particles.length=0; particles.push(...(JSON.parse(JSON.stringify(h.particles||[]))))
+        bgUrl=h.bgUrl
+        if(bgUrl){ const img=new Image(); img.onload=()=>{ bgImage=img; render() }; img.src=bgUrl }
+        else bgImage=null
+        selectedId=null; render(); updateLayerPanel()
+      })
+
+      // ---- 清空 ----
+      pScene.querySelector('#sc-ed-clear')!.addEventListener('click',()=>{
+        if(!confirm('确定清空当前关卡？')) return
+        sprites.length=0; waters.length=0; bgUrl=null; bgImage=null; selectedId=null
+        pushHist(); render(); updateLayerPanel(); updatePropsPanel()
+      })
+
+      // ---- 实时预览 ----
+      pScene.querySelector('#sc-ed-preview')!.addEventListener('click',()=>{
+        // 在新窗口打开预览
+        const previewWin=window.open('','','width='+W+',height='+H)
+        if(!previewWin) return
+        previewWin.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000"><canvas id="c" width="${W}" height="${H}"></canvas><script>
+const c=document.getElementById('c'); const ctx=c.getContext('2d');
+const bg='${bgUrl||''}';
+const spr=${JSON.stringify(sprites.map(s=>({...s,url:s.url}))) };
+const waters=${JSON.stringify(waters)};
+let t=0;
+async function run(){
+  if(bg){ const bi=new Image(); bi.crossOrigin='anonymous'; await new Promise(r=>{ bi.onload=r; bi.onerror=r; bi.src=bg }); ctx.drawImage(bi,0,0) }
+  const simg={}; for(const s of spr){ const i=new Image(); i.crossOrigin='anonymous'; await new Promise(r=>{ i.onload=r; i.onerror=r; i.src=s.url }); simg[s.id]=i }
+  function frame(){
+    ctx.clearRect(0,0,${W},${H});
+    if(bg&&simg['__bg']) ctx.drawImage(simg['__bg'],0,0);
+    const s2=[...spr].sort((a,b)=>a.y-b.y);
+    for(const s of s2){ if(simg[s.id]) ctx.drawImage(simg[s.id],s.x,s.y,s.w,s.h); }
+    t+=0.016; requestAnimationFrame(frame);
+  }
+  // load bg
+  if(bg){ const bi=new Image(); bi.crossOrigin='anonymous'; bi.onload=()=>{ simg['__bg']=bi; simg['__bg'].src=bg; simg['__bg'].onload=()=>requestAnimationFrame(frame) }; bi.src=bg }
+  else requestAnimationFrame(frame);
+}
+run();
+<\/script></body></html>`)
+      })
+
+      // ---- 初始化 ----
+      pushHist()
+
+      // ---- 精灵帧动画循环 ----
+      let lastAnimTime=0
+      function animLoop(ts:number){
+        if(ts-lastAnimTime>=16){ // ~60fps
+          let dirty=false
+          for(const sp of sprites){
+            if(sp.frameCount && sp.frameCount>1){
+              const fps=sp.fps||8
+              const interval=1000/fps
+              if(!sp.lastFrameTime) sp.lastFrameTime=ts
+              if(ts-sp.lastFrameTime>=interval){
+                sp.frame=((sp.frame||0)+1)%sp.frameCount
+                sp.lastFrameTime=ts
+                dirty=true
+              }
+            }
+          }
+          if(dirty) render()
+          lastAnimTime=ts
+        }
+        requestAnimationFrame(animLoop)
+      }
+      requestAnimationFrame(animLoop)
+    })()
   })()
 
 // ---- 程序化地形（功能借鉴 blob_world：种子化多层噪声 + 分类）----
@@ -3817,7 +5104,7 @@ function mockImage(prompt:string, opts:any): string {
       for(let i=0;i<last.classes.length;i++) json.tiles.push({ id:i, type:last.classes[i], region:[(i%last.cols)*last.S, Math.floor(i/last.cols)*last.S, last.S, last.S] })
       const blob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'})
       const tsP=Date.now(); const pngP='procedural_terrain_'+tsP+'.png'
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='procedural_tileset_'+tsP+'.json'; a.click()
+      downloadBlob(blob,'procedural_tileset_'+tsP+'.json')
       const au=document.createElement('a'); au.href=canvas.toDataURL('image/png'); au.download=pngP; au.click()
       // Godot 原生 .tres：引用同目录地形 PNG,拖入即用
       const pt=document.createElement('a'); pt.href='data:text/plain;charset=utf-8,'+encodeURIComponent(buildTileSetTres(pngP, last.cols, last.rows, last.S)); pt.download='procedural_tileset_'+tsP+'.tres'; pt.click()
@@ -3837,6 +5124,7 @@ function mockImage(prompt:string, opts:any): string {
     const ctx=stCanvas.getContext('2d')!
     const info=pMap.querySelector('#st-gridinfo') as HTMLElement
     const offV=pMap.querySelector('#st-offset-v') as HTMLElement
+    const status=pMap.querySelector('#st-status') as HTMLElement
     const CHUNK=1024, OVERLAP=128, STRIDE=CHUNK-OVERLAP, SCALE=0.42
     let chunks:any[]=[] // {gx,gy,img,ox,oy,masks:{col,occ,fg}: number[][][]}
     let sel=-1, maskLayer='', drawing:any=null
@@ -3902,7 +5190,9 @@ function mockImage(prompt:string, opts:any): string {
     })
     pMap.querySelector('#st-file')!.addEventListener('change', async(e:any)=>{
       const f=e.target.files?.[0]; if(!f) return
-      const url=URL.createObjectURL(f); try{ await addChunk(await loadImg(url)) }catch(err:any){ toast(status,String(err.message||err),false) }
+      const url=URL.createObjectURL(f)
+      try{ await addChunk(await loadImg(url)) }catch(err:any){ toast(status,String(err.message||err),false) }
+      finally{ revokeSoon(url, 5000) }
     })
     pMap.querySelector('#st-edge')!.addEventListener('click', ()=> edgeStrip('right'))
     pMap.querySelector('#st-edge-b')!.addEventListener('click', ()=> edgeStrip('bottom'))
@@ -3963,7 +5253,7 @@ function mockImage(prompt:string, opts:any): string {
         chunks: chunks.map(c=>({ chunk_id:c.gx+'_'+c.gy, grid_x:c.gx, grid_y:c.gy, background_path:'images/chunk_'+c.gx+'_'+c.gy+'_bg.png', global_position:{ x:c.gx*STRIDE+(c.ox||0), y:c.gy*STRIDE+(c.oy||0) }, buildings:[] })),
         global_polygons: polygons }
       const blob=new Blob([JSON.stringify(json,null,2)],{type:'application/json'})
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='map_data.json'; a.click()
+      downloadBlob(blob,'map_data.json')
       if(status){ status.textContent='✓ 已导出 '+chunks.length+' 个区块 PNG + map_data.json（MapChunkManager.cs 兼容：global_position + global_polygons）'; status.style.color='#2ecc71' }
     })
     redraw()
@@ -4108,7 +5398,7 @@ function mockImage(prompt:string, opts:any): string {
     pAsset.querySelector('#al-export')!.addEventListener('click', ()=>{
       const payload={ exportedAt:new Date().toISOString(), app:'Godot-Arter', items:allItems }
       const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})
-      downloadDataUrl(URL.createObjectURL(blob),'godot-arter-assets-'+Date.now()+'.json')
+      downloadBlob(blob,'godot-arter-assets-'+Date.now()+'.json')
       statusEl.textContent='已导出 '+allItems.length+' 个素材备份'
     })
     importEl.addEventListener('change', (e:any)=>{ const fs=e.target.files; if(fs&&fs.length) void handleImportFiles(fs); e.target.value='' })
@@ -4137,10 +5427,45 @@ function mockImage(prompt:string, opts:any): string {
     list.innerHTML= h.slice(0,12).map((x:any,i)=> `<div style="display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px dashed #3a3f47"><span style="color:#6ea6d1">#${i+1}</span><span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.kind} · ${(x.prompt||x.file||'').slice(0,24)}</span><span style="font-size:10px;color:#9aa0a6">${new Date(x.at).toLocaleTimeString()}</span></div>`).join('')
   }
   setTimeout(refreshExportList,500)
+  /* ---- 网页联动收件箱：自动导入扩展保存的素材 ---- */
+  const WEB_INBOX_LS='dsh-game-art-studio:webInboxAt'
+  async function webLinkCheckInbox(after:number|null, manual=false){
+    if(!WEB_LINK_BASE){ if(manual) webToast('⚠️ file:// 模式下网页收件箱不可用（需 node server.mjs 本地服务）',false); return }
+    try{
+      const since= after!=null ? after : Number(localStorage.getItem(WEB_INBOX_LS)||0)
+      const j=await(await fetch(WEB_LINK_BASE+'/api/web-link/assets?after='+since)).json()
+      const items=(j&&j.items)||[]
+      let imported=0; let maxAt=since
+      for(const rec of items){
+        if(Number(rec.at)>maxAt) maxAt=Number(rec.at)
+        let exist=false
+        try{ const all=await idbGetAll(); exist=all.some((a:any)=>a.id==='WEB-'+rec.id) }catch{}
+        if(exist) continue
+        try{
+          const blob=await(await fetch(WEB_LINK_BASE+'/'+rec.rel)).blob()
+          const dataUrl=await new Promise<string>((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result as string); fr.onerror=rej; fr.readAsDataURL(blob) })
+          await idbPut({ id:'WEB-'+rec.id, kind:'asset', name:((rec.prompt? rec.prompt.slice(0,20): rec.file)+' ('+(rec.site==='gemini'?'Gemini':'ChatGPT')+')'), url:dataUrl, createdAt:Number(rec.at), meta:{ source:'web:'+rec.site, prompt:rec.prompt||'', file:rec.rel, sourceUrl:rec.sourceUrl||'' } })
+          imported++
+        }catch{}
+      }
+      if(maxAt>since) localStorage.setItem(WEB_INBOX_LS,String(maxAt))
+      if(imported){
+        try{ refreshAssetManagerGlobal?.() }catch{}
+        webToast('📥 已从网页联动收件箱导入 '+imported+' 张素材到素材库')
+      }else if(manual){
+        webToast(items.length?'✅ 没有需要新导入的素材（已存在）':'✅ 收件箱为空 — 在 ChatGPT/Gemini 网页点「💾 Godot-Arter」保存后会自动出现在素材库')
+      }
+    }catch{ if(manual) webToast('❌ 联动服务未连接（server.mjs 未运行？）',false) }
+  }
+  if(WEB_LINK_BASE){
+    if(!localStorage.getItem(WEB_INBOX_LS)) localStorage.setItem(WEB_INBOX_LS,String(Date.now()))
+    setTimeout(()=>webLinkCheckInbox(null,false),2500)
+    setInterval(()=>webLinkCheckInbox(null,false),8000)
+  }
   main.querySelector('#e-manifest')?.addEventListener('click', ()=>{
     const h=getHistory(); const mf={ project:(main.querySelector('#e-name') as HTMLInputElement).value, godot:'4.2', generated_at:new Date().toISOString(), counts: h.reduce((a:any,c:any)=>{a[c.kind]=(a[c.kind]||0)+1;return a},{}), assets:h, structure:{ 'res://assets/characters/':'角色', 'res://assets/spritesheets/':'序列帧', 'res://assets/tilesets/':'瓦片', 'res://assets/icons/':'道具' } }
     const pre=main.querySelector('#e-preview') as HTMLElement; pre.style.display='block'; pre.textContent=JSON.stringify(mf,null,2)
-    const blob=new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='godot_manifest.json'; a.click()
+    downloadBlob(new Blob([JSON.stringify(mf,null,2)],{type:'application/json'}),'godot_manifest.json')
   })
   main.querySelector('#e-clear')?.addEventListener('click', ()=>{ localStorage.removeItem(LS_HISTORY); refreshExportList(); const pre=main.querySelector('#e-preview') as HTMLElement; if(pre) pre.style.display='none' })
   main.querySelector('#e-dump')?.addEventListener('click', ()=>{ const pre=main.querySelector('#e-preview') as HTMLElement; pre.style.display='block'; pre.textContent= 'localStorage '+LS_HISTORY+':\\n'+ (localStorage.getItem(LS_HISTORY)||'[]').slice(0,2000) })
@@ -4235,6 +5560,7 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
     const pre=main.querySelector('#e-preview') as HTMLElement; pre.style.display='block'; pre.textContent=PIXEL_SNIPPET
     const blob=new Blob([PIXEL_SNIPPET],{type:'text/plain'}); const url=URL.createObjectURL(blob)
     const a=document.createElement('a'); a.href=url; a.download='godot_pixel_settings.cfg'; a.click()
+    revokeSoon(url, 5000)
     toast(pre,'已下载 godot_pixel_settings.cfg — 粘贴到 project.godot 的 [rendering] 段即生效', true)
   })
 
@@ -4247,30 +5573,31 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
     light:  { icon:'☀️', label:'浅色' },
     system: { icon:'⚡', label:'系统' },
   }
-  function resolveTheme(mode){
+  function resolveTheme(mode:string){
     if(mode === 'system'){
       return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark'
     }
     return mode || 'dark'
   }
-  function currentMode(){ try{ const v=localStorage.getItem(THEME_KEY); return THEME_ORDER.indexOf(v)>=0 ? v : 'dark' }catch{ return 'dark' } }
-  function applyTheme(mode){
-    root.dataset.theme = resolveTheme(mode)
+  function currentMode(){ try{ const v=localStorage.getItem(THEME_KEY); return THEME_ORDER.indexOf(v as string)>=0 ? v as string : 'dark' }catch{ return 'dark' } }
+  function applyTheme(mode:string){
+    (root as HTMLElement).dataset.theme = resolveTheme(mode)
     try{ localStorage.setItem(THEME_KEY, mode) }catch{}
     // mark active segment
-    root.querySelectorAll('#theme-sel .gas-theme-opt').forEach(o=>{
+    ;(root.querySelectorAll('#theme-sel .gas-theme-opt') as NodeListOf<HTMLElement>).forEach(o=>{
       o.classList.toggle('active', o.dataset.mode===mode)
     })
   }
   // build the 3-way selector
   const themeSel = root.querySelector('#theme-sel')
   if(themeSel){
-    THEME_ORDER.forEach(mode=>{
+    THEME_ORDER.forEach((mode:string)=>{
       const b=document.createElement('button')
       b.className='gas-theme-opt'
       b.dataset.mode=mode
-      b.title='主题：' + THEME_META[mode].label
-      b.innerHTML = '<span class="tico">' + THEME_META[mode].icon + '</span><span class="tlabel">' + THEME_META[mode].label + '</span>'
+      const meta=(THEME_META as Record<string,{icon:string,label:string}>)[mode]
+      b.title='主题：' + meta.label
+      b.innerHTML = '<span class="tico">' + meta.icon + '</span><span class="tlabel">' + meta.label + '</span>'
       b.onclick=()=>applyTheme(mode)
       themeSel.appendChild(b)
     })

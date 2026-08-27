@@ -57,8 +57,11 @@ http://127.0.0.1:3080/game-art-studio
 # Install dependencies if needed
 npm install --ignore-scripts
 
-# Build host + client
+# Build TypeScript → lib/client.js + lib/index.js
 npx tsdown
+
+# After tsdown, regenerate standalone HTML files (public/index.html + game-art-studio.html)
+node scripts/build-html.mjs
 
 # Inside DSH injector environment
 dev_inject_plugin D:/path/to/Godot-Arter
