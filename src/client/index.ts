@@ -1072,40 +1072,69 @@ function buildStudio(): HTMLElement {
   }
   const openWebPanel=async (kind:string, prompt?:string)=>{
     const url= kind==='gemini' ? 'https://gemini.google.com' : 'https://chatgpt.com'
+    const siteName=kind==='gemini'?'Gemini':'ChatGPT'
+    
     if(prompt){
-      // 尝试联动服务
-      const pushed=await webLinkPushPrompt(kind,prompt)
-      if(pushed){
-        webToast('🔗 提示词已发送到联动服务 — 装有扩展的浏览器会自动填入 '+(kind==='gemini'?'Gemini':'ChatGPT')+' 对话框（不会自动发送）')
-      }else{
-        // 联动服务不可用，复制到剪贴板
+      // 检查是否需要服务器模式
+      if(!WEB_LINK_BASE){
+        // file:// 模式下，尝试使用 Blob URL 下载提示词
         try{
-          // 创建带提示的文本
-          const siteName=kind==='gemini'?'Gemini':'ChatGPT'
           const textToCopy=`请根据以下描述生成一张图片：
 
 ${prompt}
 
 ---
-（提示词来源：Godot-Arter 烛火剧场）`
+提示词来源：Godot-Arter`
+
+          // 方法1：navigator.clipboard (需要 HTTPS 或 localhost)
+          try{
+            await navigator.clipboard.writeText(textToCopy)
+            webToast('📋 提示词已复制到剪贴板 — 打开 '+siteName+' 后按 Ctrl+V 粘贴')
+            window.open(url,'_blank')
+            return
+          }catch{}
           
-          await navigator.clipboard.writeText(textToCopy)
-          webToast('📋 提示词已复制到剪贴板 — 打开 '+siteName+' 后按 Ctrl+V 粘贴')
-        }catch(e){
-          console.warn('Clipboard failed:',e)
-          // Fallback: 用 textarea 选择复制
+          // 方法2：execCommand
           try{
             const ta=document.createElement('textarea')
-            ta.value=prompt
-            ta.style.cssText='position:fixed;top:0;left:0;opacity:0;width:1px;height:1px'
+            ta.value=textToCopy
+            ta.style.cssText='position:fixed;top:0;left:0;opacity:0;pointer-events:none'
             document.body.appendChild(ta)
             ta.select()
             document.execCommand('copy')
             document.body.removeChild(ta)
-            webToast('📋 提示词已复制到剪贴板')
-          }catch{
-            webToast('⚠️ 复制失败，请在 '+siteName+' 中手动输入提示词',false)
-          }
+            webToast('📋 提示词已复制 — 打开 '+siteName+' 后 Ctrl+V 粘贴')
+            window.open(url,'_blank')
+            return
+          }catch{}
+          
+          // 方法3：下载为文本文件
+          const blob=new Blob([textToCopy],{type:'text/plain'})
+          const dlUrl=URL.createObjectURL(blob)
+          const a=document.createElement('a')
+          a.href=dlUrl
+          a.download='gemini-prompt-'+Date.now()+'.txt'
+          a.click()
+          URL.revokeObjectURL(dlUrl)
+          webToast('⚠️ 复制受限，提示词已下载为文件 — 打开 '+siteName+' 后复制粘贴文件内容',false)
+        }catch(e){
+          webToast('⚠️ 操作失败，请在 '+siteName+' 中手动输入提示词',false)
+        }
+        window.open(url,'_blank')
+        return
+      }
+      
+      // 尝试联动服务
+      const pushed=await webLinkPushPrompt(kind,prompt)
+      if(pushed){
+        webToast('🔗 提示词已发送到联动服务 — 装有扩展的浏览器会自动填入 '+siteName+' 对话框')
+      }else{
+        // 联动服务不可用，复制到剪贴板
+        try{
+          await navigator.clipboard.writeText(prompt)
+          webToast('📋 提示词已复制到剪贴板 — 打开 '+siteName+' 后按 Ctrl+V 粘贴')
+        }catch{
+          webToast('⚠️ 复制失败，请在 '+siteName+' 中手动输入提示词',false)
         }
       }
     }
