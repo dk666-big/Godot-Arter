@@ -1073,14 +1073,43 @@ function buildStudio(): HTMLElement {
   const openWebPanel=async (kind:string, prompt?:string)=>{
     const url= kind==='gemini' ? 'https://gemini.google.com' : 'https://chatgpt.com'
     if(prompt){
+      // 尝试联动服务
       const pushed=await webLinkPushPrompt(kind,prompt)
       if(pushed){
         webToast('🔗 提示词已发送到联动服务 — 装有扩展的浏览器会自动填入 '+(kind==='gemini'?'Gemini':'ChatGPT')+' 对话框（不会自动发送）')
       }else{
-        try{ await navigator.clipboard.writeText(prompt); webToast('📋 联动服务不可用，提示词已复制到剪贴板 — 打开网页后手动粘贴') }
-        catch{ webToast('⚠️ 提示词未能复制，请手动复制后粘贴到网页',false) }
+        // 联动服务不可用，复制到剪贴板
+        try{
+          // 创建带提示的文本
+          const siteName=kind==='gemini'?'Gemini':'ChatGPT'
+          const textToCopy=`请根据以下描述生成一张图片：
+
+${prompt}
+
+---
+（提示词来源：Godot-Arter 烛火剧场）`
+          
+          await navigator.clipboard.writeText(textToCopy)
+          webToast('📋 提示词已复制到剪贴板 — 打开 '+siteName+' 后按 Ctrl+V 粘贴')
+        }catch(e){
+          console.warn('Clipboard failed:',e)
+          // Fallback: 用 textarea 选择复制
+          try{
+            const ta=document.createElement('textarea')
+            ta.value=prompt
+            ta.style.cssText='position:fixed;top:0;left:0;opacity:0;width:1px;height:1px'
+            document.body.appendChild(ta)
+            ta.select()
+            document.execCommand('copy')
+            document.body.removeChild(ta)
+            webToast('📋 提示词已复制到剪贴板')
+          }catch{
+            webToast('⚠️ 复制失败，请在 '+siteName+' 中手动输入提示词',false)
+          }
+        }
       }
     }
+    // 打开网页
     window.open(url,'_blank')
   }
   pPreset.querySelector('#web-gemini')!.addEventListener('click', ()=> openWebPanel('gemini'))
