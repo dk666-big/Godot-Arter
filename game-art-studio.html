@@ -2750,7 +2750,8 @@ function buildStudio() {
 				pAsset,
 				pPost,
 				pPreset,
-				pExport
+				pExport,
+				pStory
 			].forEach((p) => main.appendChild(p));
 			panels["character"] = pChar;
 			panels["seq"] = pSeq;
@@ -2765,6 +2766,7 @@ function buildStudio() {
 			panels["post"] = pPost;
 			panels["preset"] = pPreset;
 			panels["export"] = pExport;
+			panels["story"] = pStory;
 			function switchTab(id) {
 				active = id;
 				main.scrollTop = 0;

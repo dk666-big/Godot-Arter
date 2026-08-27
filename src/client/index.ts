@@ -2076,8 +2076,8 @@ const pPost=mkPanel('post', `
     </div>
   `)
 
-  ;[pChar,pSeq,pPipe,pSheet,pForge,pMat,pExtract,pMap,pScene,pAsset,pPost,pPreset,pExport].forEach(p=>main.appendChild(p))
-  panels['character']=pChar; panels['seq']=pSeq; panels['pipe']=pPipe; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['extract']=pExtract; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport
+  ;[pChar,pSeq,pPipe,pSheet,pForge,pMat,pExtract,pMap,pScene,pAsset,pPost,pPreset,pExport,pStory].forEach(p=>main.appendChild(p))
+  panels['character']=pChar; panels['seq']=pSeq; panels['pipe']=pPipe; panels['sheet']=pSheet; panels['forge']=pForge; panels['matting']=pMat; panels['map']=pMap; panels['scene']=pScene; panels['extract']=pExtract; panels['asset']=pAsset; panels['post']=pPost; panels['preset']=pPreset; panels['export']=pExport; panels['story']=pStory
 
   function switchTab(id:string){
     active=id
