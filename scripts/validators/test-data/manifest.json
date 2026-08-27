@@ -1,0 +1,12 @@
+{
+  "app": "Godot-Arter",
+  "kind": "ink_theater_cutscene",
+  "project": "序章·烛火之夜",
+  "godot": "4.2",
+  "cutscene_res": "cutscenes/prologue_demo.tres",
+  "cutscene_json": "cutscenes/prologue_demo.json",
+  "data_classes_dir": "scripts/cutscene/",
+  "player": "scripts/cutscene/cutscene_player.gd",
+  "images_used": 1,
+  "generated_at": "2026-08-27T16:00:00.000Z"
+}

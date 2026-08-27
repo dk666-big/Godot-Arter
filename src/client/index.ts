@@ -240,6 +240,7 @@ function buildStudio(): HTMLElement {
     { id:'seq', label:'单帧动画', icon:'🎬', group:'生成' },
     { id:'forge', label:'素材锻造', icon:'🧱', group:'生成' },
     { id:'scene', label:'场景工坊', icon:'🌦️', group:'生成' },
+    { id:'story', label:'烛火剧场', icon:'🎭', group:'生成' },
     { id:'pipe', label:'素材流水线', icon:'🚀', group:'处理' },
     { id:'sheet', label:'序列帧', icon:'🎞️', group:'处理' },
     { id:'matting', label:'智能抠图', icon:'✂️', group:'处理' },
@@ -1095,6 +1096,924 @@ function buildStudio(): HTMLElement {
   })
   pPreset.querySelector('#web-link-inbox')!.addEventListener('click', ()=> webLinkCheckInbox(0,true))
 
+  /* ===================== 🎭 烛火剧场 · 剧情演出素材生产 =====================
+     定位：本工坊只负责"做素材"——编辑剧本数据、AI 生产插画、实时预览演出效果，
+     并导出可直接拖入 Godot 项目 res:// 根目录的资产包：
+       cutscenes/<id>.tres（CutsceneData 资源，配套 scripts/cutscene/*.gd 数据类）
+       cutscenes/<id>.json（引擎无关的同一份数据）
+       assets/cutscenes/img/<itemId>.png（分镜/场景底图）
+       scripts/cutscene/*.gd（五个 @export 数据类 + 单文件运行时播放器参考实现）
+     游戏侧接线、触发条件、存档联动由使用者在 Godot 内自行完成。 */
+  ;(()=>{
+    const pStory=mkPanel('story', `
+      <div class="gas-card">
+        <h4>🎭 烛火剧场 InkTheater — 剧情演出素材生产</h4>
+        <div class="gas-row" style="align-items:flex-end">
+          <div style="flex:1"><label class="gas-label">剧本项目</label><select class="gas-select" id="st-proj"></select></div>
+          <button class="gas-btn" id="st-new">➕ 新建剧本</button>
+          <button class="gas-btn ghost" id="st-rename">✏️ 重命名</button>
+          <button class="gas-btn ghost" id="st-del">🗑 删除</button>
+          <button class="gas-btn ghost" id="st-sample">📖 载入示例</button>
+        </div>
+        <div class="gas-note">层级：章节 → 场景 → 分镜。分镜插画可 AI 生成后自动入库绑定；导出的 zip 解压到 Godot 项目 <span class="gas-kbd">res://</span> 根目录即含剧本 .tres/.json、引用 PNG 与 scripts/cutscene 数据类。</div>
+      </div>
+      <div class="gas-card">
+        <div class="gas-row" style="align-items:stretch">
+          <div style="width:250px;display:flex;flex-direction:column">
+            <label class="gas-label">📜 剧本大纲</label>
+            <div id="st-outline" style="flex:1;background:#1a1e20;border:1px solid var(--border);border-radius:10px;padding:8px;min-height:300px;max-height:430px;overflow:auto;font-size:12px"></div>
+            <div class="gas-row" style="margin-top:8px">
+              <button class="gas-btn ghost" id="st-add-ch">➕ 章节</button>
+              <button class="gas-btn ghost" id="st-add-sc">➕ 场景</button>
+              <button class="gas-btn ghost" id="st-add-shot">➕ 分镜</button>
+            </div>
+          </div>
+          <div style="flex:1.25;display:flex;flex-direction:column">
+            <label class="gas-label">🎬 分镜编辑</label>
+            <div id="st-editor" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px"></div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column">
+            <label class="gas-label">▶ 实时预览</label>
+            <div id="story-stage" data-no-zoom style="position:relative;aspect-ratio:16/9;background:#0b0a09;border:2px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer">
+              <img id="pv-img" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;z-index:1">
+              <div id="pv-dim" style="position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .35s;z-index:2"></div>
+              <div id="pv-shake" style="position:absolute;inset:0;z-index:3">
+                <div id="pv-dialog" style="position:absolute;left:4%;right:4%;bottom:5%;background:#241c14;border:3px solid #594c39;border-radius:10px;padding:10px 12px;box-shadow:4px 4px 0 rgba(0,0,0,.5)">
+                  <div id="pv-speaker" style="font-weight:700;color:#e8a33d;font-size:12px;margin-bottom:4px"></div>
+                  <div id="pv-text" style="color:#efe6d0;font-size:13px;line-height:1.65;min-height:44px;white-space:pre-wrap"></div>
+                  <div id="pv-hint" style="text-align:right;color:#9aa0a6;font-size:10px;margin-top:2px;opacity:0">点击继续 ▶</div>
+                </div>
+              </div>
+              <div id="pv-choices" style="position:absolute;right:5%;top:8%;z-index:4;display:none;flex-direction:column;gap:8px"></div>
+              <div id="pv-state" style="position:absolute;left:8px;top:6px;z-index:4;font-size:10px;color:#9aa0a6"></div>
+            </div>
+            <div class="gas-row" style="margin-top:8px">
+              <button class="gas-btn" id="pv-play-scene">▶ 播放当前场景</button>
+              <button class="gas-btn ghost" id="pv-stop">⏹ 停止(Esc)</button>
+            </div>
+            <div class="gas-note" style="margin-top:6px">预览为近似模拟：打字机/入场动画/分支/跳转与导出播放器参数语义一致，缓动手感以 Godot 为准。点击画面=快进打字或继续；Esc=停止。</div>
+          </div>
+        </div>
+      </div>
+      <div class="gas-card" data-no-zoom>
+        <label class="gas-label">🎞️ 时间轴 — 当前场景分镜（拖拽排序 · 点击选中 · ＋ 追加）</label>
+        <div id="st-timeline" style="display:flex;gap:8px;overflow-x:auto;padding:8px;min-height:110px;background:#15181a;border:1px solid var(--border);border-radius:10px"></div>
+      </div>
+      <div class="gas-card">
+        <h4>📤 导出剧情资产包</h4>
+        <div class="gas-row">
+          <button class="gas-btn" id="st-export-zip">📦 导出剧情包（tres+json+图片+数据类+播放器）</button>
+          <button class="gas-btn ghost" id="st-export-json">⬇ 仅导出 JSON</button>
+          <span class="gas-note" id="st-status" style="margin-left:auto"></span>
+        </div>
+        <div class="gas-note">解压到项目 res:// 根目录后：<span class="gas-kbd">scripts/cutscene/</span> 提供六个全局类；游戏内在任意时机实例化 <span class="gas-kbd">InkTheaterPlayer.new()</span> 并调用 <span class="gas-kbd">play_id("剧本id")</span> 即可演出；监听 finished(id) 与 shot_event(name,cid,sid) 接你的游戏逻辑。</div>
+      </div>
+    `)
+    panels.story=pStory
+    const $=(q:string)=>pStory.querySelector(q) as HTMLElement
+    const statusEl=pStory.querySelector('#st-status') as HTMLElement
+    /* ---- 数据模型 ---- */
+    type SChoice={ id:string;text:string;next_shot_id:string;condition_flag:string }
+    type SShot={ id:string;text:string;speaker:string;speaker_color:string;image_item:string;typewriter_speed:number;entry_anim:string;transition:string;duration:number;darken_bg:number;camera_shake:number;slow_motion:number;choices:SChoice[];goto_scene:string;goto_shot:string;on_complete_signal:string }
+    type SScene={ id:string;title:string;background_item:string;bgm_path:string;shots:SShot[] }
+    type SChapter={ id:string;title:string;scenes:SScene[] }
+    type SProject={ id:string;title:string;chapters:SChapter[] }
+    const LS_STORY='dsh-game-art-studio:stories'
+    const uid=(pfx:string)=>pfx+Date.now().toString(36)+Math.random().toString(36).slice(2,5)
+    const esc=(s:string)=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')
+    function loadStories(){ try{ return JSON.parse(localStorage.getItem(LS_STORY)||'{}') }catch{ return {} } }
+    let stories:any=loadStories()
+    let curId:string=localStorage.getItem('dsh-game-art-studio:storyCur')||''
+    if(!curId||!stories[curId]) curId=Object.keys(stories)[0]||''
+    const cur=()=>stories[curId]
+    const persist=()=>{ localStorage.setItem(LS_STORY,JSON.stringify(stories)); localStorage.setItem('dsh-game-art-studio:storyCur',curId) }
+    let sel={ c:-1,s:-1,t:-1 }
+    const selShot=()=>{ const p=cur(); if(!p||sel.c<0||sel.s<0||sel.t<0) return null; try{ return p.chapters[sel.c].scenes[sel.s].shots[sel.t] }catch{ return null } }
+    const selScene=()=>{ const p=cur(); if(!p||sel.c<0||sel.s<0) return null; try{ return p.chapters[sel.c].scenes[sel.s] }catch{ return null } }
+    /* ---- 插画库缓存 ---- */
+    let assetCache:any[]=[]
+    async function refreshAssets(){ try{ assetCache=await idbGetAll() }catch{ assetCache=[] } renderAll() }
+    const itemById=(id:string)=>assetCache.find((a:any)=>a.id===id)||null
+    const itemLabel=(a:any)=> '['+(a.kind||'?')+'] '+((a.name||'')+' ').slice(0,22)+'·'+(a.id||'')
+    /* ---- 大纲树 ---- */
+    function projRow(label:string,onClick:()=>void,onDel?:()=>void){
+      const row=document.createElement('div'); row.style.cssText='display:flex;align-items:center;gap:4px;padding:2px 0'
+      const b=document.createElement('span'); b.innerHTML=label; b.style.cssText='flex:1;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'; b.onclick=onClick
+      row.appendChild(b)
+      if(onDel){ const d=document.createElement('button'); d.textContent='✕'; d.title='删除'; d.style.cssText='border:0;background:none;color:#e74c3c;cursor:pointer;font-size:11px'; d.onclick=e=>{ e.stopPropagation(); if(confirm('确定删除？')) onDel() }; row.appendChild(d) }
+      return row }
+    function renderAll(){ renderProjSelect(); renderOutline(); renderEditor(); }
+    function renderOutline(){
+      renderProjSelect()
+      const box=pStory.querySelector('#st-outline') as HTMLElement; box.innerHTML=''
+      const p=cur()
+      if(!p){ box.innerHTML='<div class="gas-note">暂无剧本 — 点「新建剧本」开始。「载入示例」可一键体验全流程。</div>'; return }
+      const mark=(cond:any)=>cond?'style="color:#e8a33d"':''
+      p.chapters.forEach((ch:any,ci:number)=>{
+        box.appendChild(projRow(`<span ${mark(sel.c===ci)}>📗 第${ci+1}章 ${esc(ch.title)} <i style="color:#666">(${ch.scenes.length}场景)</i></span>`,
+          ()=>{ sel={c:ci,s:-1,t:-1}; renderAll() },
+          ()=>{ p.chapters.splice(ci,1); persist(); sel={c:-1,s:-1,t:-1}; renderAll() }))
+        ch.scenes.forEach((sc:any,si:number)=>{
+          box.appendChild(projRow(`<span ${mark(sel.c===ci&&sel.s===si)}>&nbsp;&nbsp;🎬 ${esc(sc.title)} <i style="color:#666">(${sc.shots.length}分镜)</i></span>`,
+            ()=>{ sel={c:ci,s:si,t:-1}; renderAll() },
+            ()=>{ ch.scenes.splice(si,1); persist(); if(sel.c===ci&&sel.s>=si) sel.s=-1; sel.t=-1; renderAll() }))
+          const last=box.lastChild
+          sc.shots.forEach((t:any,ti:number)=>{
+            const row=projRow(`&nbsp;&nbsp;&nbsp;&nbsp;<span style="${sel.c===ci&&sel.s===si&&sel.t===ti?'color:#e8a33d':''}">${ti+1}. ${(t.image_item?'🖼':'▫')} ${(t.speaker?esc(t.speaker)+'：':'')}${esc(t.text.slice(0,18))}${t.choices.length?' ⤳':''}${t.duration>0?' ⏱':''}</span>`,
+              ()=>{ sel={c:ci,s:si,t:ti}; renderAll() },
+              ()=>{ sc.shots.splice(ti,1); persist(); if(sel.c===ci&&sel.s===si&&sel.t>=ti) sel.t=Math.max(-1,sel.t-1); renderAll() })
+            row.style.paddingLeft='10px'; box.appendChild(row)
+          })
+        })
+      })
+    }
+    function renderProjSelect(){ const el=pStory.querySelector('#st-proj') as HTMLSelectElement
+      el.innerHTML=Object.values(stories).map((s:any)=>`<option value="${s.id}"${s.id===curId?' selected':''}>${esc(s.title)}</option>`).join('') }
+    /* ---- 分镜编辑器 ---- */
+    function field(label:string,inner:string){ return '<div style="margin-bottom:7px"><label class="gas-label">'+label+'</label>'+inner+'</div>' }
+    function renderEditor(){
+      const ed=pStory.querySelector('#st-editor') as HTMLElement; const t=selShot()
+      if(!t){ ed.innerHTML='<div class="gas-note">左侧选择分镜后在此编辑；「＋ 分镜」新增。</div>'; renderTimeline(); return }
+      const assetOpts=['<option value="">（未设置插画）</option>'].concat(
+        assetCache.slice().sort((a:any,b:any)=>b.createdAt-a.createdAt).slice(0,120).map((a:any)=>`<option value="${a.id}"${a.id===t.image_item?' selected':''}>${itemLabel(a)}</option>`)).join('')
+      ed.innerHTML=
+        field('台词 <i style="font-weight:400">(支持 BBCode 子集：[b][i][color=#hex])</i>',`<textarea class="gas-textarea" data-k="text" style="min-height:60px">${t.text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea>`)+
+        `<div class="gas-row">`+
+        field('说话人',`<input class="gas-input" data-k="speaker" value="${esc(t.speaker)}">`)+
+        field('名字颜色',`<input type="color" data-k="speaker_color" value="${/^#[0-9a-fA-F]{6}$/.test(t.speaker_color)?t.speaker_color:'#ffffff'}" style="height:32px">`)+
+        `</div>`+
+        field('插画','<select class="gas-select" data-k="image_item">'+assetOpts+'</select>'+
+          '<div class="gas-row" style="margin-top:4px"><select class="gas-select" id="e-gen-provider"><option value="mock">本地演示(无Key)</option><option value="openai">OpenAI</option><option value="siliconflow">SiliconFlow</option></select>'+
+          '<button class="gas-btn ghost" id="e-style-tpl">🎨 注入风格模板</button><button class="gas-btn" id="e-gen-img">✨ AI 生成并入库绑定</button></div>'+
+          '<textarea class="gas-textarea" id="e-gen-prompt" placeholder="生成提示词：主角描述＋情绪动作＋场景环境（点模板按钮按工坊暗黑童话基调拼装）" style="min-height:46px;margin-top:6px"></textarea>')+
+        `<div class="gas-row">`+
+        field('入场动画','<select class="gas-select" data-k="entry_anim">'+['fade','slide_left','slide_right','zoom_in'].map(v=>`<option value="${v}"${t.entry_anim===v?' selected':''}>${v}</option>`).join('')+'</select>')+
+        field('到下一分镜过渡','<select class="gas-select" data-k="transition">'+['fade','cut','page_flip'].map(v=>`<option value="${v}"${t.transition===v?' selected':''}>${v}</option>`).join('')+'</select>')+
+        `</div>`+
+        `<div class="gas-row" style="flex-wrap:wrap">`+
+        field('打字速度 s/字',`<input class="gas-input" type="number" data-k="typewriter_speed" step="0.005" min="0.005" max="0.3" value="${t.typewriter_speed}" style="width:92px">`)+
+        field('停留秒数 0=点击继续',`<input class="gas-input" type="number" data-k="duration" step="0.5" min="0" value="${t.duration}" style="width:92px">`)+
+        field('背景暗化 0~1',`<input class="gas-input" type="number" data-k="darken_bg" step="0.05" min="0" max="1" value="${t.darken_bg}" style="width:92px">`)+
+        field('镜头震动 0~1',`<input class="gas-input" type="number" data-k="camera_shake" step="0.1" min="0" max="1" value="${t.camera_shake}" style="width:92px">`)+
+        field('慢动作 0.1~1',`<input class="gas-input" type="number" data-k="slow_motion" step="0.05" min="0.1" max="1" value="${t.slow_motion}" style="width:92px">`)+
+        `</div>`+
+        `<div class="gas-row">`+
+        field('跳转到 场景id（可选）',`<input class="gas-input" data-k="goto_scene" value="${esc(t.goto_scene)}" placeholder="留空=不跳">`)+
+        field('跳转到 分镜id（可选）',`<input class="gas-input" data-k="goto_shot" value="${esc(t.goto_shot)}" placeholder="优先级高于线性下一分镜">`)+
+        field('完成事件名（游戏监听）',`<input class="gas-input" data-k="on_complete_signal" value="${esc(t.on_complete_signal)}">`)+
+        `</div>`+
+        field('分支选项（非空=该分镜末尾显示按钮）','<div id="e-choices"></div><button class="gas-btn ghost" id="e-add-choice" style="margin-top:4px">➕ 加选项</button>')
+      ed.querySelectorAll('[data-k]').forEach(inp=>{
+        inp.addEventListener('change',()=>{
+          const k=(inp as HTMLElement).dataset.k!
+          let v=(inp as HTMLInputElement).type==='checkbox'?(inp as HTMLInputElement).checked:(inp as HTMLInputElement).value
+          if(k==='text'){ v=(inp as HTMLTextAreaElement).value; t.text=v; renderTimeline() }
+          else if(k==='typewriter_speed'){ t.typewriter_speed=Math.min(0.3,Math.max(0.005,+ (inp as HTMLInputElement).value||0.03)) }
+          else if(k==='duration'){ t.duration=Math.max(0,+(inp as HTMLInputElement).value||0) }
+          else if(k==='darken_bg'){ t.darken_bg=Math.min(1,Math.max(0,+(inp as HTMLInputElement).value||0)) }
+          else if(k==='camera_shake'){ t.camera_shake=Math.min(1,Math.max(0,+(inp as HTMLInputElement).value||0)) }
+          else if(k==='slow_motion'){ t.slow_motion=Math.min(1,Math.max(0.1,+(inp as HTMLInputElement).value||1)) }
+          else if(k==='goto_shot'||k==='goto_scene'||k==='on_complete_signal'){ (t as any)[k]=(inp as HTMLInputElement).value.trim() }
+          else if(k==='entry_anim'||k==='transition'){ (t as any)[k]=(inp as HTMLInputElement).value; renderTimeline() }
+          else if(k==='image_item'){ t.image_item=v; renderTimeline() }
+          else if(k==='speaker_color'||k==='speaker'){ (t as any)[k]=v; renderOutline() }
+          else (t as any)[k]=v
+          persist()
+        })
+      })
+      const pw=ed.querySelector('#e-gen-prompt') as HTMLTextAreaElement
+      ed.querySelector('#e-style-tpl')!.addEventListener('click',()=>{
+        pw.value=[ (t.speaker||'主角'), '情绪动作特写，场景环境描述。暗黑童话手绘塔防美术，融合《杀戮尖塔2》与《王国保卫战》，阵营配色（深棕主色、烛金点缀色）。完整场景构图，无文字、无UI。' ].join('')
+      })
+      ed.querySelector('#e-gen-img')!.addEventListener('click',async ()=>{
+        const prompt=pw.value.trim(); if(!prompt) return toast(statusEl,'先填写生成提示词（可用 🎨 模板按钮拼装）',false)
+        const prov=(ed.querySelector('#e-gen-provider') as HTMLSelectElement).value
+        statusEl.textContent='🎭 插画生成中…('+prov+')'
+        let url=''
+        try{
+          try{ url=await callImageGen(prompt,prov,{ size:'1024x1024' }) }
+          catch(e:any){ toast(statusEl,'所选供应商失败，回退本地演示图：'+String(e.message||e).slice(0,50),false)
+            url=await callImageGen(prompt,'mock',{ size:'1024x1024' }) }
+          const id=await addToLibrary('story',(t.speaker||'插画')+' '+new Date().toLocaleTimeString(),url,{ from:'inktheater', prompt })
+          await refreshAssets()
+          t.image_item=id; persist()
+          ;(ed.querySelector('[data-k="image_item"]') as HTMLSelectElement).value=id
+          statusEl.textContent='✅ 已入库并绑定：'+id
+          renderTimeline()
+        }catch(e:any){ toast(statusEl,'生成失败：'+String(e.message||e).slice(0,90),false) }
+      })
+      const chBox=ed.querySelector('#e-choices')!
+      t.choices.forEach((c:SChoice,i:number)=>{
+        const row=document.createElement('div'); row.style.cssText='display:flex;gap:6px;margin-bottom:4px'
+        row.innerHTML=`<input class="gas-input" data-c="text" value="${esc(c.text)}" placeholder="选项文字" style="flex:2"><input class="gas-input" data-c="next_shot_id" value="${esc(c.next_shot_id)}" placeholder="目标分镜id(空=下一分镜)" style="flex:1.2"><input class="gas-input" data-c="condition_flag" value="${esc(c.condition_flag)}" placeholder="条件flag(空=恒显)" style="flex:1"><button class="gas-btn ghost" title="移除">✕</button>`
+        row.querySelectorAll('input[data-c]').forEach((inp:Element)=>(inp as HTMLInputElement).addEventListener('change',()=>{ (c as any)[(inp as HTMLElement).dataset.c!]=(inp as HTMLInputElement).value; persist() }))
+        row.querySelector('button')!.addEventListener('click',()=>{ t.choices.splice(i,1); persist(); renderEditor() })
+        chBox.appendChild(row)
+      })
+      ed.querySelector('#e-add-choice')!.addEventListener('click',()=>{ t.choices.push({ id:uid('o'), text:'选项 '+(t.choices.length+1), next_shot_id:'', condition_flag:'' }); persist(); renderEditor() })
+      renderTimeline()
+    }
+    /* ---- 时间轴 ---- */
+    function thumbFor(itemId:string,w:number,h:number){
+      const d=document.createElement('div'); d.style.cssText=`width:${w}px;height:${h}px;background:#242a2e;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#566;font-size:18px;overflow:hidden;pointer-events:none`
+      const it=itemById(itemId)
+      if(it&&it.url){ const im=document.createElement('img'); im.src=it.url; im.style.cssText='width:100%;height:100%;object-fit:cover'; im.draggable=false; d.appendChild(im) }
+      else d.textContent='🖼'
+      return d }
+    function renderTimeline(){
+      const tl=pStory.querySelector('#st-timeline') as HTMLElement; tl.innerHTML=''
+      const sc=selScene()
+      if(!sc){ tl.innerHTML='<div class="gas-note">选择一个场景查看其分镜序列。</div>'; return }
+      const p=cur(); let ci=-1, si=-1
+      p.chapters.forEach((c:number,i:number)=>(c as any).scenes.forEach((s:any,j:number)=>{ if(s.id===sc.id){ci=i;si=j} }))
+      sc.shots.forEach((t:any,i:number)=>{
+        const chip=document.createElement('div'); chip.draggable=true; chip.dataset.i=String(i)
+        chip.style.cssText=`flex:0 0 auto;width:158px;border:2px solid ${sel.t===i?'var(--accent2)':'var(--border)'};border-radius:8px;background:#1d2124;padding:6px;cursor:grab`
+        chip.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:10px;color:#9aa0a6;margin-bottom:4px"><span>#${i+1}</span><span>${t.transition==='fade'?'🌗':t.transition==='page_flip'?'📃':'✂️'} ${t.choices.length?'⤳':''}${t.duration>0?'⏱':''}</span></div>`
+        chip.appendChild(thumbFor(t.image_item,142,62))
+        const txt=document.createElement('div'); txt.style.cssText='font-size:11px;color:#ddd;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis'
+        txt.textContent=((t.speaker?t.speaker+'：':'')+t.text||'(空)').slice(0,26)
+        chip.appendChild(txt)
+        chip.addEventListener('click',()=>{ sel={c:ci,s:si,t:i}; renderEditor(); renderOutline() })
+        chip.addEventListener('dragstart',(e:any)=>{ e.dataTransfer!.setData('text/plain',String(i)) })
+        chip.addEventListener('dragover',(e:any)=>e.preventDefault())
+        chip.addEventListener('drop',(e:any)=>{ e.preventDefault(); const from=parseInt(e.dataTransfer!.getData('text/plain')||'-1'); if(from<0||from===i) return
+          const m=sc.shots.splice(from,1)[0]; sc.shots.splice(i,0,m); sel.t=i; persist(); renderAll() })
+        tl.appendChild(chip)
+      })
+      const addChip=document.createElement('div'); addChip.style.cssText='flex:0 0 auto;width:110px;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#9aa0a6;cursor:pointer;font-size:22px'
+      addChip.textContent='＋ 分镜'; addChip.onclick=addShot; tl.appendChild(addChip)
+    }
+    /* ---- CRUD ---- */
+    function addShot(){ const p=cur(); if(!p) return toast(statusEl,'先新建剧本',false)
+      const sc=selScene()||((()=>{ const ci=sel.c>=0?p.chapters[sel.c]:null; const ch=ci||p.chapters[p.chapters.length-1]; if(!ch) return null
+        ch.scenes.push({ id:uid('sc'), title:'场景'+(ch.scenes.length+1), background_item:'', bgm_path:'', shots:[] }); sel={c:p.chapters.indexOf(ch),s:ch.scenes.length-1,t:-1}; return ch.scenes[ch.scenes.length-1] })())
+      if(!sc) return toast(statusEl,'先创建章节与场景',false)
+      sc.shots.push({ id:uid('shot'), text:'', speaker:'', speaker_color:'#ffffff', image_item:'', typewriter_speed:0.03, entry_anim:'fade', transition:'fade', duration:0, darken_bg:0.6, camera_shake:0, slow_motion:1, choices:[], goto_scene:'', goto_shot:'', on_complete_signal:'' })
+      sel.t=sc.shots.length-1; persist(); renderAll() }
+    function newProject(title:string): SProject{ const p:SProject={ id:uid('story'), title, chapters:[] }; stories[p.id]=p; curId=p.id
+      p.chapters.push({ id:uid('ch'), title:'序章', scenes:[ { id:uid('sc'), title:'场景一', background_item:'', bgm_path:'', shots:[] } ] })
+      sel={c:0,s:0,t:-1}; persist(); renderAll(); return p }
+    function ensureDemo(){
+      const p=newProject('序章·烛火之夜'); const sc0=p.chapters[0].scenes[0]; sc0.title='夜巡的开始'
+      sc0.shots=[
+        { id:uid('shot'), text:'寒风掠过王旗，[color=#e8a33d]烛火[/color]在塔顶明明灭灭。', speaker:'旁白', speaker_color:'#cdd7e0', image_item:'', typewriter_speed:0.035, entry_anim:'fade', transition:'fade', duration:0, darken_bg:0.55, camera_shake:0.4, slow_motion:1, choices:[], goto_scene:'', goto_shot:'', on_complete_signal:'prologue_patrol_started' },
+        { id:uid('shot'), text:'城下集市人声渐息，只剩巡夜人的靴声敲着石阶。', speaker:'旁白', speaker_color:'#cdd7e0', image_item:'', typewriter_speed:0.04, entry_anim:'slide_left', transition:'fade', duration:2, darken_bg:0.6, camera_shake:0, slow_motion:1, choices:[], goto_scene:'', goto_shot:'', on_complete_signal:'' },
+      ]
+      const sc1:SScene={ id:uid('sc'), title:'老守塔人的低语', background_item:'', bgm_path:'', shots:[
+        { id:uid('shot'), text:'孩子，把灯芯挑亮些 —— 它们熄灭的那晚，[b]城墙上的阴影会先走一步[/b]。', speaker:'老守塔人', speaker_color:'#d9536f', image_item:'', typewriter_speed:0.04, entry_anim:'zoom_in', transition:'fade', duration:0, darken_bg:0.7, camera_shake:0, slow_motion:1, choices:[], goto_scene:'', goto_shot:'', on_complete_signal:'' },
+        { id:uid('shot'), text:'那么……[color=#8fd18f]选择吧[/color]，听完整个旧故事，还是先去睡觉？', speaker:'老守塔人', speaker_color:'#d9536f', image_item:'', typewriter_speed:0.04, entry_anim:'fade', transition:'cut', duration:0, darken_bg:0.75, camera_shake:0, slow_motion:1, choices:[
+            { id:uid('o'), text:'听完故事再睡（flag: curious）', next_shot_id:'', condition_flag:'' },
+            { id:uid('o'), text:'明天再说', next_shot_id:'', condition_flag:'' } ], goto_scene:'', goto_shot:'', on_complete_signal:'prologue_choice_made' },
+      ] }
+      const sc2:SScene={ id:uid('sc'), title:'Boss 登场', background_item:'', bgm_path:'', shots:[
+        { id:uid('shot'), text:'雾墙裂开 —— [b]它比传说中更高。[/b]', speaker:'旁白', speaker_color:'#cdd7e0', image_item:'', typewriter_speed:0.03, entry_anim:'zoom_in', transition:'page_flip', duration:2.5, darken_bg:0.85, camera_shake:0.9, slow_motion:0.6, choices:[], goto_scene:'', goto_shot:'', on_complete_signal:'boss_intro_done' },
+      ] }
+      p.chapters[0].title='序章·烛火之夜'
+      p.chapters.push({ id:uid('ch'), title:'第一幕·雾墙', scenes:[sc1,sc2] })
+      persist(); renderAll(); toast(statusEl,'示例已载入：2 章 3 场景 5 分镜 —— 点「▶ 播放当前场景」体验预览',true) }
+    /* ---- 预览播放器（语义与导出的 GD 播放器一致） ---- */
+    const pv={ active:false, typing:false, waiting:false, timer:0 as any, next:()=>{}, finishTyping:()=>{} }
+    function findShotById(id:string){ const p=cur(); if(!p||!id) return null
+      for(const ch of p.chapters) for(const sc of ch.scenes){ const i=sc.shots.findIndex((x:any)=>x.id===id); if(i>=0) return { sc, i } }
+      return null }
+    function findSceneById(id:string){ const p=cur(); if(!p||!id) return null
+      for(const ch of p.chapters){ const s=ch.scenes.find((x:any)=>x.id===id); if(s) return s } return null }
+    function applyEntryAnim(img:HTMLElement,mode:string){
+      img.style.transition='none'; img.style.opacity='0'; img.style.transform=''
+      void (img as any).offsetWidth
+      img.style.transition='opacity .45s ease, transform .55s cubic-bezier(.2,.7,.3,1)'
+      requestAnimationFrame(()=>{ img.style.opacity='1'
+        if(mode==='slide_left') img.style.transform='translateX(30px)'
+        else if(mode==='slide_right') img.style.transform='translateX(-30px)'
+        else if(mode==='zoom_in') img.style.transform='scale(1.07)' }) }
+    function doShake(el:HTMLElement,intensity:number){ if(intensity<=0) return
+      el.style.animation='none'; void (el as any).offsetWidth
+      el.style.animation=`pvShake ${(0.34/Math.max(intensity,0.1)).toFixed(2)}s linear 3` }
+    function stripBB(s:string){ return String(s).replace(/\[\/?(b|i|color)(=[^\]]*)?\]/gi,'') }
+    function playShot(sc:SScene,idx:number){
+      if(!pv.active) return
+      const t=sc.shots[idx]; if(!t){ stopPreview(); return }
+      const img=pStory.querySelector('#pv-img') as HTMLImageElement
+      const dim=pStory.querySelector('#pv-dim') as HTMLElement
+      const chBox=pStory.querySelector('#pv-choices') as HTMLElement
+      const spk=pStory.querySelector('#pv-speaker') as HTMLElement
+      const txt=pStory.querySelector('#pv-text') as HTMLElement
+      const hint=pStory.querySelector('#pv-hint') as HTMLElement
+      const state=pStory.querySelector('#pv-state') as HTMLElement
+      state.textContent=t.id
+      dim.style.background=`rgba(0,0,0,${t.darken_bg})`
+      chBox.innerHTML=''; chBox.style.display='none'
+      const src=itemById(t.image_item)?.url||''
+      if(src) img.src=src
+      applyEntryAnim(img,t.entry_anim)
+      doShake(pStory.querySelector('#pv-shake') as HTMLElement,t.camera_shake)
+      spk.textContent=t.speaker; spk.style.color=/^#[0-9a-fA-F]{6}$/.test(t.speaker_color)?t.speaker_color:'#fff'
+      const pure=stripBB(t.text)
+      txt.textContent=''; hint.style.opacity='0'
+      pv.typing=true; pv.waiting=false; let vi=0
+      const speedMs=Math.max(6,t.typewriter_speed*1000/t.slow_motion)
+      clearInterval(pv.timer)
+      pv.finishTyping=()=>{ clearInterval(pv.timer); vi=pure.length; txt.textContent=pure; pv.typing=false }
+      pv.timer=setInterval(()=>{
+        vi++; txt.textContent=pure.slice(0,vi)
+        if(vi>=pure.length){ clearInterval(pv.timer); pv.typing=false; onTypedDone() }
+      },speedMs)
+      if(pure.length===0){ clearInterval(pv.timer); pv.typing=false; onTypedDone() }
+      function onTypedDone(){
+        if(!pv.active) return
+        if(t.choices.length){
+          hint.style.opacity='0'
+          t.choices.forEach((c:SChoice)=>{
+            const b=document.createElement('button'); b.className='gas-btn'; b.style.width='230px'; b.textContent=c.text+'（flag:'+c.condition_flag+'｜目标:'+(c.next_shot_id||'线性')+'）'
+            b.addEventListener('click',ev=>{ ev.stopPropagation()
+              if(!pv.active) return
+              if(c.next_shot_id){ const f=findShotById(c.next_shot_id); if(f) return playShot(f.sc,f.i) }
+              if(idx+1<sc.shots.length) return playShot(sc,idx+1)
+              endShow() })
+            chBox.appendChild(b) })
+          chBox.style.display='flex'
+          pv.waiting=true; pv.next=()=>endShow()
+          return }
+        hint.style.opacity='1'
+        const advance=()=>{
+          if(t.goto_shot){ const f=findShotById(t.goto_shot); if(f) return playShot(f.sc,f.i) }
+          if(t.goto_scene){ const s=findSceneById(t.goto_scene); if(s&&s.shots.length) return playShot(s,0) }
+          if(idx+1<sc.shots.length) return playShot(sc,idx+1)
+          // 场景末尾 → 工程内线性推进到下一场景/章节首镜
+          const p=cur(); if(!p) return endShow()
+          let ci=-1, si=-1
+          p.chapters.forEach((c:any,i:number)=>c.scenes.forEach((s:any,j:number)=>{ if(s.id===sc.id){ci=i;si=j} }))
+          if(ci>=0){
+            if(si+1<p.chapters[ci].scenes.length) return playShot(p.chapters[ci].scenes[si+1],0)
+            if(p.chapters[ci+1]&&p.chapters[ci+1].scenes.length) return playShot(p.chapters[ci+1].scenes[0],0) }
+          endShow() }
+        pv.waiting=true; pv.next=advance
+        if(t.duration>0){ setTimeout(()=>{ if(pv.active&&pv.waiting&&!pv.typing){ pv.waiting=false; advance() } }, Math.max(1,t.duration*1000/t.slow_motion)) } }
+    }
+    function endShow(){ stopPreview(); toast(statusEl,'演出结束 ✓（on_complete 信号见各分镜配置）',true) }
+    function stopPreview(){ pv.active=false; pv.typing=false; pv.waiting=false; clearInterval(pv.timer)
+      const img=pStory.querySelector('#pv-img') as HTMLImageElement; img.style.opacity='0'
+      ;(pStory.querySelector('#pv-dim') as HTMLElement).style.background='rgba(0,0,0,0)'
+      ;(pStory.querySelector('#pv-text') as HTMLElement).textContent=''
+      ;(pStory.querySelector('#pv-speaker') as HTMLElement).textContent=''
+      ;(pStory.querySelector('#pv-hint') as HTMLElement).style.opacity='0'
+      const cb=pStory.querySelector('#pv-choices') as HTMLElement; cb.innerHTML=''; cb.style.display='none'
+      ;(pStory.querySelector('#pv-state') as HTMLElement).textContent='' }
+    function wirePreview(){
+      const stg=pStory.querySelector('#story-stage') as HTMLElement
+      stg.addEventListener('click',()=>{
+        if(!pv.active) return
+        if(pv.typing){ pv.finishTyping(); return }
+        if(pv.waiting){ pv.waiting=false; pv.next() } })
+      document.addEventListener('keydown',e=>{ if((e as KeyboardEvent).key==='Escape'&&pv.active) stopPreview() })
+      pStory.querySelector('#pv-play-scene')!.addEventListener('click',()=>{
+        const sc=selScene(); if(!sc) return toast(statusEl,'先在大纲中选择要演出的场景',false)
+        if(!sc.shots.length) return toast(statusEl,'该场景还没有分镜',false)
+        stopPreview(); pv.active=true
+        toast(statusEl,'▶ 预览中：'+sc.title,false)
+        playShot(sc,Math.max(0,sel.t)) })
+      pStory.querySelector('#pv-stop')!.addEventListener('click',stopPreview) }
+    /* ==== 序列化纯函数（供导出与离线结构验证复用；参数注解形态固定为 (x:SType)，验证器按表剥除） ==== */
+    function storyTresEscape(s:string){ return String(s).replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\r/g,'').replace(/\n/g,'\\n').replace(/\t/g,'\\t') }
+    function storyColorVal(hex:string){ if(/^#[0-9a-fA-F]{6}$/.test(hex)){
+        const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255
+        return 'Color('+r.toFixed(4)+', '+g.toFixed(4)+', '+b.toFixed(4)+', 1)'
+      } return 'Color(1, 1, 1, 1)' }
+    function collectStoryImages(p:SProject){ const out:string[]=[]; const push=(id:string)=>{ if(id&&out.indexOf(id)<0) out.push(id) }
+      p.chapters.forEach((ch:SChapter)=>ch.scenes.forEach((sc:SScene)=>{ push(sc.background_item); sc.shots.forEach((t:SShot)=>push(t.image_item)) }))
+      return out }
+    function buildStoryTres(p:SProject,imgPath:(itemId:string)=>string){
+      const lines:string[]=[]; const exts=[
+        '[ext_resource type="Script" path="res://scripts/cutscene/cutscene_data.gd" id="scr_data"]',
+        '[ext_resource type="Script" path="res://scripts/cutscene/cutscene_chapter.gd" id="scr_ch"]',
+        '[ext_resource type="Script" path="res://scripts/cutscene/cutscene_scene.gd" id="scr_sc"]',
+        '[ext_resource type="Script" path="res://scripts/cutscene/cutscene_shot.gd" id="scr_shot"]',
+        '[ext_resource type="Script" path="res://scripts/cutscene/cutscene_choice.gd" id="scr_choice"]',
+      ]
+      exts.forEach(e=>lines.push(e))
+      let n=0
+      const nid=(pfx:string)=>{ n++; return pfx+'_'+n }
+      const resOfChoice=(c:SChoice)=>{
+        const id=nid('choice')
+        lines.push('[sub_resource type="Resource" id="'+id+'"]')
+        lines.push('script = ExtResource("scr_choice")')
+        lines.push('text = "'+storyTresEscape(c.text)+'"')
+        lines.push('next_shot_id = "'+storyTresEscape(c.next_shot_id)+'"')
+        lines.push('condition_flag = "'+storyTresEscape(c.condition_flag)+'"')
+        return id }
+      const resOfShot=(t:SShot)=>{
+        const cid=t.choices.map((c:any)=>resOfChoice(c))
+        const id=nid('shot')
+        lines.push('[sub_resource type="Resource" id="'+id+'"]')
+        lines.push('script = ExtResource("scr_shot")')
+        lines.push('id = "'+storyTresEscape(t.id)+'"')
+        lines.push('image_path = "'+storyTresEscape(t.image_item?imgPath(t.image_item):'')+'"')
+        lines.push('speaker = "'+storyTresEscape(t.speaker)+'"')
+        lines.push('speaker_color = '+storyColorVal(t.speaker_color))
+        lines.push('text = "'+storyTresEscape(t.text)+'"')
+        lines.push('typewriter_speed = '+t.typewriter_speed)
+        lines.push('entry_anim = "'+t.entry_anim+'"')
+        lines.push('transition = "'+t.transition+'"')
+        lines.push('duration = '+t.duration)
+        lines.push('darken_bg = '+t.darken_bg)
+        lines.push('camera_shake = '+t.camera_shake)
+        lines.push('slow_motion = '+t.slow_motion)
+        lines.push('choices = Array[Resource](['+cid.map(x=>'SubResource("'+x+'")').join(', ')+'])')
+        lines.push('goto_scene = "'+storyTresEscape(t.goto_scene)+'"')
+        lines.push('goto_shot = "'+storyTresEscape(t.goto_shot)+'"')
+        lines.push('on_complete_signal = "'+storyTresEscape(t.on_complete_signal)+'"')
+        return id }
+      const resOfScene=(sc:SScene)=>{
+        const sids=sc.shots.map((s0:SShot)=>resOfShot(s0))
+        const id=nid('scene')
+        lines.push('[sub_resource type="Resource" id="'+id+'"]')
+        lines.push('script = ExtResource("scr_sc")')
+        lines.push('id = "'+storyTresEscape(sc.id)+'"')
+        lines.push('title = "'+storyTresEscape(sc.title)+'"')
+        lines.push('background_path = "'+storyTresEscape(sc.background_item?imgPath(sc.background_item):'')+'"')
+        lines.push('bgm_path = "'+storyTresEscape(sc.bgm_path)+'"')
+        lines.push('shots = Array[Resource](['+sids.map(x=>'SubResource("'+x+'")').join(', ')+'])')
+        return id }
+      const resOfChapter=(ch:SChapter)=>{
+        const cs=ch.scenes.map((c1:SScene)=>resOfScene(c1))
+        const id=nid('chapter')
+        lines.push('[sub_resource type="Resource" id="'+id+'"]')
+        lines.push('script = ExtResource("scr_ch")')
+        lines.push('id = "'+storyTresEscape(ch.id)+'"')
+        lines.push('title = "'+storyTresEscape(ch.title)+'"')
+        lines.push('scenes = Array[Resource](['+cs.map(x=>'SubResource("'+x+'")').join(', ')+'])')
+        return id }
+      const chIds=p.chapters.map((c2:any)=>resOfChapter(c2))
+      const head='[gd_resource type="Resource" script_class="CutsceneData" load_steps='+(5+n+1)+' format=3]'
+      lines.unshift(head)
+      lines.push('[resource]')
+      lines.push('script = ExtResource("scr_data")')
+      lines.push('id = "'+storyTresEscape(p.id)+'"')
+      lines.push('title = "'+storyTresEscape(p.title)+'"')
+      lines.push('chapters = Array[Resource](['+chIds.map(x=>'SubResource("'+x+'")').join(', ')+'])')
+      return lines.join('\n') }
+
+    /* ---- 随包附带的 Godot 侧文件（素材交付物的一部分；接线由使用者在引擎内完成） ---- */
+    const STORY_PLAYER_GD=[
+      'class_name InkTheaterPlayer',
+      'extends CanvasLayer',
+      '',
+      '# 烛火剧场 · 单文件运行时播放器（参考实现，随剧情资产包交付）',
+      '# 用法：var t := InkTheaterPlayer.new(); add_child(t); t.play_id("prologue")',
+      '# 监听：finished(cutscene_id)',
+      '#       shot_event(event_name, cutscene_id, shot_id)  —— 分镜配置了“完成事件名”时触发',
+      '# 点击画面：打字中=立即显示全文；显示完=进入下一分镜。Esc 停止演出。',
+      '',
+      'signal finished(cutscene_id: String)',
+      'signal shot_event(event_name: String, cutscene_id: String, shot_id: String)',
+      '',
+      'var _cid := ""',
+      'var _data: CutsceneData',
+      'var _root: Control',
+      'var _holder: Control',
+      'var _shake_grp: Control',
+      'var _dim: ColorRect',
+      'var _img: TextureRect',
+      'var _dialog: PanelContainer',
+      'var _speaker: Label',
+      'var _text: RichTextLabel',
+      'var _hint: Label',
+      'var _choices_box: VBoxContainer',
+      'var _type_tween: Tween',
+      'var _move_tween: Tween',
+      'var _run_token := 0',
+      'var _typing := false',
+      'var _last_scene: CutsceneScene',
+      'var _last_idx := -1',
+      'var _last_shot: CutsceneShot',
+      '',
+      'func _ready() -> void:',
+      '\tlayer = 100',
+      '\tvisible = false',
+      '\t_build_ui()',
+      '',
+      'func _build_ui() -> void:',
+      '\t_root = Control.new()',
+      '\t_root.name = "Stage"',
+      '\t_root.set_anchors_preset(Control.PRESET_FULL_RECT)',
+      '\tadd_child(_root)',
+      '\t_dim = ColorRect.new()',
+      '\t_dim.color = Color(0, 0, 0, 0)',
+      '\t_dim.set_anchors_preset(Control.PRESET_FULL_RECT)',
+      '\t_root.add_child(_dim)',
+      '\t_holder = Control.new()',
+      '\t_holder.set_anchors_preset(Control.PRESET_FULL_RECT)',
+      '\t_root.add_child(_holder)',
+      '\t_img = TextureRect.new()',
+      '\t_img.set_anchors_preset(Control.PRESET_FULL_RECT)',
+      '\t_img.offset_left = 32.0',
+      '\t_img.offset_right = -32.0',
+      '\t_img.offset_top = 24.0',
+      '\t_img.offset_bottom = -232.0',
+      '\t_img.expand_mode = TextureRect.EXPAND_IGNORE_SIZE',
+      '\t_img.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED',
+      '\t_img.modulate = Color(1, 1, 1, 0)',
+      '\t_img.pivot_offset = Vector2.ZERO',
+      '\t_holder.add_child(_img)',
+      '\t_shake_grp = Control.new()',
+      '\t_shake_grp.set_anchors_preset(Control.PRESET_FULL_RECT)',
+      '\t_shake_grp.mouse_filter = Control.MOUSE_FILTER_IGNORE',
+      '\t_root.add_child(_shake_grp)',
+      '\t_dialog = PanelContainer.new()',
+      '\t_dialog.anchor_left = 0.04',
+      '\t_dialog.anchor_right = 0.96',
+      '\t_dialog.anchor_top = 1.0',
+      '\t_dialog.anchor_bottom = 1.0',
+      '\t_dialog.offset_top = -212.0',
+      '\t_dialog.offset_bottom = -18.0',
+      '\tvar style := StyleBoxFlat.new()',
+      '\tstyle.bg_color = Color(0.141, 0.110, 0.078, 0.94)',
+      '\tstyle.border_color = Color(0.35, 0.30, 0.22)',
+      '\tstyle.set_border_width_all(3)',
+      '\tstyle.set_corner_radius_all(10)',
+      '\t_dialog.add_theme_stylebox_override("panel", style)',
+      '\t_dialog.mouse_filter = Control.MOUSE_FILTER_IGNORE',
+      '\t_shake_grp.add_child(_dialog)',
+      '\tvar vbox := VBoxContainer.new()',
+      '\tvbox.mouse_filter = Control.MOUSE_FILTER_IGNORE',
+      '\t_dialog.add_child(vbox)',
+      '\t_speaker = Label.new()',
+      '\t_speaker.add_theme_font_size_override("font_size", 15)',
+      '\t_speaker.add_theme_color_override("font_color", Color(0.91, 0.64, 0.24))',
+      '\t_speaker.mouse_filter = Control.MOUSE_FILTER_IGNORE',
+      '\tvbox.add_child(_speaker)',
+      '\t_text = RichTextLabel.new()',
+      '\t_text.bbcode_enabled = true',
+      '\t_text.fit_content = true',
+      '\t_text.custom_minimum_size = Vector2(0, 76)',
+      '\t_text.add_theme_color_override("default_color", Color(0.94, 0.90, 0.82))',
+      '\t_text.mouse_filter = Control.MOUSE_FILTER_IGNORE',
+      '\tvbox.add_child(_text)',
+      '\t_hint = Label.new()',
+      '\t_hint.text = "点击继续 ▶"',
+      '\t_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT',
+      '\t_hint.modulate = Color(1, 1, 1, 0.0)',
+      '\t_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE',
+      '\tvbox.add_child(_hint)',
+      '\t_choices_box = VBoxContainer.new()',
+      '\t_choices_box.anchor_left = 0.60',
+      '\t_choices_box.anchor_right = 0.96',
+      '\t_choices_box.anchor_top = 0.06',
+      '\t_choices_box.add_theme_constant_override("separation", 10)',
+      '\t_choices_box.visible = false',
+      '\t_root.add_child(_choices_box)',
+      '\t_root.gui_input.connect(_on_stage_input)',
+      '',
+      'func play_id(cutscene_id: String) -> void:',
+      '\t_cid = cutscene_id',
+      '\tvar path := "res://cutscenes/%s.tres" % cutscene_id',
+      '\tif not ResourceLoader.exists(path):',
+      '\t\tpush_warning("InkTheater: 剧本不存在 %s" % path)',
+      '\t\treturn',
+      '\t_data = load(path) as CutsceneData',
+      '\tif _data == null:',
+      '\t\tpush_warning("InkTheater: 剧本类型不正确 %s" % path)',
+      '\t\treturn',
+      '\t_run_token += 1',
+      '\t_kill_move()',
+      '\t_finish_type()',
+      '\tvisible = true',
+      '\tif _data.chapters.is_empty():',
+      '\t\t_end_show()',
+      '\t\treturn',
+      '\t_play(_data.chapters[0].scenes[0], 0)',
+      '',
+      'func stop() -> void:',
+      '\t_visible_off()',
+      '',
+      'func _exit_tree() -> void:',
+      '\t_root = null',
+      '',
+      'func _on_stage_input(event: InputEvent) -> void:',
+      '\tif not visible or _data == null:',
+      '\t\treturn',
+      '\tif event is InputEventMouseButton and event.pressed:',
+      '\t\t_advance_click()',
+      '',
+      'func _unhandled_key_input(event: InputEvent) -> void:',
+      '\tif visible and event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:',
+      '\t\tstop()',
+      '',
+      'func _advance_click() -> void:',
+      '\tif _typing:',
+      '\t\t_finish_type()',
+      '\t\treturn',
+      '\tif _can_step() and _last_scene != null and _last_idx >= 0:',
+      '\t\t_next_from(_last_scene, _last_idx, _last_shot, _run_token)',
+      '',
+      'func _kill_move() -> void:',
+      '\tif _move_tween != null and _move_tween.is_valid():',
+      '\t\t_move_tween.kill()',
+      '',
+      'func _finish_type() -> void:',
+      '\tif _type_tween != null and _type_tween.is_valid():',
+      '\t\t_type_tween.kill()',
+      '\t_typing = false',
+      '\t_text.visible_characters = -1',
+      '\t_hint.modulate.a = 0.85',
+      '',
+      'func _clear_choices() -> void:',
+      '\tfor c in _choices_box.get_children():',
+      '\t\tc.queue_free()',
+      '\t_choices_box.visible = false',
+      '',
+      'func _token_ok(token: int) -> bool:',
+      '\treturn token == _run_token and visible',
+      '',
+      'func _can_step() -> bool:',
+      '\treturn true',
+      '',
+      'func _play(scene_res: CutsceneScene, idx: int) -> void:',
+      '\tvar token := _run_token',
+      '\tif idx >= scene_res.shots.size():',
+      '\t\t_next_after(scene_res, token)',
+      '\t\treturn',
+      '\tvar t: CutsceneShot = scene_res.shots[idx]',
+      '\t_last_scene = scene_res',
+      '\t_last_idx = idx',
+      '\t_last_shot = t',
+      '\t_clear_choices()',
+      '\t_finish_type()',
+      '\t_text.clear()',
+      '\t_hint.modulate.a = 0.0',
+      '\t_dim.color.a = t.darken_bg',
+      '\tif t.image_path != "":',
+      '\t\t_img.texture = load(t.image_path)',
+      '\telse:',
+      '\t\t_img.texture = null',
+      '\t_speaker.text = t.speaker',
+      '\t_speaker.add_theme_color_override("font_color", t.speaker_color)',
+      '\t_text.text = t.text',
+      '\tif t.on_complete_signal != "":',
+      '\t\t_emit_event(t.on_complete_signal, t.id)',
+      '\t_entry_anim(t.entry_anim, token)',
+      '\t_do_shake(t.camera_shake)',
+      '\t# 打字机（visible_characters 由 0 推进到总字数）',
+      '\t_text.visible_characters = 0',
+      '\t_typing = true',
+      '\tvar total_chars := t.text.length()',
+      '\tvar dur := total_chars * t.typewriter_speed / maxf(t.slow_motion, 0.05)',
+      '\t_type_tween = create_tween()',
+      '\t_type_tween.tween_property(_text, "visible_characters", total_chars, maxf(dur, 0.01))',
+      '\tawait _type_tween.finished',
+      '\tif not _token_ok(token):',
+      '\t\treturn',
+      '\t_typing = false',
+      '\t_hint.modulate.a = 0.85',
+      '\tif t.choices.size() > 0:',
+      '\t\tfor c in t.choices:',
+      '\t\t\tvar btn := Button.new()',
+      '\t\t\tbtn.text = c.text',
+      '\t\t\tbtn.pressed.connect(_on_choice.bind(c.next_shot_id))',
+      '\t\t\t_choices_box.add_child(btn)',
+      '\t\t_choices_box.visible = true',
+      '\t\t_hint.modulate.a = 0.0',
+      '\t\treturn',
+      '\tif t.duration > 0.0:',
+      '\t\tawait get_tree().create_timer(t.duration / maxf(t.slow_motion, 0.05)).timeout',
+      '\t\tif not _token_ok(token):',
+      '\t\t\treturn',
+      '\t\t_next_from(scene_res, idx, t, token)',
+      '',
+      'func _next_from(scene_res: CutsceneScene, idx: int, t: CutsceneShot, token: int) -> void:',
+      '\tif not _token_ok(token):',
+      '\t\treturn',
+      '\tif t.goto_shot != "":',
+      '\t\tvar hit := find_shot(t.goto_shot)',
+      '\t\tif hit.scene != null:',
+      '\t\t\t_play(hit.scene, hit.index)',
+      '\t\t\treturn',
+      '\tif t.goto_scene != "":',
+      '\t\tvar s := find_scene(t.goto_scene)',
+      '\t\tif s != null and s.shots.size() > 0:',
+      '\t\t\t_play(s, 0)',
+      '\t\t\treturn',
+      '\tif idx + 1 < scene_res.shots.size():',
+      '\t\t_play(scene_res, idx + 1)',
+      '\t\treturn',
+      '\t_next_after(scene_res, token)',
+      '',
+      'func _next_after(scene_res: CutsceneScene, token: int) -> void:',
+      '\tif not _token_ok(token) or _data == null:',
+      '\t\treturn',
+      '\tfor ch in _data.chapters:',
+      '\t\tvar ci := _data.chapters.find(ch)',
+      '\t\tfor i in range(ch.scenes.size()):',
+      '\t\t\tif ch.scenes[i] == scene_res:',
+      '\t\t\t\tif i + 1 < ch.scenes.size():',
+      '\t\t\t\t\t_play(ch.scenes[i + 1], 0)',
+      '\t\t\t\t\treturn',
+      '\t\t\t\tif ci >= 0 and ci + 1 < _data.chapters.size():',
+      '\t\t\t\t\tvar nxt: CutsceneChapter = _data.chapters[ci + 1]',
+      '\t\t\t\t\tif nxt.scenes.size() > 0:',
+      '\t\t\t\t\t\t_play(nxt.scenes[0], 0)',
+      '\t\t\t\t\t\treturn',
+      '\t_end_show()',
+      '',
+      'func _on_choice(next_shot_id: String) -> void:',
+      '\t_clear_choices()',
+      '\tif next_shot_id != "" and _data != null:',
+      '\t\tvar hit := find_shot(next_shot_id)',
+      '\t\tif hit.scene != null:',
+      '\t\t\t_play(hit.scene, hit.index)',
+      '\t\t\treturn',
+      '\tif _last_scene != null and _last_idx >= 0:',
+      '\t\t_next_from(_last_scene, _last_idx, _last_shot, _run_token)',
+      '',
+      'func find_shot(id: String) -> Dictionary:',
+      '\tif _data == null:',
+      '\t\treturn {"scene": null, "index": -1}',
+      '\tfor ch in _data.chapters:',
+      '\t\tfor sc in ch.scenes:',
+      '\t\t\tfor i in range(sc.shots.size()):',
+      '\t\t\t\tif sc.shots[i].id == id:',
+      '\t\t\t\t\treturn {"scene": sc, "index": i}',
+      '\treturn {"scene": null, "index": -1}',
+      '',
+      'func find_scene(id: String) -> CutsceneScene:',
+      '\tif _data == null:',
+      '\t\treturn null',
+      '\tfor ch in _data.chapters:',
+      '\t\tfor sc in ch.scenes:',
+      '\t\t\tif sc.id == id:',
+      '\t\t\t\treturn sc',
+      '\treturn null',
+      '',
+      'func _entry_anim(mode: String, _token: int) -> void:',
+      '\t_kill_move()',
+      '\t_img.pivot_offset = _img.size * 0.5',
+      '\t_img.modulate = Color(1, 1, 1, 0)',
+      '\t_holder.position = Vector2.ZERO',
+      '\t_holder.scale = Vector2.ONE',
+      '\t_move_tween = create_tween()',
+      '\tif mode == "slide_left":',
+      '\t\t_holder.position = Vector2(42, 0)',
+      '\t\t_move_tween.set_parallel(true)',
+      '\t\t_move_tween.tween_property(_holder, "position", Vector2.ZERO, 0.55).set_ease(Tween.EASE_OUT)',
+      '\t\t_move_tween.tween_property(_img, "modulate:a", 1.0, 0.42)',
+      '\telif mode == "slide_right":',
+      '\t\t_holder.position = Vector2(-42, 0)',
+      '\t\t_move_tween.set_parallel(true)',
+      '\t\t_move_tween.tween_property(_holder, "position", Vector2.ZERO, 0.55).set_ease(Tween.EASE_OUT)',
+      '\t\t_move_tween.tween_property(_img, "modulate:a", 1.0, 0.42)',
+      '\telif mode == "zoom_in":',
+      '\t\t_holder.scale = Vector2(1.09, 1.09)',
+      '\t\t_move_tween.set_parallel(true)',
+      '\t\t_move_tween.tween_property(_holder, "scale", Vector2.ONE, 0.62).set_ease(Tween.EASE_OUT)',
+      '\t\t_move_tween.tween_property(_img, "modulate:a", 1.0, 0.42)',
+      '\telse:',
+      '\t\t_move_tween.tween_property(_img, "modulate:a", 1.0, 0.45)',
+      '',
+      'func _do_shake(intensity: float) -> void:',
+      '\tif intensity <= 0.0:',
+      '\t\treturn',
+      '\tvar tw := create_tween()',
+      '\tvar steps := int(3.0 + intensity * 8.0)',
+      '\tvar amp := intensity * 9.0',
+      '\tfor i in steps:',
+      '\t\ttw.tween_property(_shake_grp, "position", Vector2(randf_range(-amp, amp), randf_range(-amp, amp)), 0.03)',
+      '\ttw.tween_property(_shake_grp, "position", Vector2.ZERO, 0.03)',
+      '',
+      'func _end_show() -> void:',
+      '\t_finished_emit()',
+      '\t_visible_off()',
+      '',
+      'func _finished_emit() -> void:',
+      '\tfinished.emit(_cid)',
+      '',
+      'func _emit_event(event_name: String, shot_id: String) -> void:',
+      '\tshot_event.emit(event_name, _cid, shot_id)',
+      '\tif not has_signal(event_name):',
+      '\t\tadd_user_signal(event_name)',
+      '\temit_signal(event_name)',
+      '',
+      'func _visible_off() -> void:',
+      '\t_run_token += 1',
+      '\t_kill_move()',
+      '\tif _type_tween != null and _type_tween.is_valid():',
+      '\t\t_type_tween.kill()',
+      '\t_typing = false',
+      '\t_clear_choices()',
+      '\t_img.texture = null',
+      '\t_img.modulate = Color(1, 1, 1, 0)',
+      '\t_holder.position = Vector2.ZERO',
+      '\t_holder.scale = Vector2.ONE',
+      '\t_dim.color.a = 0.0',
+      '\t_text.clear()',
+      '\t_speaker.text = ""',
+      '\t_hint.modulate.a = 0.0',
+      '\t_last_scene = null',
+      '\t_last_idx = -1',
+      '\t_last_shot = null',
+      '\tvisible = false',
+      '',
+    ].join('\n')
+    const STORY_GD_FILES={
+      'scripts/cutscene/cutscene_choice.gd':[
+        'class_name CutsceneChoice','extends Resource','','@export var text: String = ""','@export var next_shot_id: String = ""','@export var condition_flag: String = ""','',
+      ].join('\n'),
+      'scripts/cutscene/cutscene_shot.gd':[
+        'class_name CutsceneShot','extends Resource','','@export var id: String = ""','@export var image_path: String = ""','@export var speaker: String = ""','@export var speaker_color: Color = Color.WHITE','@export_multiline var text: String = ""','@export var typewriter_speed: float = 0.03','@export var entry_anim: String = "fade"','@export var transition: String = "fade"','@export var duration: float = 0.0','@export_range(0.0, 1.0) var darken_bg: float = 0.6','@export_range(0.0, 1.0) var camera_shake: float = 0.0','@export_range(0.1, 1.0) var slow_motion: float = 1.0','@export var choices: Array[CutsceneChoice] = []','@export var goto_scene: String = ""','@export var goto_shot: String = ""','@export var on_complete_signal: String = ""','',
+      ].join('\n'),
+      'scripts/cutscene/cutscene_scene.gd':[
+        'class_name CutsceneScene','extends Resource','','@export var id: String = ""','@export var title: String = ""','@export var background_path: String = ""','@export var bgm_path: String = ""','@export var shots: Array[CutsceneShot] = []','',
+      ].join('\n'),
+      'scripts/cutscene/cutscene_chapter.gd':[
+        'class_name CutsceneChapter','extends Resource','','@export var id: String = ""','@export var title: String = ""','@export var scenes: Array[CutsceneScene] = []','',
+      ].join('\n'),
+      'scripts/cutscene/cutscene_data.gd':[
+        'class_name CutsceneData','extends Resource','','@export var id: String = ""','@export var title: String = ""','@export var chapters: Array[CutsceneChapter] = []','',
+      ].join('\n'),
+      'scripts/cutscene/cutscene_player.gd':STORY_PLAYER_GD,
+    }
+    /* ---- 导出 ---- */
+    async function exportStoryZip(){
+      const p=cur()
+      if(!p) return toast(statusEl,'没有可导出的剧本',false)
+      let totalShots=0; p.chapters.forEach((c:any)=>c.scenes.forEach((s:any)=>totalShots+=s.shots.length))
+      if(totalShots===0) return toast(statusEl,'剧本没有任何分镜，先添加内容',false)
+      const used=collectStoryImages(p)
+      statusEl.textContent='📦 打包中…（引用图片 '+used.length+' 张）'
+      const entries=[] as {name:string,data:Uint8Array}[]
+      let missImg=0
+      for(const itemId of used){
+        const it=itemById(itemId)
+        if(!it){ missImg++; continue }
+        const safe=String(itemId).replace(/[^A-Za-z0-9._-]/g,'_')
+        try{ const r=await urlToBytes(it.url); entries.push({ name:'assets/cutscenes/img/'+safe+r.ext, data:r.bytes }) }
+        catch{ missImg++ }
+      }
+      const imgPathFor=(itemId:string)=>itemId?('assets/cutscenes/img/'+String(itemId).replace(/[^A-Za-z0-9._-]/g,'_')+'.png'):''
+      entries.push({ name:'cutscenes/'+p.id+'.tres', data:new TextEncoder().encode(buildStoryTres(p,imgPathFor)) })
+      entries.push({ name:'cutscenes/'+p.id+'.json', data:new TextEncoder().encode(JSON.stringify(p,null,2)) })
+      ;(Object.entries(STORY_GD_FILES) as [string,string][]).forEach((kv)=>{ entries.push({ name:kv[0], data:new TextEncoder().encode(kv[1]) }) })
+      const readmeLines=[
+        '烛火剧场剧情资产包 — '+p.title+'（'+p.id+'）','',
+        '══════════════════════════════','', '导入步骤：','',
+        '1) 将压缩包内三个文件夹整体拖入 Godot 项目根目录（与 project.godot 同级）：',
+        '     cutscenes/    assets/    scripts/','', 
+        '2) 等待导入完成。scripts/cutscene/ 内含六个全局类脚本（class_name 已注册）：',
+        '     CutsceneData / CutsceneChapter / CutsceneScene / CutsceneShot / CutsceneChoice',
+        '     以及单文件运行时播放器 cutscene_player.gd（class_name InkTheaterPlayer）','',
+        '3) 在需要触发剧情的地方（按钮回调、战斗节点、autoload 等）：',
+        '       var theater := InkTheaterPlayer.new()',
+        '       add_child(theater)',
+        '       theater.play_id("'+p.id+'")','', 
+        '4) 演出结束会发出信号 finished("'+p.id+'")。',
+        '   任一分镜若配置了「完成事件名」，还会发出对应命名信号与统一事件：',
+        '       shot_event.connect(func(name, cid, sid): ...)',
+        '   条件分支 flag 的判定由你的游戏逻辑在生成选项前控制（condition_flag 为约定字段）。','',
+        '5) cutscenes/'+p.id+'.json 是同一份剧本的引擎无关版本（便于 diff/外部工具链）。','',
+        '打包时间：'+new Date().toLocaleString(),
+        '章节 '+p.chapters.length+' · 图片 '+entries.filter((e:any)=>e.name.startsWith('assets/cutscenes/img/')).length+' 张'+(missImg?('（'+missImg+' 张引用的插画已不在素材库，未打包——可在剧场内重新绑定）'):''),
+      ]
+      entries.push({ name:'README-导入说明.txt', data:new TextEncoder().encode(readmeLines.join('\n')) })
+      const manifest={ app:'Godot-Arter', kind:'ink_theater_cutscene', project:p.title, godot:'4.2', cutscene_res:'cutscenes/'+p.id+'.tres', cutscene_json:'cutscenes/'+p.id+'.json', data_classes_dir:'scripts/cutscene/', player:'scripts/cutscene/cutscene_player.gd', images_used:used.length, generated_at:new Date().toISOString() }
+      entries.push({ name:'manifest.json', data:new TextEncoder().encode(JSON.stringify(manifest,null,2)) })
+      const blob=buildZipStore(entries)
+      await downloadUrl(URL.createObjectURL(blob),'ink_theater_'+p.id+'.zip')
+      statusEl.textContent='✓ 已导出 ink_theater_'+p.id+'.zip（'+entries.length+' 个文件'+(missImg?', 缺图'+missImg:'')+'）'
+      toast(statusEl,'剧情资产包已导出 ✓ 解压到项目根目录即可',true)
+    }
+    /* ---- 面板样式注入 ---- */
+    function injectStoryStyle(){ if(document.getElementById('story-preview-style')) return
+      const st=document.createElement('style'); st.id='story-preview-style'
+      st.textContent='@keyframes pvShake{0%,100%{transform:translate(0,0)}20%{transform:translate(-7px,3px)}40%{transform:translate(6px,-4px)}60%{transform:translate(-5px,-2px)}80%{transform:translate(4px,4px)}}'
+      document.head.appendChild(st) }
+    /* ---- 项目管理事件 ---- */
+    $('#st-proj')!.addEventListener('change',e=>{ curId=(e.target as HTMLSelectElement).value; persist(); sel={c:-1,s:-1,t:-1}; stopPreview(); renderAll() })
+    $('#st-new')!.addEventListener('click',()=>{ const name=prompt('剧本名称','新剧本'); if(!name||!name.trim()) return; newProject(name.trim()) })
+    $('#st-rename')!.addEventListener('click',()=>{ const p=cur(); if(!p) return toast(statusEl,'无剧本',false)
+      const name=prompt('重命名剧本',p.title); if(!name||!name.trim()) return; p.title=name.trim(); persist(); renderProjSelect() })
+    $('#st-del')!.addEventListener('click',()=>{ const p=cur(); if(!p) return
+      if(!confirm('删除剧本「'+p.title+'」及其全部内容？')) return
+      delete stories[p.id]; curId=Object.keys(stories)[0]||''; persist(); sel={c:-1,s:-1,t:-1}; stopPreview(); renderAll() })
+    $('#st-sample')!.addEventListener('click',ensureDemo)
+    $('#st-add-ch')!.addEventListener('click',()=>{ const p=cur(); if(!p) return toast(statusEl,'先新建剧本',false)
+      p.chapters.push({ id:uid('ch'), title:'第'+(p.chapters.length+1)+'章', scenes:[] }); sel={c:p.chapters.length-1,s:-1,t:-1}; persist(); renderAll() })
+    $('#st-add-sc')!.addEventListener('click',()=>{ const p=cur(); if(!p) return toast(statusEl,'先新建剧本',false)
+      const ch=(sel.c>=0&&p.chapters[sel.c])?p.chapters[sel.c]:p.chapters[p.chapters.length-1]
+      if(!ch) return toast(statusEl,'先创建章节',false)
+      ch.scenes.push({ id:uid('sc'), title:'场景'+(ch.scenes.length+1), background_item:'', bgm_path:'', shots:[] })
+      sel={c:p.chapters.indexOf(ch),s:ch.scenes.length-1,t:-1}; persist(); renderAll() })
+    $('#st-add-shot')!.addEventListener('click',addShot)
+    $('#st-export-zip')!.addEventListener('click',()=>void exportStoryZip())
+    $('#st-export-json')!.addEventListener('click',()=>{ const p=cur(); if(!p) return toast(statusEl,'无剧本',false)
+      downloadBlob(new Blob([JSON.stringify(p,null,2)],{type:'application/json'}),'cutscene_'+p.id+'.json'); toast(statusEl,'JSON 已下载（与导出包内的 cutscenes/*.json 同构）',true) })
+    /* ---- 启动 ---- */
+    injectStoryStyle()
+    wirePreview()
+    renderAll()
+    refreshAssets()
+  })()
+
+
   // 后处理工坊
     // 素材总管
   const pAsset=mkPanel('asset', `
@@ -1165,7 +2084,7 @@ const pPost=mkPanel('post', `
     Object.entries(tabEls).forEach(([k,el])=>el.classList.toggle('active', k===id))
     Object.entries(panels).forEach(([k,el])=>el.style.display=k===id?'block':'none')
     const tip=side.querySelector('#pipeline-tip') as HTMLElement
-    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', seq:'单帧动画：AI 逐张画单角色，代码自动裁白边/脚底对齐/横排拼接，从根源消除邻帧串位', pipe:'素材流水线：批量导入帧/整表，一键完成 切→去背→脚部对齐→命名→导出 SpriteFrames，产出 Godot 直接可用动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', extract:'元素提取：上传地图/多元素图，自动框出独立元素或点选单个，拖拽后保存为素材', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
+    const tips:Record<string,string>={ character:'角色工坊：三视图适合直接进序列帧拆成行走动画', seq:'单帧动画：AI 逐张画单角色，代码自动裁白边/脚底对齐/横排拼接，从根源消除邻帧串位', pipe:'素材流水线：批量导入帧/整表，一键完成 切→去背→脚部对齐→命名→导出 SpriteFrames，产出 Godot 直接可用动画', sheet:'序列帧：4×2 切片后 FPS 8 在 Godot 中最顺滑', forge:'素材锻造：批量生成后可在“导出”一键打包', matting:'抠图：色键适合纯色背景，AI 适合复杂毛发', extract:'元素提取：上传地图/多元素图，自动框出独立元素或点选单个，拖拽后保存为素材', map:'无缝地图：可生成完整大地图或瓦片，再切成 TileSet；支持缩放预览', scene:'场景工坊：生成/上传场景底图后，叠加晴天/雨天/雷暴/下雪与日夜色调实时预览，可导出当前帧', story:'烛火剧场：剧本大纲→分镜编辑→实时预览→导出剧情资产包(zip)；插画可直接 AI 生成入库选用；解压到 Godot 项目 res:// 即可加载 .tres 剧本数据', asset:'素材总管：每个模块生成后可「📥 入库」，自动分类编号、本地保存、可导出/导入备份', post:'后处理：调色板量化适合像素风，描边适合精灵，尺寸调整适合 Godot 导入优化', preset:'API 配置：内置供应商 Key 与自定义路由都在此设置，保存后同步到所有生成面板；可点「🔍 获取默认模型」一键拉取全部可用模型', export:'导出：manifest.json 记录 Godot 目录结构' }
     if(tip) tip.textContent=tips[id]||''
   }
 
@@ -1841,6 +2760,7 @@ const pPost=mkPanel('post', `
     map:{label:'大地图库',prefix:'MAP'},
     scene:{label:'场景库',prefix:'SCENE'},
     post:{label:'后处理库',prefix:'POST'},
+    story:{label:'剧场插画库',prefix:'INK'},
   }
   // 素材 kind → Godot res://assets/ 子目录映射（用于一键打包导出的目录归类）
   const KIND_TO_GODOT_DIR:Record<string,string> = {
@@ -1852,6 +2772,7 @@ const pPost=mkPanel('post', `
     tile:'tilesets',
     map:'maps',
     scene:'scenes',
+    story:'cutscenes',
   }
   let refreshAssetManagerGlobal: (()=>void)|null = null
   async function addToLibrary(kind:string, name:string, url:string, meta?:any): Promise<string>{

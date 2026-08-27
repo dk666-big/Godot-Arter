@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="CutsceneData" load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://scripts/cutscene/cutscene_data.gd" id="scr_data"]
+[ext_resource type="Script" path="res://scripts/cutscene/cutscene_chapter.gd" id="scr_ch"]
+[ext_resource type="Script" path="res://scripts/cutscene/cutscene_scene.gd" id="scr_sc"]
+[ext_resource type="Script" path="res://scripts/cutscene/cutscene_shot.gd" id="scr_shot"]
+[ext_resource type="Script" path="res://scripts/cutscene/cutscene_choice.gd" id="scr_choice"]
+
+[sub_resource type="Resource" id="shot_1"]
+script = ExtResource("scr_shot")
+id = "shot_night_patrol_1"
+image_path = "assets/cutscenes/img/scene_torch_tower.png"
+speaker = "旁白"
+speaker_color = Color(0.8039, 0.8431, 0.8784, 1)
+text = "寒风掠过王旗，烛火在塔顶明明灭灭。"
+typewriter_speed = 0.035
+entry_anim = "fade"
+transition = "fade"
+duration = 0
+darken_bg = 0.55
+camera_shake = 0.4
+slow_motion = 1
+choices = Array[Resource]([])
+goto_scene = ""
+goto_shot = ""
+on_complete_signal = "prologue_patrol_started"
+
+[sub_resource type="Resource" id="shot_2"]
+script = ExtResource("scr_shot")
+id = "shot_night_patrol_2"
+image_path = ""
+speaker = "旁白"
+speaker_color = Color(0.8039, 0.8431, 0.8784, 1)
+text = "城下集市人声渐息，只剩巡夜人的靴声敲着石阶。"
+typewriter_speed = 0.04
+entry_anim = "slide_left"
+transition = "fade"
+duration = 2
+darken_bg = 0.6
+camera_shake = 0
+slow_motion = 1
+choices = Array[Resource]([])
+goto_scene = ""
+goto_shot = ""
+on_complete_signal = ""
+
+[sub_resource type="Resource" id="scene_1"]
+script = ExtResource("scr_sc")
+id = "scene_night_patrol"
+title = "夜巡的开始"
+background_path = ""
+bgm_path = ""
+shots = Array[Resource]([SubResource("shot_1"), SubResource("shot_2")])
+
+[sub_resource type="Resource" id="chapter_1"]
+script = ExtResource("scr_ch")
+id = "ch_prologue"
+title = "序章·烛火之夜"
+scenes = Array[Resource]([SubResource("scene_1")])
+
+[resource]
+script = ExtResource("scr_data")
+id = "prologue_demo"
+title = "序章·烛火之夜"
+chapters = Array[Resource]([SubResource("chapter_1")])
