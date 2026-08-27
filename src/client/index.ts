@@ -1077,50 +1077,63 @@ function buildStudio(): HTMLElement {
     if(prompt){
       // 检查是否需要服务器模式
       if(!WEB_LINK_BASE){
-        // file:// 模式下，尝试使用 Blob URL 下载提示词
-        try{
-          const textToCopy=`请根据以下描述生成一张图片：
-
-${prompt}
-
----
-提示词来源：Godot-Arter`
-
-          // 方法1：navigator.clipboard (需要 HTTPS 或 localhost)
+        // file:// 模式下，显示提示词弹窗让用户手动复制
+        const overlay=document.createElement('div')
+        overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;padding:20px'
+        
+        const box=document.createElement('div')
+        box.style.cssText='background:#1a1e20;border:2px solid #594c39;border-radius:12px;padding:24px;max-width:600px;width:100%;max-height:80vh;overflow:auto'
+        
+        box.innerHTML=`
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <h3 style="margin:0;color:#e8a33d;font-size:18px">📋 复制提示词到 ${siteName}</h3>
+            <button id="prompt-copy-close" style="background:none;border:none;color:#9aa0a6;font-size:24px;cursor:pointer;padding:0;line-height:1">✕</button>
+          </div>
+          <div style="color:#9aa0a6;font-size:12px;margin-bottom:12px">
+            提示词已准备好，请在 ${siteName} 中新建对话后粘贴以下内容：
+          </div>
+          <textarea id="prompt-copy-text" readonly style="width:100%;height:200px;background:#0b0a09;border:1px solid #594c39;border-radius:8px;color:#efe6d0;font-size:13px;font-family:monospace;padding:12px;resize:vertical;box-sizing:border-box">${prompt.replace(/`/g,'\\`').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+          <div style="display:flex;gap:10px;margin-top:16px">
+            <button id="prompt-copy-btn" style="flex:1;background:#e8a33d;border:none;border-radius:8px;color:#000;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer">📋 复制提示词</button>
+            <button id="prompt-open-btn" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid #594c39;border-radius:8px;color:#e8a33d;padding:12px 20px;font-size:14px;cursor:pointer">🌐 打开 ${siteName}</button>
+          </div>
+        `
+        
+        overlay.appendChild(box)
+        document.body.appendChild(overlay)
+        
+        box.querySelector('#prompt-copy-close')!.addEventListener('click',()=>overlay.remove())
+        box.querySelector('#prompt-copy-btn')!.addEventListener('click',async ()=>{
+          const ta=box.querySelector('#prompt-copy-text') as HTMLTextAreaElement
           try{
-            await navigator.clipboard.writeText(textToCopy)
-            webToast('📋 提示词已复制到剪贴板 — 打开 '+siteName+' 后按 Ctrl+V 粘贴')
-            window.open(url,'_blank')
-            return
-          }catch{}
-          
-          // 方法2：execCommand
-          try{
-            const ta=document.createElement('textarea')
-            ta.value=textToCopy
-            ta.style.cssText='position:fixed;top:0;left:0;opacity:0;pointer-events:none'
-            document.body.appendChild(ta)
             ta.select()
             document.execCommand('copy')
-            document.body.removeChild(ta)
-            webToast('📋 提示词已复制 — 打开 '+siteName+' 后 Ctrl+V 粘贴')
-            window.open(url,'_blank')
-            return
-          }catch{}
-          
-          // 方法3：下载为文本文件
-          const blob=new Blob([textToCopy],{type:'text/plain'})
-          const dlUrl=URL.createObjectURL(blob)
-          const a=document.createElement('a')
-          a.href=dlUrl
-          a.download='gemini-prompt-'+Date.now()+'.txt'
-          a.click()
-          URL.revokeObjectURL(dlUrl)
-          webToast('⚠️ 复制受限，提示词已下载为文件 — 打开 '+siteName+' 后复制粘贴文件内容',false)
-        }catch(e){
-          webToast('⚠️ 操作失败，请在 '+siteName+' 中手动输入提示词',false)
-        }
-        window.open(url,'_blank')
+            const btn=box.querySelector('#prompt-copy-btn') as HTMLButtonElement
+            btn.textContent='✅ 已复制！去 '+siteName+' 粘贴'
+            btn.style.background='#27ae60'
+          }catch{
+            // 最后的兜底：显示全选提示
+            ta.style.opacity='1'
+            ta.style.position='fixed'
+            ta.style.top='50%'
+            ta.style.left='50%'
+            ta.style.transform='translate(-50%,-50%)'
+            ta.style.width='80%'
+            ta.style.height='60%'
+            ta.style.zIndex='100000'
+            ta.style.fontSize='16px'
+            ta.select()
+          }
+        })
+        box.querySelector('#prompt-open-btn')!.addEventListener('click',()=>{
+          overlay.remove()
+          window.open(url,'_blank')
+        })
+        
+        // 点击外部关闭
+        overlay.addEventListener('click',(e:any)=>{ if(e.target===overlay) overlay.remove() })
+        
+        webToast('📋 请复制提示词后粘贴到 '+siteName)
         return
       }
       
