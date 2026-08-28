@@ -627,7 +627,24 @@ function buildStudio(): HTMLElement {
             </div>
             <div class="gas-row" style="margin-top:8px">
               <div style="flex:1"><label class="gas-label">瓦片尺寸</label><select class="gas-select" id="map-size"><option value="16">16px</option><option value="32" selected>32px</option><option value="64">64px</option><option value="128">128px</option><option value="256">256px</option></select></div>
-              <div style="flex:1"><label class="gas-label">完整地图尺寸</label><select class="gas-select" id="map-big-size"><option value="1024">1024×1024</option><option value="1536">1536×1024</option><option value="2048" selected>2048×2048</option><option value="4096">4096×4096</option><option value="8192">8192×8192</option></select></div>
+              <div style="flex:2"><label class="gas-label">完整地图宽×高</label>
+                <div class="gas-row" style="gap:8px">
+                  <input type="number" class="gas-input" id="map-w" value="2048" min="256" max="8192" step="64" style="width:80px" title="宽度">
+                  <span style="color:#9aa0a6;line-height:32px">×</span>
+                  <input type="number" class="gas-input" id="map-h" value="2048" min="256" max="8192" step="64" style="width:80px" title="高度">
+                  <select class="gas-select" id="map-ratio" style="flex:1" title="预设宽高比">
+                    <option value="">自定义</option>
+                    <option value="1920x1080">16:9 (横版)</option>
+                    <option value="1080x1920">9:16 (竖版)</option>
+                    <option value="1024x1024">1:1 (方形)</option>
+                    <option value="2048x1024">2:1 (宽屏)</option>
+                    <option value="1024x2048">1:2 (竖屏)</option>
+                    <option value="2048x2048" selected>1:1 (2048)</option>
+                    <option value="4096x2048">2:1 (4K宽屏)</option>
+                    <option value="4096x4096">1:1 (4K方形)</option>
+                  </select>
+                </div>
+              </div>
             </div>
             <div class="gas-row" style="margin-top:8px">
               <button class="gas-btn" id="map-seam">♻ 整图无缝化</button>
@@ -5325,6 +5342,16 @@ function mockImage(prompt:string, opts:any): string {
       reader.onload=()=>{ mapRefUrl=reader.result as string; refPreview.innerHTML=''; const img=document.createElement('img'); img.src=mapRefUrl; img.style.maxWidth='100%'; img.style.maxHeight='70px'; img.style.imageRendering='pixelated'; refPreview.appendChild(img); const del=document.createElement('button'); del.type='button'; del.textContent='✕ 删除'; del.style.cssText='margin-top:4px;font-size:10px;padding:2px 8px;border-radius:6px;border:1px solid var(--border);background:#2c313d;color:#e74c3c;cursor:pointer;display:block'; del.onclick=(e:any)=>{ e.stopPropagation(); mapRefUrl=''; refPreview.innerHTML='<span class="gas-note">未添加</span>'; toast(status,'参考图已删除') }; refPreview.appendChild(del); toast(status,'参考图已添加 ✓') }
       reader.readAsDataURL(f)
     })
+    // 地图尺寸比例预设
+    pMap.querySelector('#map-ratio')!.addEventListener('change', (e:any)=>{
+      const val=e.target.value
+      if(val){
+        const [w,h]=val.split('x').map(Number)
+        ;(pMap.querySelector('#map-w') as HTMLInputElement).value=String(w)
+        ;(pMap.querySelector('#map-h') as HTMLInputElement).value=String(h)
+      }
+    })
+    
     pMap.querySelector('#map-gen')!.addEventListener('click', async()=>{
       const prompt=promptEl.value.trim(); if(!prompt) return toast(status,'请先输入提示词',false)
       const prov=providerEl.value
@@ -5332,8 +5359,9 @@ function mockImage(prompt:string, opts:any): string {
       startMapProgress()
       try{
         if(mode==='fullmap'){
-          const targetSize=parseInt((pMap.querySelector('#map-big-size') as HTMLSelectElement).value)||2048
-          const size=targetSize+'x'+targetSize
+          const mapW=parseInt((pMap.querySelector('#map-w') as HTMLInputElement).value)||2048
+          const mapH=parseInt((pMap.querySelector('#map-h') as HTMLInputElement).value)||2048
+          const size=mapW+'x'+mapH
           const url=await callImageGen(prompt+' , full seamless game map, top-down, high detail, tileable, no UI, no watermark', prov, { size, model: (pMap.querySelector('#map-model-sel') as HTMLSelectElement)?.value||undefined, reference: mapRefUrl || undefined })
           const img=await loadImg(url)
           showPreview(img, corsSafe)
@@ -5414,11 +5442,13 @@ function mockImage(prompt:string, opts:any): string {
       if(!curImg) return toast(status,'请先准备瓦片',false)
       if(!corsSafe){ toast(status,'远程瓦片未开启CORS，无法生成大地图',false); return }
       const tileSize=parseInt((pMap.querySelector('#map-size') as HTMLSelectElement).value)||32
-      const targetSize=parseInt((pMap.querySelector('#map-big-size') as HTMLSelectElement).value)||2048
-      const tiles=Math.max(1, Math.round(targetSize/tileSize))
-      const big=document.createElement('canvas'); big.width=tiles*tileSize; big.height=tiles*tileSize
+      const mapW=parseInt((pMap.querySelector('#map-w') as HTMLInputElement).value)||2048
+      const mapH=parseInt((pMap.querySelector('#map-h') as HTMLInputElement).value)||2048
+      const tilesX=Math.max(1, Math.round(mapW/tileSize))
+      const tilesY=Math.max(1, Math.round(mapH/tileSize))
+      const big=document.createElement('canvas'); big.width=tilesX*tileSize; big.height=tilesY*tileSize
       const g=big.getContext('2d')!; g.imageSmoothingEnabled=false
-      for(let y=0;y<tiles;y++) for(let x=0;x<tiles;x++) g.drawImage(curImg, x*tileSize, y*tileSize, tileSize, tileSize)
+      for(let y=0;y<tilesY;y++) for(let x=0;x<tilesX;x++) g.drawImage(curImg, x*tileSize, y*tileSize, tileSize, tileSize)
       const url=big.toDataURL('image/png')
       setBigMap(url, big.width, big.height)
       toast(status,'高分辨率瓦片大地图已生成：'+big.width+'×'+big.height, true)
