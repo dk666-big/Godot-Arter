@@ -238,6 +238,12 @@ function buildStudio() {
 					group: "生成"
 				},
 				{
+					id: "audio",
+					label: "音效工坊",
+					icon: "🎵",
+					group: "生成"
+				},
+				{
 					id: "pipe",
 					label: "素材流水线",
 					icon: "🚀",
@@ -274,6 +280,12 @@ function buildStudio() {
 					group: "地图"
 				},
 				{
+					id: "tileset",
+					label: "TileSet 编辑",
+					icon: "🏠",
+					group: "地图"
+				},
+				{
 					id: "asset",
 					label: "素材总管",
 					icon: "📚",
@@ -289,6 +301,24 @@ function buildStudio() {
 					id: "export",
 					label: "设置/导出",
 					icon: "⚙️",
+					group: "系统"
+				},
+				{
+					id: "style",
+					label: "风格迁移",
+					icon: "🎨",
+					group: "处理"
+				},
+				{
+					id: "batch",
+					label: "批量工具",
+					icon: "📋",
+					group: "系统"
+				},
+				{
+					id: "project",
+					label: "项目管理",
+					icon: "📁",
 					group: "系统"
 				}
 			];
@@ -398,6 +428,27 @@ function buildStudio() {
       <div class="gas-divider"></div>
       <div style="display:flex;justify-content:space-between;align-items:center"><span class="gas-pill">Godot 导入：Texture2D · Filter: Nearest (像素) · 勾选 Mipmaps 关</span><span class="gas-note">BYOK：优先使用你的 OpenAI/Stability Key</span></div>
       <div class="gas-grid" id="c-gallery"></div>
+    </div>
+    <div class="gas-card">
+      <h4>👗 角色换装系统 — 定义装备/服装变体</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">换装预设库</label>
+          <div id="c-outfit-list" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;min-height:150px;max-height:250px;overflow:auto;padding:8px">
+            <div class="gas-note">暂无换装预设</div>
+          </div>
+          <div class="gas-row" style="margin-top:10px">
+            <button class="gas-btn" id="c-outfit-new">➕ 新建换装</button>
+            <button class="gas-btn ghost" id="c-outfit-export">📦 导出换装数据</button>
+          </div>
+        </div>
+        <div style="width:300px">
+          <label class="gas-label">当前换装配置</label>
+          <div id="c-outfit-config" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;min-height:150px;padding:12px">
+            <div class="gas-note">选择一个换装预设查看详情</div>
+          </div>
+        </div>
+      </div>
     </div>
   `);
 			const pSheet = mkPanel("sheet", `
@@ -636,6 +687,78 @@ function buildStudio() {
           <canvas id="m-canvas" hidden></canvas>
         </div>
       </div>
+    </div>
+  `);
+			const pTileset = mkPanel("tileset", `
+    <div class="gas-card">
+      <h4>🏠 TileSet 编辑器 — 碰撞绘制 / 地形标记 / Godot 导出</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">工具栏</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+            <button class="gas-btn ghost tileset-tool active" data-tool="select" style="padding:6px 12px">🖱️ 选择</button>
+            <button class="gas-btn ghost tileset-tool" data-tool="terrain" style="padding:6px 12px">🌿 地形</button>
+            <button class="gas-btn ghost tileset-tool" data-tool="collision" style="padding:6px 12px">⬛ 碰撞</button>
+            <button class="gas-btn ghost tileset-tool" data-tool="decoration" style="padding:6px 12px">🌲 装饰</button>
+            <button class="gas-btn ghost tileset-tool" data-tool="event" style="padding:6px 12px">📍 事件</button>
+            <button class="gas-btn ghost tileset-tool" data-tool="erase" style="padding:6px 12px">🗑️ 擦除</button>
+          </div>
+          <div class="gas-row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px" id="tileset-options">
+            <div>
+              <label class="gas-label">地形类型</label>
+              <select class="gas-select" id="ts-terrain" style="width:100px">
+                <option value="grass">🌿 草地</option>
+                <option value="water">💧 水域</option>
+                <option value="path">🛤️ 道路</option>
+                <option value="wall">🧱 墙壁</option>
+                <option value="floor">🏠 地板</option>
+              </select>
+            </div>
+            <div>
+              <label class="gas-label">瓦片大小</label>
+              <input class="gas-input" id="ts-tilesize" type="number" value="16" min="8" max="128" style="width:70px">
+            </div>
+          </div>
+          <div class="gas-row" style="gap:6px;margin-bottom:10px">
+            <button class="gas-btn" id="ts-import">📂 导入瓦片图</button>
+            <button class="gas-btn ghost" id="ts-undo">↩ 撤销</button>
+            <button class="gas-btn ghost" id="ts-redo">↪ 重做</button>
+            <button class="gas-btn ghost" id="ts-clear">🗑 清空</button>
+          </div>
+          <div class="gas-row" style="gap:6px">
+            <button class="gas-btn" id="ts-export-json">📦 导出 JSON</button>
+            <button class="gas-btn orange" id="ts-export-godot">⬇ 导出 Godot</button>
+          </div>
+          <input type="file" id="ts-file" accept="image/*" hidden>
+        </div>
+        <div style="width:120px">
+          <label class="gas-label">当前图层</label>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="ts-layer-terrain" checked> 🌿 地形
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="ts-layer-collision" checked> ⬛ 碰撞
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="ts-layer-decoration" checked> 🌲 装饰
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+              <input type="checkbox" id="ts-layer-events" checked> 📍 事件
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <label class="gas-label">画布 — 滚轮缩放 | 右键拖拽平移 | 左键绘制</label>
+      <div style="border:2px solid var(--border);border-radius:8px;overflow:hidden;background:#1a1e20" id="ts-canvas-container">
+        <canvas id="ts-canvas" width="900" height="450" style="display:block;cursor:crosshair"></canvas>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>📊 TileSet 统计</h4>
+      <div id="ts-stats" class="gas-note">导入瓦片图后显示统计信息</div>
     </div>
   `);
 			const pMap = mkPanel("map", `
@@ -902,6 +1025,246 @@ function buildStudio() {
         <button class="gas-btn ghost" id="sc-ed-undo" style="font-size:11px">↩ 撤销</button>
         <button class="gas-btn ghost" id="sc-ed-clear" style="font-size:11px">🗑 清空</button>
         <button class="gas-btn" id="sc-ed-preview">▶ 实时预览</button>
+      </div>
+    </div>
+  `);
+			const pAudio = mkPanel("audio", `
+    <div class="gas-card">
+      <h4>🎵 音效工坊 — Web Audio 合成 / 音效库 / Godot 导出</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">音效类型</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="audio-sfx-cats">
+            <button class="gas-btn ghost audio-cat-btn active" data-cat="combat">⚔️ 战斗</button>
+            <button class="gas-btn ghost audio-cat-btn" data-cat="pickup">💰 拾取</button>
+            <button class="gas-btn ghost audio-cat-btn" data-cat="movement">👣 移动</button>
+            <button class="gas-btn ghost audio-cat-btn" data-cat="ui">🖱️ 界面</button>
+            <button class="gas-btn ghost audio-cat-btn" data-cat="magic">✨ 魔法</button>
+            <button class="gas-btn ghost audio-cat-btn" data-cat="ambient">🌧️ 环境</button>
+            <button class="gas-btn ghost audio-cat-btn" data-cat="other">📦 其他</button>
+          </div>
+          <label class="gas-label" style="margin-top:10px">预设音效（点击播放/试听）</label>
+          <div id="audio-sfx-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          <div class="gas-row" style="margin-top:10px">
+            <div style="flex:1"><label class="gas-label">音量</label><input class="gas-input" id="audio-volume" type="range" min="0" max="100" value="70"><span class="gas-pill" id="audio-vol-val">70%</span></div>
+            <div style="flex:1"><label class="gas-label">时长预览</label><span class="gas-note" id="audio-dur">-</span></div>
+          </div>
+          <div class="gas-row" style="margin-top:10px">
+            <button class="gas-btn" id="audio-play-sfx">▶ 播放</button>
+            <button class="gas-btn ghost" id="audio-stop-sfx">⏹ 停止</button>
+            <button class="gas-btn ghost" id="audio-save-sfx">📥 保存到音效库</button>
+            <button class="gas-btn orange" id="audio-export-sfx">⬇ 导出 WAV</button>
+          </div>
+        </div>
+        <div style="width:300px">
+          <label class="gas-label">波形预览</label>
+          <div class="gas-preview" style="background:#1a1e20;border:3px solid var(--border)">
+            <canvas id="audio-waveform" width="280" height="80" style="width:100%;height:80px"></canvas>
+          </div>
+          <label class="gas-label" style="margin-top:8px">音效库</label>
+          <div id="audio-library" style="background:#1a1e20;border:1px solid var(--border);border-radius:6px;min-height:120px;max-height:200px;overflow:auto;padding:8px;font-size:11px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>🎼 音乐生成 — 背景音乐演示合成</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">音乐类型</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="audio-music-types">
+            <button class="gas-btn ghost audio-music-btn" data-type="menu">🏠 主菜单</button>
+            <button class="gas-btn ghost audio-music-btn active" data-type="battle">⚔️ 战斗</button>
+            <button class="gas-btn ghost audio-music-btn" data-type="exploration">🗺️ 探索</button>
+            <button class="gas-btn ghost audio-music-btn" data-type="shop">💎 商店</button>
+            <button class="gas-btn ghost audio-music-btn" data-type="boss">👹 BOSS</button>
+            <button class="gas-btn ghost audio-music-btn" data-type="victory">🏆 胜利</button>
+            <button class="gas-btn ghost audio-music-btn" data-type="defeat">💔 失败</button>
+          </div>
+          <div class="gas-row" style="margin-top:10px">
+            <div style="flex:1"><label class="gas-label">BPM</label><input class="gas-input" id="audio-bpm" type="number" value="140" min="60" max="200"></div>
+            <div style="flex:1"><label class="gas-label">时长(秒)</label><input class="gas-input" id="audio-music-dur" type="number" value="8" min="1" max="60"></div>
+          </div>
+          <div class="gas-note" id="audio-music-info" style="margin-top:6px"></div>
+          <div class="gas-row" style="margin-top:10px">
+            <button class="gas-btn" id="audio-play-music">▶ 播放音乐</button>
+            <button class="gas-btn ghost" id="audio-stop-music">⏹ 停止</button>
+            <button class="gas-btn ghost" id="audio-save-music">📥 保存</button>
+          </div>
+        </div>
+        <div style="width:280px">
+          <label class="gas-label">音乐库</label>
+          <div id="audio-music-library" style="background:#1a1e20;border:1px solid var(--border);border-radius:6px;min-height:120px;max-height:200px;overflow:auto;padding:8px;font-size:11px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>🎚️ 音频编辑</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">上传音频文件进行编辑</label>
+          <div style="border:1.5px dashed var(--border);border-radius:8px;padding:14px;text-align:center;background:#1a1e20;cursor:pointer" id="audio-file-drop">
+            <div style="font-size:22px">🎵</div><div class="gas-note">点击或拖拽上传 WAV/MP3/OGG</div>
+            <input type="file" id="audio-file-input" accept="audio/*" hidden>
+          </div>
+          <div class="gas-row" style="margin-top:10px">
+            <div style="flex:1"><label class="gas-label">淡入(秒)</label><input class="gas-input" id="audio-fadein" type="number" value="0.5" min="0" max="5" step="0.1"></div>
+            <div style="flex:1"><label class="gas-label">淡出(秒)</label><input class="gas-input" id="audio-fadeout" type="number" value="0.5" min="0" max="5" step="0.1"></div>
+            <div style="flex:1"><label class="gas-label">音量调节</label><input class="gas-input" id="audio-edit-vol" type="range" min="0" max="200" value="100"><span class="gas-pill" id="audio-edit-vol-val">100%</span></div>
+          </div>
+          <div class="gas-row" style="margin-top:10px">
+            <button class="gas-btn" id="audio-apply-edits">✨ 应用编辑</button>
+            <button class="gas-btn ghost" id="audio-export-edited">⬇ 导出 WAV</button>
+            <button class="gas-btn ghost" id="audio-save-edited">📥 保存到库</button>
+          </div>
+          <div class="gas-note" id="audio-edit-status" style="margin-top:6px"></div>
+        </div>
+        <div style="width:300px">
+          <label class="gas-label">波形预览</label>
+          <div class="gas-preview" style="background:#1a1e20;border:3px solid var(--border)">
+            <canvas id="audio-edit-waveform" width="280" height="80" style="width:100%;height:80px"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>📤 Godot 音频导出</h4>
+      <div class="gas-note">导出音效库和音乐库到 Godot 项目结构，包含音频文件和 GDScript 加载脚本</div>
+      <div class="gas-row" style="margin-top:10px">
+        <button class="gas-btn" id="audio-export-all">📦 导出音频包(WAV)</button>
+        <button class="gas-btn ghost" id="audio-export-registry">📜 导出 Godot 音效注册表</button>
+        <button class="gas-btn ghost" id="audio-clear-library">🗑 清空音效库</button>
+      </div>
+      <div class="gas-note" id="audio-export-status" style="margin-top:6px"></div>
+    </div>
+  `);
+			const pStyle = mkPanel("style", `
+    <div class="gas-card">
+      <h4>🎨 图片风格迁移 — 油画/像素/霓虹等效果</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">上传图片</label>
+          <div style="border:1.5px dashed var(--border);border-radius:8px;padding:14px;text-align:center;background:#1a1e20;cursor:pointer" id="style-drop">
+            <div style="font-size:22px">🖼️</div><div class="gas-note">点击或拖拽上传图片</div>
+            <input type="file" id="style-file" accept="image/*" hidden>
+          </div>
+          <label class="gas-label" style="margin-top:10px">选择风格</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px" id="style-options">
+            <button class="gas-btn ghost style-btn" data-style="pixel" style="padding:8px 14px">🎮 像素化</button>
+            <button class="gas-btn ghost style-btn" data-style="oil" style="padding:8px 14px">🖼️ 油画</button>
+            <button class="gas-btn ghost style-btn" data-style="sketch" style="padding:8px 14px">✏️ 素描</button>
+            <button class="gas-btn ghost style-btn" data-style="neon" style="padding:8px 14px">💜 霓虹</button>
+            <button class="gas-btn ghost style-btn" data-style="glitch" style="padding:8px 14px">🔴 故障</button>
+            <button class="gas-btn ghost style-btn" data-style="vaporwave" style="padding:8px 14px">🌴 蒸汽波</button>
+          </div>
+          <div id="style-params" class="gas-row" style="flex-wrap:wrap;gap:8px;margin-bottom:10px">
+            <div><label class="gas-label">强度</label><input type="range" id="style-intensity" min="1" max="10" value="5" style="width:120px"><span class="gas-pill" id="style-intensity-val">5</span></div>
+          </div>
+          <div class="gas-row" style="gap:6px">
+            <button class="gas-btn" id="style-apply">✨ 应用风格</button>
+            <button class="gas-btn ghost" id="style-reset">🔄 重置</button>
+            <button class="gas-btn ghost" id="style-save">📥 保存结果</button>
+            <button class="gas-btn ghost" id="style-dl">⬇ 下载</button>
+          </div>
+        </div>
+        <div style="width:400px">
+          <label class="gas-label">原图</label>
+          <div class="gas-preview" id="style-original" style="min-height:200px;background:#1a1e20;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center">
+            <span class="gas-note">上传图片后显示</span>
+          </div>
+          <label class="gas-label" style="margin-top:8px">结果预览</label>
+          <div class="gas-preview" id="style-result" style="min-height:200px;background:#1a1e20;border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center">
+            <span class="gas-note">应用风格后显示</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+			const pBatch = mkPanel("batch", `
+    <div class="gas-card">
+      <h4>📋 批量工具 — 批量重命名 / 智能归类 / 寻路测试</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <button class="gas-btn active" id="batch-tab-rename" style="padding:6px 14px">📝 批量重命名</button>
+            <button class="gas-btn ghost" id="batch-tab-smart" style="padding:6px 14px">🧠 智能归类</button>
+            <button class="gas-btn ghost" id="batch-tab-path" style="padding:6px 14px">🗺️ 寻路测试</button>
+          </div>
+          <div id="batch-content-rename">
+            <label class="gas-label">选择素材</label>
+            <div style="border:1.5px dashed var(--border);border-radius:8px;padding:14px;background:#1a1e20;cursor:pointer;margin-bottom:10px" id="batch-rename-drop">
+              <div class="gas-note">点击或拖拽选择多个图片文件</div>
+              <input type="file" id="batch-rename-files" accept="image/*" multiple hidden>
+            </div>
+            <div id="batch-rename-list" style="max-height:150px;overflow:auto;margin-bottom:10px"></div>
+            <label class="gas-label">重命名方式</label>
+            <select class="gas-select" id="batch-rename-pattern" style="width:100%;margin-bottom:10px">
+              <option value="prefix">添加前缀</option>
+              <option value="suffix">添加后缀</option>
+              <option value="replace">文本替换</option>
+              <option value="sequence">序号命名</option>
+              <option value="case_upper">转为大写</option>
+              <option value="case_lower">转为小写</option>
+              <option value="date_prefix">日期前缀</option>
+            </select>
+            <div class="gas-row" style="gap:8px;margin-bottom:10px" id="batch-rename-options">
+              <input class="gas-input" id="batch-prefix" placeholder="前缀" style="flex:1">
+              <input class="gas-input" id="batch-suffix" placeholder="后缀" style="flex:1">
+            </div>
+            <div class="gas-row" style="gap:8px;margin-bottom:10px" id="batch-replace-options" style="display:none">
+              <input class="gas-input" id="batch-find" placeholder="查找" style="flex:1">
+              <input class="gas-input" id="batch-replace" placeholder="替换为" style="flex:1">
+            </div>
+            <div class="gas-row" style="gap:8px;margin-bottom:10px" id="batch-seq-options" style="display:none">
+              <input class="gas-input" id="batch-seq-start" type="number" value="1" placeholder="起始序号" style="width:80px">
+              <input class="gas-input" id="batch-seq-padding" type="number" value="3" placeholder="位数" style="width:60px">
+            </div>
+            <div class="gas-row" style="gap:6px">
+              <button class="gas-btn" id="batch-rename-preview">👁️ 预览</button>
+              <button class="gas-btn ghost" id="batch-rename-apply">✅ 应用</button>
+              <button class="gas-btn ghost" id="batch-rename-export">⬇ 导出列表</button>
+            </div>
+          </div>
+          <div id="batch-content-smart" style="display:none">
+            <label class="gas-label">智能分析结果</label>
+            <div id="batch-smart-results" style="max-height:300px;overflow:auto;background:#1a1e20;border:1px solid var(--border);border-radius:8px;padding:10px">
+              <div class="gas-note">选择素材后自动分析归类</div>
+            </div>
+            <div class="gas-row" style="gap:6px;margin-top:10px">
+              <button class="gas-btn" id="batch-smart-analyze">🔍 分析</button>
+              <button class="gas-btn ghost" id="batch-smart-organize">📁 按分类整理</button>
+            </div>
+          </div>
+          <div id="batch-content-path" style="display:none">
+            <label class="gas-label">寻路测试工具</label>
+            <div class="gas-note" style="margin-bottom:10px">基于 TileSet 编辑器的碰撞数据测试路径查找</div>
+            <div class="gas-row" style="gap:8px;margin-bottom:10px">
+              <div style="flex:1">
+                <label class="gas-label">起点 (x,y)</label>
+                <div class="gas-row" style="gap:4px">
+                  <input class="gas-input" id="path-start-x" type="number" value="0" style="width:60px">
+                  <input class="gas-input" id="path-start-y" type="number" value="0" style="width:60px">
+                </div>
+              </div>
+              <div style="flex:1">
+                <label class="gas-label">终点 (x,y)</label>
+                <div class="gas-row" style="gap:4px">
+                  <input class="gas-input" id="path-end-x" type="number" value="10" style="width:60px">
+                  <input class="gas-input" id="path-end-y" type="number" value="10" style="width:60px">
+                </div>
+              </div>
+            </div>
+            <div class="gas-row" style="gap:6px">
+              <button class="gas-btn" id="path-find">🔍 查找路径</button>
+              <button class="gas-btn ghost" id="path-reachable">📍 查找可达区域</button>
+              <button class="gas-btn ghost" id="path-isolated">⚠️ 查找孤立区域</button>
+            </div>
+            <div id="path-results" style="margin-top:10px;background:#1a1e20;border:1px solid var(--border);border-radius:8px;padding:10px;max-height:200px;overflow:auto"></div>
+          </div>
+        </div>
+        <div style="width:300px">
+          <label class="gas-label">预览</label>
+          <div id="batch-preview" style="background:#1a1e20;border:1px solid var(--border);border-radius:8px;min-height:250px;padding:10px;overflow:auto"></div>
+        </div>
       </div>
     </div>
   `);
@@ -1333,6 +1696,432 @@ function buildStudio() {
       </div>
     `);
 				panels.story = pStory;
+				// ===== Audio Module Setup =====
+				(() => {
+					const $ = (q) => pAudio.querySelector(q);
+					const LS_AUDIO = "dsh-game-art-studio:audioLibrary";
+					
+					let currentSfxPreset = 'sword_hit';
+					let currentMusicType = 'battle';
+					let currentSfxIntensity = 70;
+					let editingBuffer = null;
+					let editingBufferName = '';
+					
+					// Load audio library from localStorage
+					function loadAudioLibrary() {
+						try {
+							return JSON.parse(localStorage.getItem(LS_AUDIO) || "[]");
+						} catch {
+							return [];
+						}
+					}
+					
+					function saveAudioLibrary(lib) {
+						localStorage.setItem(LS_AUDIO, JSON.stringify(lib));
+					}
+					
+					// Render SFX presets based on category
+					function renderSfxList(cat) {
+						const container = $('audio-sfx-list');
+						if (!container || !window.SFX_CATEGORIES || !window.SFX_PRESETS) return;
+						
+						const category = window.SFX_CATEGORIES[cat];
+						if (!category) return;
+						
+						container.innerHTML = '';
+						category.presets.forEach(preset => {
+							const btn = document.createElement('button');
+							btn.className = 'gas-btn ghost';
+							btn.style.cssText = 'padding:6px 12px;font-size:11px';
+							btn.textContent = preset.replace(/_/g, ' ');
+							btn.dataset.preset = preset;
+							btn.onclick = () => {
+								document.querySelectorAll('.audio-cat-btn').forEach(b => b.classList.remove('active'));
+								btn.classList.add('active');
+								currentSfxPreset = preset;
+								const info = window.SFX_PRESETS[preset];
+								if (info) {
+									$('audio-dur').textContent = info.decay.toFixed(2) + 's';
+								}
+							};
+							container.appendChild(btn);
+						});
+					}
+					
+					// Render audio library
+					function renderAudioLibrary() {
+						const container = $('audio-library');
+						const musicContainer = $('audio-music-library');
+						if (!container || !musicContainer) return;
+						
+						const lib = loadAudioLibrary();
+						container.innerHTML = '';
+						musicContainer.innerHTML = '';
+						
+						const sfxItems = lib.filter(i => i.type === 'sfx');
+						const bgmItems = lib.filter(i => i.type === 'bgm');
+						
+						if (sfxItems.length === 0) {
+							container.innerHTML = '<span class="gas-note">暂无音效，点击预设保存</span>';
+						} else {
+							sfxItems.forEach(item => {
+								const div = document.createElement('div');
+								div.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)';
+								div.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (item.name || item.id) + '</span><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px" data-play="' + item.id + '">▶</button><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px;background:#3a1a1a" data-del="' + item.id + '">✕</button>';
+								div.querySelector('[data-play]').onclick = () => {
+									// Play saved audio if data exists
+								};
+								div.querySelector('[data-del]').onclick = () => {
+									const newLib = loadAudioLibrary().filter(i => i.id !== item.id);
+									saveAudioLibrary(newLib);
+									renderAudioLibrary();
+								};
+								container.appendChild(div);
+							});
+						}
+						
+						if (bgmItems.length === 0) {
+							musicContainer.innerHTML = '<span class="gas-note">暂无音乐，点击保存音乐</span>';
+						} else {
+							bgmItems.forEach(item => {
+								const div = document.createElement('div');
+								div.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)';
+								div.innerHTML = '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (item.name || item.id) + '</span><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px" data-play="' + item.id + '">▶</button><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px;background:#3a1a1a" data-del="' + item.id + '">✕</button>';
+								div.querySelector('[data-del]').onclick = () => {
+									const newLib = loadAudioLibrary().filter(i => i.id !== item.id);
+									saveAudioLibrary(newLib);
+									renderAudioLibrary();
+								};
+								musicContainer.appendChild(div);
+							});
+						}
+					}
+					
+					// Update music info display
+					function updateMusicInfo(type) {
+						if (!window.MUSIC_PRESETS) return;
+						const preset = window.MUSIC_PRESETS[type];
+						if (preset) {
+							const dur = parseInt($('audio-music-dur')?.value || '8');
+							const beats = preset.pattern.length;
+							const seconds = (60 / preset.bpm) * beats;
+							if ($('audio-music-info')) {
+								$('audio-music-info').textContent = 'BPM: ' + preset.bpm + ' | 节拍: ' + beats + ' | 预计时长: ' + seconds.toFixed(1) + 's';
+							}
+						}
+					}
+					
+					// Draw placeholder waveform
+					function drawPlaceholderWaveform(canvasId) {
+						const canvas = document.getElementById(canvasId);
+						if (!canvas) return;
+						const ctx = canvas.getContext('2d');
+						const w = canvas.width = 280;
+						const h = canvas.height = 80;
+						ctx.fillStyle = '#1a1e20';
+						ctx.fillRect(0, 0, w, h);
+						ctx.strokeStyle = '#594c39';
+						ctx.lineWidth = 1;
+						ctx.beginPath();
+						for (let i = 0; i < w; i += 4) {
+							const y = h/2 + Math.sin(i * 0.1) * (5 + Math.random() * 10);
+							if (i === 0) ctx.moveTo(i, y);
+							else ctx.lineTo(i, y);
+						}
+						ctx.stroke();
+					}
+					
+					// Event listeners - SFX Category buttons
+					document.querySelectorAll('.audio-cat-btn').forEach(btn => {
+						btn.onclick = () => {
+							document.querySelectorAll('.audio-cat-btn').forEach(b => b.classList.remove('active'));
+							btn.classList.add('active');
+							renderSfxList(btn.dataset.cat);
+						};
+					});
+					
+					// Volume slider
+					$('audio-volume')?.addEventListener('input', (e) => {
+						currentSfxIntensity = parseInt(e.target.value);
+						$('audio-vol-val').textContent = currentSfxIntensity + '%';
+					});
+					
+					// Music type buttons
+					document.querySelectorAll('.audio-music-btn').forEach(btn => {
+						btn.onclick = () => {
+							document.querySelectorAll('.audio-music-btn').forEach(b => b.classList.remove('active'));
+							btn.classList.add('active');
+							currentMusicType = btn.dataset.type;
+							updateMusicInfo(currentMusicType);
+						};
+					});
+					
+					// Music duration change
+					$('audio-music-dur')?.addEventListener('change', () => {
+						updateMusicInfo(currentMusicType);
+					});
+					
+					// Play SFX
+					$('audio-play-sfx')?.addEventListener('click', async () => {
+						if (window.synthesizeSFX) {
+							await window.synthesizeSFX(currentSfxPreset, 1, currentSfxIntensity);
+						}
+					});
+					
+					// Stop SFX
+					$('audio-stop-sfx')?.addEventListener('click', () => {
+						if (window.stopAudio) window.stopAudio();
+					});
+					
+					// Save SFX to library
+					$('audio-save-sfx')?.addEventListener('click', () => {
+						const lib = loadAudioLibrary();
+						const presetData = window.SFX_PRESETS?.[currentSfxPreset] || {};
+						const item = {
+							id: 'sfx_' + Date.now().toString(36),
+							name: currentSfxPreset,
+							type: 'sfx',
+							category: document.querySelector('.audio-cat-btn.active')?.dataset.cat || 'other',
+							preset: currentSfxPreset,
+							duration: presetData.decay || 0.5,
+							createdAt: Date.now()
+						};
+						lib.push(item);
+						saveAudioLibrary(lib);
+						renderAudioLibrary();
+						alert('已保存到音效库: ' + currentSfxPreset);
+					});
+					
+					// Export SFX (Web Audio synthesis for demo)
+					$('audio-export-sfx')?.addEventListener('click', async () => {
+						if (window.synthesizeSFX && window.downloadAudio && window.exportToWav) {
+							// Create a simple buffer for export demo
+							const ctx = window.initAudioContext?.() || new AudioContext();
+							const sampleRate = ctx.sampleRate;
+							const presetData = window.SFX_PRESETS?.[currentSfxPreset] || { decay: 0.5, baseFreq: 440 };
+							const duration = presetData.decay || 0.5;
+							const buffer = ctx.createBuffer(1, sampleRate * duration, sampleRate);
+							const data = buffer.getChannelData(0);
+							for (let i = 0; i < data.length; i++) {
+								const t = i / sampleRate;
+								const envelope = Math.exp(-t * 10);
+								data[i] = Math.sin(2 * Math.PI * presetData.baseFreq * t) * envelope * (currentSfxIntensity / 100);
+							}
+							const blob = await window.exportToWav(buffer);
+							window.downloadAudio(blob, currentSfxPreset + '.wav');
+						}
+					});
+					
+					// Play Music
+					$('audio-play-music')?.addEventListener('click', async () => {
+						if (window.synthesizeMusicDemo) {
+							const dur = parseInt($('audio-music-dur')?.value || '8');
+							await window.synthesizeMusicDemo(currentMusicType, dur);
+						}
+					});
+					
+					// Stop Music
+					$('audio-stop-music')?.addEventListener('click', () => {
+						if (window.stopAudio) window.stopAudio();
+					});
+					
+					// Save Music to library
+					$('audio-save-music')?.addEventListener('click', () => {
+						const lib = loadAudioLibrary();
+						const dur = parseInt($('audio-music-dur')?.value || '8');
+						const item = {
+							id: 'bgm_' + Date.now().toString(36),
+							name: currentMusicType + '_' + dur + 's',
+							type: 'bgm',
+							musicType: currentMusicType,
+							duration: dur,
+							bpm: parseInt($('audio-bpm')?.value || '120'),
+							createdAt: Date.now()
+						};
+						lib.push(item);
+						saveAudioLibrary(lib);
+						renderAudioLibrary();
+						alert('已保存到音乐库: ' + currentMusicType);
+					});
+					
+					// Audio file upload
+					$('audio-file-drop')?.addEventListener('click', () => $('audio-file-input')?.click());
+					$('audio-file-drop')?.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+					$('audio-file-drop')?.addEventListener('drop', async (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						const file = e.dataTransfer?.files?.[0];
+						if (file && window.loadAudioFile) {
+							try {
+								editingBuffer = await window.loadAudioFile(file);
+								editingBufferName = file.name;
+								$('audio-edit-status').textContent = '已加载: ' + file.name + ' (' + editingBuffer.duration.toFixed(2) + 's)';
+								drawPlaceholderWaveform('audio-edit-waveform');
+							} catch (err) {
+								$('audio-edit-status').textContent = '加载失败: ' + err.message;
+							}
+						}
+					});
+					$('audio-file-input')?.addEventListener('change', async (e) => {
+						const file = e.target.files?.[0];
+						if (file && window.loadAudioFile) {
+							try {
+								editingBuffer = await window.loadAudioFile(file);
+								editingBufferName = file.name;
+								$('audio-edit-status').textContent = '已加载: ' + file.name + ' (' + editingBuffer.duration.toFixed(2) + 's)';
+								drawPlaceholderWaveform('audio-edit-waveform');
+							} catch (err) {
+								$('audio-edit-status').textContent = '加载失败: ' + err.message;
+							}
+						}
+					});
+					
+					// Edit volume display
+					$('audio-edit-vol')?.addEventListener('input', (e) => {
+						$('audio-edit-vol-val').textContent = e.target.value + '%';
+					});
+					
+					// Apply edits
+					$('audio-apply-edits')?.addEventListener('click', () => {
+						if (!editingBuffer) {
+							$('audio-edit-status').textContent = '请先上传音频文件';
+							return;
+						}
+						const fadeIn = parseFloat($('audio-fadein')?.value || '0.5');
+						const fadeOut = parseFloat($('audio-fadeout')?.value || '0.5');
+						if (window.applyFadeIn && window.applyFadeOut) {
+							let buffer = editingBuffer;
+							if (fadeIn > 0) buffer = window.applyFadeIn(buffer, fadeIn);
+							if (fadeOut > 0) buffer = window.applyFadeOut(buffer, fadeOut);
+							editingBuffer = buffer;
+							$('audio-edit-status').textContent = '已应用编辑: 淡入' + fadeIn + 's + 淡出' + fadeOut + 's';
+						}
+					});
+					
+					// Export edited audio
+					$('audio-export-edited')?.addEventListener('click', async () => {
+						if (!editingBuffer) {
+							$('audio-edit-status').textContent = '请先上传并编辑音频';
+							return;
+						}
+						if (window.exportToWav && window.downloadAudio) {
+							const blob = await window.exportToWav(editingBuffer);
+							const name = editingBufferName.replace(/\.[^.]+$/, '') + '_edited.wav';
+							window.downloadAudio(blob, name);
+							$('audio-edit-status').textContent = '已导出: ' + name;
+						}
+					});
+					
+					// Save edited to library
+					$('audio-save-edited')?.addEventListener('click', () => {
+						if (!editingBuffer) {
+							$('audio-edit-status').textContent = '请先上传并编辑音频';
+							return;
+						}
+						const lib = loadAudioLibrary();
+						const item = {
+							id: 'edited_' + Date.now().toString(36),
+							name: editingBufferName || 'edited_audio',
+							type: 'edited',
+							duration: editingBuffer.duration,
+							createdAt: Date.now()
+						};
+						lib.push(item);
+						saveAudioLibrary(lib);
+						renderAudioLibrary();
+						$('audio-edit-status').textContent = '已保存到音效库';
+					});
+					
+					// Export all audio
+					$('audio-export-all')?.addEventListener('click', () => {
+						const lib = loadAudioLibrary();
+						if (lib.length === 0) {
+							$('audio-export-status').textContent = '音效库为空，请先保存音效或音乐';
+							return;
+						}
+						// Generate Godot export manifest
+						const manifest = {
+							sfx: lib.filter(i => i.type === 'sfx').map(i => ({
+								name: i.name,
+								category: i.category,
+								path: 'res://audio/sfx/' + (i.category || 'other') + '/' + (i.name || i.id) + '.wav'
+							})),
+							bgm: lib.filter(i => i.type === 'bgm').map(i => ({
+								name: i.name,
+								type: i.musicType,
+								path: 'res://audio/bgm/' + (i.name || i.id) + '.wav'
+							}))
+						};
+						const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+						if (window.downloadAudio) {
+							window.downloadAudio(blob, 'audio_manifest.json');
+						}
+						$('audio-export-status').textContent = '已导出音效清单，包含 ' + manifest.sfx.length + ' 个音效和 ' + manifest.bgm.length + ' 首音乐';
+					});
+					
+					// Export Godot registry
+					$('audio-export-registry')?.addEventListener('click', () => {
+						const lib = loadAudioLibrary();
+						if (lib.length === 0) {
+							$('audio-export-status').textContent = '音效库为空';
+							return;
+						}
+						let code = '# audio_registry.gd\n';
+						code += 'extends Node\n\n';
+						code += 'const SFX := {\n';
+						lib.filter(i => i.type === 'sfx').forEach((item, idx, arr) => {
+							const path = 'res://audio/sfx/' + (item.category || 'other') + '/' + (item.name || item.id) + '.wav';
+							code += '    "' + (item.name || item.id) + '": "' + path + '"' + (idx < arr.length - 1 ? ',' : '') + '\n';
+						});
+						code += '}\n\n';
+						code += 'const BGM := {\n';
+						lib.filter(i => i.type === 'bgm').forEach((item, idx, arr) => {
+							const path = 'res://audio/bgm/' + (item.name || item.id) + '.wav';
+							code += '    "' + item.musicType + '": "' + path + '"' + (idx < arr.length - 1 ? ',' : '') + '\n';
+						});
+						code += '}\n\n';
+						code += 'func play_sfx(sfx_name: String, volume: float = 0.0) -> void:\n';
+						code += '    if SFX.has(sfx_name):\n';
+						code += '        var player = AudioStreamPlayer.new()\n';
+						code += '        player.stream = load(SFX[sfx_name])\n';
+						code += '        player.volume_db = volume\n';
+						code += '        add_child(player)\n';
+						code += '        player.play()\n';
+						code += '        player.finished.connect(func(): player.queue_free())\n\n';
+						code += 'func play_bgm(bgm_name: String, volume: float = 0.0, loop: bool = true) -> void:\n';
+						code += '    if BGM.has(bgm_name):\n';
+						code += '        var player = AudioStreamPlayer.new()\n';
+						code += '        player.stream = load(BGM[bgm_name])\n';
+						code += '        player.volume_db = volume\n';
+						code += '        player.stream.loop = loop\n';
+						code += '        add_child(player)\n';
+						code += '        player.play()\n';
+						
+						const blob = new Blob([code], { type: 'text/plain' });
+						if (window.downloadAudio) {
+							window.downloadAudio(blob, 'audio_registry.gd');
+						}
+						$('audio-export-status').textContent = '已导出 Godot 音效注册表脚本';
+					});
+					
+					// Clear library
+					$('audio-clear-library')?.addEventListener('click', () => {
+						if (confirm('确定清空所有音效库？')) {
+							saveAudioLibrary([]);
+							renderAudioLibrary();
+							$('audio-export-status').textContent = '音效库已清空';
+						}
+					});
+					
+					// Initial render
+					setTimeout(() => {
+						renderSfxList('combat');
+						renderAudioLibrary();
+						updateMusicInfo('battle');
+						drawPlaceholderWaveform('audio-waveform');
+						drawPlaceholderWaveform('audio-edit-waveform');
+					}, 100);
+				})();
 				const $ = (q) => pStory.querySelector(q);
 				const statusEl = pStory.querySelector("#st-status");
 				const LS_STORY = "dsh-game-art-studio:stories";
@@ -1385,6 +2174,7 @@ function buildStudio() {
 					}
 					renderAll();
 				}
+				window.refreshAssets = refreshAssets;
 				const itemById = (id) => assetCache.find((a) => a.id === id) || null;
 				const itemLabel = (a) => "[" + (a.kind || "?") + "] " + ((a.name || "") + " ").slice(0, 22) + "·" + (a.id || "");
 				function projRow(label, onClick, onDel) {
@@ -1587,6 +2377,211 @@ function buildStudio() {
 						persist();
 						renderEditor();
 					});
+					
+					// ===== Multi-character and Audio Binding Enhancement =====
+					// Initialize characters array
+					if (!t.characters) t.characters = [];
+					if (!t.audio) t.audio = { bgm: { id: '', volume: 80, fadeIn: 0, loop: true }, ambient: { id: '', volume: 60 } };
+					
+					// Add character/audio section to editor
+					const charAudioSection = document.createElement('div');
+					charAudioSection.style.cssText = 'margin-top:12px;padding-top:12px;border-top:2px dashed var(--border)';
+					
+					// Tabs for characters and audio
+					charAudioSection.innerHTML = `
+						<div style="display:flex;gap:6px;margin-bottom:8px">
+							<button class="gas-btn ghost char-audio-tab active" data-tab="chars" style="padding:4px 12px;font-size:11px">👥 多角色 (${t.characters.length})</button>
+							<button class="gas-btn ghost char-audio-tab" data-tab="audio" style="padding:4px 12px;font-size:11px">🎵 音效绑定</button>
+						</div>
+						<div id="char-audio-content"></div>
+					`;
+					
+					ed.appendChild(charAudioSection);
+					
+					const contentDiv = charAudioSection.querySelector('#char-audio-content');
+					
+					// Render characters
+					function renderChars() {
+						contentDiv.innerHTML = '<div style="margin-bottom:8px"><button class="gas-btn ghost" id="add-char-btn" style="margin-bottom:8px">➕ 添加角色</button></div>';
+						t.characters.forEach((char, idx) => {
+							const charCard = document.createElement('div');
+							charCard.style.cssText = 'background:#252a2e;border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:6px';
+							charCard.innerHTML = `
+								<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+									<input class="gas-input" data-char-name="${idx}" value="${esc(char.name||'')}" placeholder="角色名" style="flex:1">
+									<button class="gas-btn ghost" style="padding:4px 8px;background:#3a1a1a" data-del-char="${idx}">✕</button>
+								</div>
+								<div class="gas-row" style="flex-wrap:wrap;gap:6px">
+									<div style="flex:1">
+										<label style="font-size:10px;color:#9aa0a6">位置</label>
+										<select class="gas-select" data-char-pos="${idx}" style="width:100%">
+											<option value="left" ${char.position==='left'?'selected':''}>左侧</option>
+											<option value="center-left" ${char.position==='center-left'?'selected':''}>中左</option>
+											<option value="center" ${char.position==='center'?'selected':''}>中央</option>
+											<option value="center-right" ${char.position==='center-right'?'selected':''}>中右</option>
+											<option value="right" ${char.position==='right'?'selected':''}>右侧</option>
+										</select>
+									</div>
+									<div style="flex:1">
+										<label style="font-size:10px;color:#9aa0a6">表情</label>
+										<select class="gas-select" data-char-emotion="${idx}" style="width:100%">
+											<option value="normal" ${char.emotion==='normal'?'selected':''}>😶 正常</option>
+											<option value="happy" ${char.emotion==='happy'?'selected':''}>😄 开心</option>
+											<option value="sad" ${char.emotion==='sad'?'selected':''}>😢 悲伤</option>
+											<option value="angry" ${char.emotion==='angry'?'selected':''}>😠 愤怒</option>
+											<option value="surprised" ${char.emotion==='surprised'?'selected':''}>😲 惊讶</option>
+										</select>
+									</div>
+									<div style="flex:0 0 auto;padding-top:14px">
+										<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px">
+											<input type="checkbox" data-char-vis="${idx}" ${char.visible!==false?'checked':''}> 显示
+										</label>
+									</div>
+								</div>
+							`;
+							contentDiv.appendChild(charCard);
+						});
+					}
+					
+					// Render audio binding
+					function renderAudio() {
+						const lib = typeof getAudioLibrary === 'function' ? getAudioLibrary() : [];
+						const bgmItems = lib.filter(i => i.type === 'bgm');
+						contentDiv.innerHTML = `
+							<div class="gas-card" style="margin-bottom:8px">
+								<h4 style="margin:0 0 8px;font-size:12px;color:var(--accent2)">🎵 背景音乐</h4>
+								<div class="gas-row" style="flex-wrap:wrap;gap:8px">
+									<div style="flex:2">
+										<label style="font-size:10px;color:#9aa0a6">选择 BGM</label>
+										<select class="gas-select" id="shot-bgm-select" style="width:100%">
+											<option value="">（无）</option>
+											${bgmItems.map(i => `<option value="${i.id}" ${t.audio?.bgm?.id===i.id?'selected':''}>${i.name||i.id}</option>`).join('')}
+										</select>
+									</div>
+									<div style="flex:1">
+										<label style="font-size:10px;color:#9aa0a6">音量</label>
+										<input type="range" id="shot-bgm-vol" min="0" max="100" value="${t.audio?.bgm?.volume||80}" style="width:100%">
+									</div>
+								</div>
+								<div class="gas-row" style="margin-top:6px;gap:8px">
+									<div>
+										<label style="font-size:10px;color:#9aa0a6">淡入</label>
+										<select class="gas-select" id="shot-bgm-fadein">
+											<option value="0" ${(t.audio?.bgm?.fadeIn||0)===0?'selected':''}>无</option>
+											<option value="0.5" ${(t.audio?.bgm?.fadeIn||0)===0.5?'selected':''}>0.5s</option>
+											<option value="1" ${(t.audio?.bgm?.fadeIn||0)===1?'selected':''}>1s</option>
+											<option value="2" ${(t.audio?.bgm?.fadeIn||0)===2?'selected':''}>2s</option>
+										</select>
+									</div>
+									<label style="display:flex;align-items:center;gap:4px;font-size:11px">
+										<input type="checkbox" id="shot-bgm-loop" ${t.audio?.bgm?.loop!==false?'checked':''}> 循环
+									</label>
+								</div>
+							</div>
+							<div class="gas-card">
+								<h4 style="margin:0 0 8px;font-size:12px;color:var(--accent2)">🌿 环境音</h4>
+								<div class="gas-row" style="gap:8px">
+									<div style="flex:2">
+										<label style="font-size:10px;color:#9aa0a6">选择环境音</label>
+										<select class="gas-select" id="shot-ambient-select" style="width:100%">
+											<option value="">（无）</option>
+											${lib.filter(i=>i.type==='sfx').map(i=>`<option value="${i.id}" ${t.audio?.ambient?.id===i.id?'selected':''}>${i.name||i.id}</option>`).join('')}
+										</select>
+									</div>
+									<div style="flex:1">
+										<label style="font-size:10px;color:#9aa0a6">音量</label>
+										<input type="range" id="shot-ambient-vol" min="0" max="100" value="${t.audio?.ambient?.volume||60}" style="width:100%">
+									</div>
+								</div>
+							</div>
+						`;
+					}
+					
+					// Tab switching
+					charAudioSection.querySelectorAll('.char-audio-tab').forEach(tab => {
+						tab.onclick = () => {
+							charAudioSection.querySelectorAll('.char-audio-tab').forEach(t => t.classList.remove('active'));
+							tab.classList.add('active');
+							if (tab.dataset.tab === 'chars') renderChars();
+							else renderAudio();
+						};
+					});
+					
+					// Initial render
+					renderChars();
+					
+					// Character event handlers
+					contentDiv.addEventListener('change', (e) => {
+						const idx = parseInt(e.target.dataset.charName || e.target.dataset.charPos || e.target.dataset.charEmotion || e.target.dataset.charVis);
+						if (isNaN(idx)) return;
+						const char = t.characters[idx];
+						if (e.target.dataset.charName !== undefined) char.name = e.target.value;
+						else if (e.target.dataset.charPos !== undefined) char.position = e.target.value;
+						else if (e.target.dataset.charEmotion !== undefined) char.emotion = e.target.value;
+						else if (e.target.dataset.charVis !== undefined) char.visible = e.target.checked;
+						persist();
+						// Update tab count
+						charAudioSection.querySelector('[data-tab="chars"]').textContent = `👥 多角色 (${t.characters.length})`;
+					});
+					
+					contentDiv.addEventListener('click', (e) => {
+						if (e.target.id === 'add-char-btn') {
+							t.characters.push({
+								id: 'char_' + Date.now().toString(36),
+								name: '新角色',
+								position: 'center',
+								emotion: 'normal',
+								visible: true
+							});
+							persist();
+							renderChars();
+							charAudioSection.querySelector('[data-tab="chars"]').textContent = `👥 多角色 (${t.characters.length})`;
+						}
+						if (e.target.dataset.delChar !== undefined) {
+							t.characters.splice(parseInt(e.target.dataset.delChar), 1);
+							persist();
+							renderChars();
+							charAudioSection.querySelector('[data-tab="chars"]').textContent = `👥 多角色 (${t.characters.length})`;
+						}
+						// Audio event handlers
+						if (e.target.id === 'shot-bgm-select') {
+							t.audio = t.audio || {};
+							t.audio.bgm = t.audio.bgm || {};
+							t.audio.bgm.id = e.target.value;
+							persist();
+						}
+						if (e.target.id === 'shot-bgm-vol') {
+							t.audio = t.audio || {};
+							t.audio.bgm = t.audio.bgm || {};
+							t.audio.bgm.volume = parseInt(e.target.value);
+							persist();
+						}
+						if (e.target.id === 'shot-bgm-fadein') {
+							t.audio = t.audio || {};
+							t.audio.bgm = t.audio.bgm || {};
+							t.audio.bgm.fadeIn = parseFloat(e.target.value);
+							persist();
+						}
+						if (e.target.id === 'shot-bgm-loop') {
+							t.audio = t.audio || {};
+							t.audio.bgm = t.audio.bgm || {};
+							t.audio.bgm.loop = e.target.checked;
+							persist();
+						}
+						if (e.target.id === 'shot-ambient-select') {
+							t.audio = t.audio || {};
+							t.audio.ambient = t.audio.ambient || {};
+							t.audio.ambient.id = e.target.value;
+							persist();
+						}
+						if (e.target.id === 'shot-ambient-vol') {
+							t.audio = t.audio || {};
+							t.audio.ambient = t.audio.ambient || {};
+							t.audio.ambient.volume = parseInt(e.target.value);
+							persist();
+						}
+					});
+					
 					renderTimeline();
 				}
 				function thumbFor(itemId, w, h) {
@@ -3166,6 +4161,53 @@ function buildStudio() {
 				renderAll();
 				refreshAssets();
 			})();
+			const pProject = mkPanel("project", `
+    <div class="gas-card">
+      <h4>📁 项目管理中心 — 多项目切换 / 导入导出 / 备份</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <label class="gas-label">我的项目</label>
+          <div id="proj-list" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;min-height:200px;max-height:400px;overflow:auto;padding:8px">
+            <div class="gas-note">正在加载项目...</div>
+          </div>
+          <div class="gas-row" style="margin-top:10px">
+            <button class="gas-btn" id="proj-new">➕ 新建项目</button>
+            <button class="gas-btn ghost" id="proj-import">⬆ 导入项目</button>
+            <button class="gas-btn ghost" id="proj-export-all">📦 导出全部项目</button>
+          </div>
+        </div>
+        <div style="width:320px">
+          <label class="gas-label">项目详情</label>
+          <div id="proj-details" style="background:#1a1e20;border:1px solid var(--border);border-radius:10px;min-height:200px;padding:12px">
+            <div class="gas-note">选择一个项目查看详情</div>
+          </div>
+          <div class="gas-note" style="margin-top:8px">项目数据存储在浏览器本地 localStorage 中，包含素材库、剧情数据、设置等。</div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>💾 数据备份与恢复</h4>
+      <div class="gas-row">
+        <div style="flex:1">
+          <div class="gas-note" style="margin-bottom:10px">导出所有工坊数据为 JSON 文件，可用于备份或迁移到其他浏览器/设备。</div>
+          <div class="gas-row">
+            <button class="gas-btn" id="backup-all">💾 完整备份（JSON）</button>
+            <button class="gas-btn ghost" id="backup-assets">📦 仅素材库备份</button>
+            <button class="gas-btn ghost" id="backup-stories">📜 仅剧情数据备份</button>
+          </div>
+          <div class="gas-note" style="margin-top:10px">从备份恢复：直接导入 JSON 文件即可。</div>
+          <div class="gas-row" style="margin-top:8px">
+            <label class="gas-btn ghost" style="cursor:pointer"><input type="file" id="restore-file" accept=".json,application/json" hidden>⬆ 恢复备份</label>
+            <button class="gas-btn ghost" id="clear-all-data" style="background:#3a1a1a">⚠️ 清除所有数据</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="gas-card">
+      <h4>📊 存储使用情况</h4>
+      <div id="storage-info" style="font-size:12px;color:var(--muted)"></div>
+    </div>
+  `);
 			const pAsset = mkPanel("asset", `
       <div class="gas-card">
         <h4>📚 素材总管 — 全管线素材库</h4>
@@ -3234,11 +4276,16 @@ function buildStudio() {
 				pExtract,
 				pMap,
 				pScene,
+				pTileset,
+				pAudio,
+				pStyle,
+				pBatch,
 				pAsset,
 				pPost,
 				pPreset,
 				pExport,
-				pStory
+				pStory,
+				pProject
 			].forEach((p) => main.appendChild(p));
 			panels["character"] = pChar;
 			panels["seq"] = pSeq;
@@ -3248,12 +4295,17 @@ function buildStudio() {
 			panels["matting"] = pMat;
 			panels["map"] = pMap;
 			panels["scene"] = pScene;
+			panels["tileset"] = pTileset;
+			panels["audio"] = pAudio;
+			panels["style"] = pStyle;
+			panels["batch"] = pBatch;
 			panels["extract"] = pExtract;
 			panels["asset"] = pAsset;
 			panels["post"] = pPost;
 			panels["preset"] = pPreset;
 			panels["export"] = pExport;
 			panels["story"] = pStory;
+			panels["project"] = pProject;
 			function switchTab(id) {
 				active = id;
 				main.scrollTop = 0;
@@ -7594,8 +8646,35 @@ function buildStudio() {
 					for (let i = 0; i < keep.length; i++) if (!keep[i]) d[i * 4 + 3] = 0;
 					g.putImageData(imgData, 0, 0);
 					keepLargest();
+					applyStroke();
 					renderResult();
 					toast(status, "点选保留完成：已留下与所选点相连的主体，其余透明");
+				}
+				function applyStroke() {
+					const strokeColor = pMat.querySelector("#m-stroke")?.value || "#000000";
+					if (strokeColor === "#000000") return;
+					const w = canvas.width, h = canvas.height;
+					const g = canvas.getContext("2d");
+					const imgData = g.getImageData(0, 0, w, h);
+					const d = imgData.data;
+					const srcData = new Uint8ClampedArray(d);
+					const sr = parseInt(strokeColor.slice(1, 3), 16);
+					const sg = parseInt(strokeColor.slice(3, 5), 16);
+					const sb = parseInt(strokeColor.slice(5, 7), 16);
+					let changed = false;
+					for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+						if (srcData[(y * w + x) * 4 + 3] === 0) continue;
+						for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+							const nx = x + ox, ny = y + oy;
+							if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+							const ni = (ny * w + nx) * 4;
+							if (srcData[ni + 3] === 0) {
+								d[ni] = sr; d[ni + 1] = sg; d[ni + 2] = sb; d[ni + 3] = 255;
+								changed = true;
+							}
+						}
+					}
+					if (changed) g.putImageData(imgData, 0, 0);
 				}
 				function doBox(x1, y1, x2, y2) {
 					if (!originalData) return;
@@ -7666,6 +8745,7 @@ function buildStudio() {
 					}
 					g.putImageData(imgData, 0, 0);
 					keepLargest();
+					applyStroke();
 					renderResult();
 				}
 				function keepLargest() {
@@ -7792,6 +8872,7 @@ function buildStudio() {
 					}
 					g.putImageData(imgData, 0, 0);
 					keepLargest();
+					applyStroke();
 					renderResult();
 					toast(status, "色键抠图完成，可下载透明 PNG");
 				}
@@ -9998,7 +11079,7 @@ function buildStudio() {
 					pScene.querySelector("#sc-ed-preview").addEventListener("click", () => {
 						const previewWin = window.open("", "", "width=960,height=540");
 						if (!previewWin) return;
-						previewWin.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000"><canvas id="c" width="${W}" height="${H}"></canvas><script>
+						previewWin.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000"><canvas id="c" width="${W}" height="${H}"></canvas><scr`+`ipt>
 const c=document.getElementById('c'); const ctx=c.getContext('2d');
 const bg='${bgUrl || ""}';
 const spr=${JSON.stringify(sprites.map((s) => ({
@@ -11125,6 +12206,15 @@ textures/canvas_textures/default_texture_filter = 0   ; 0=Nearest 邻近采样�
 				document.addEventListener("keydown", lightboxKey);
 			}
 			root.openAssetLightbox = openAssetLightbox;
+			// 导出内部工具函数到全局,供顶层模块(风格迁移/批量整理/项目管理等)使用
+			window.addToLibrary = addToLibrary;
+			window.idbGetAll = idbGetAll;
+			window.idbPut = idbPut;
+			window.idbDelete = idbDelete;
+			window.downloadBlob = downloadBlob;
+			window.getKeys = getKeys;
+			window.getCustomProviders = getCustomProviders;
+			window.toast = toast;
 			root.addEventListener("click", (e) => {
 				const t = e.target;
 				let url = "", title = "";
@@ -11152,6 +12242,1526 @@ try {
   el.textContent = '工坊启动失败:\n' + (e?.stack || e?.message || e);
   document.body.appendChild(el);
 }
+// ===== Project Management Events =====
+(function(){
+setTimeout(function(){
+var projList=document.getElementById('proj-list');
+var projDetails=document.getElementById('proj-details');
+var storageInfo=document.getElementById('storage-info');
+var LS_PROJ='dsh-game-art-studio:projects';
+function loadProjects(){try{return JSON.parse(localStorage.getItem(LS_PROJ)||'{}')}catch{return{}}}
+function saveProjects(p){localStorage.setItem(LS_PROJ,JSON.stringify(p))}
+function renderProjectList(){if(!projList)return;var ps=loadProjects();var keys=Object.keys(ps);if(keys.length===0){projList.innerHTML='<div class="gas-note">暂无项目，点击「新建项目」开始</div>';return}projList.innerHTML='';keys.forEach(function(k){var p=ps[k];var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer';row.innerHTML='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.name+'</span><span style="font-size:10px;color:var(--muted,#9aa0a6)">'+new Date(p.updatedAt||p.createdAt).toLocaleDateString()+'</span><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px" data-export="'+k+'">📦</button><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px;background:#3a1a1a" data-del="'+k+'">🗑</button>';row.querySelector('[data-export]').onclick=function(e){e.stopPropagation();var proj=ps[k];var blob=new Blob([JSON.stringify(proj,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=(proj.name||'project')+'.json';a.click();URL.revokeObjectURL(url)};row.querySelector('[data-del]').onclick=function(e){e.stopPropagation();if(confirm('确定删除项目「'+(ps[k].name||'')+'」？')){delete ps[k];saveProjects(ps);renderProjectList()}};row.onclick=function(){showProjectDetails(p)};projList.appendChild(row)})}
+function showProjectDetails(proj){if(!projDetails)return;projDetails.innerHTML='<h4 style="margin:0 0 12px;color:var(--accent2)">'+proj.name+'</h4><div class="gas-note"><b>创建时间：</b>'+new Date(proj.createdAt).toLocaleString()+'<br><b>更新时间：</b>'+new Date(proj.updatedAt||proj.createdAt).toLocaleString()+'<br><b>ID：</b>'+proj.id+'</div>'}function updateStorageInfo(){if(!storageInfo)return;var total=0;var keys=['dsh-game-art-studio:stories','dsh-game-art-studio:audioLibrary','dsh-game-art-studio:projects','dsh-game-art-studio:assets'];keys.forEach(function(k){try{var v=localStorage.getItem(k)||'';total+=v.length*2}catch{}});var mb=(total/1024/1024).toFixed(2);storageInfo.innerHTML='<p>本地存储使用：约 <b style="color:var(--accent2)">'+mb+' MB</b></p><p style="margin-top:6px">浏览器 localStorage 限制通常为 5-10MB，超出可能导致数据丢失。建议定期导出备份。</p>'}document.getElementById('proj-new')?.addEventListener('click',function(){var name=prompt('输入项目名称：','我的项目');if(name&&name.trim()){var ps=loadProjects();var id='proj_'+Date.now().toString(36);ps[id]={id:id,name:name.trim(),createdAt:Date.now(),updatedAt:Date.now()};saveProjects(ps);renderProjectList();showProjectDetails(ps[id])}});document.getElementById('proj-import')?.addEventListener('click',function(){var input=document.createElement('input');input.type='file';input.accept='.json';input.onchange=function(e){var file=e.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(ev){try{var data=JSON.parse(ev.target.result);if(!data.id){alert('无效的项目文件');return}var ps=loadProjects();data.id='proj_'+Date.now().toString(36);data.name=(data.name||'导入项目')+' (导入)';data.importedAt=Date.now();ps[data.id]=data;saveProjects(ps);renderProjectList();alert('项目导入成功！')}catch(err){alert('导入失败：'+err.message)}};reader.readAsText(file)};input.click()});document.getElementById('proj-export-all')?.addEventListener('click',function(){var ps=loadProjects();var blob=new Blob([JSON.stringify({projects:ps,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='all_projects_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)});document.getElementById('backup-all')?.addEventListener('click',function(){var backup={projects:loadProjects(),stories:JSON.parse(localStorage.getItem('dsh-game-art-studio:stories')||'{}'),audioLibrary:JSON.parse(localStorage.getItem('dsh-game-art-studio:audioLibrary')||'[]'),exportedAt:new Date().toISOString()};var blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='godot_arter_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)});document.getElementById('backup-assets')?.addEventListener('click',function(){var blobs=[];var dbReq=indexedDB.open('dsh-game-art-studio',1);dbReq.onsuccess=function(){var db=dbReq.result;var tx=db.transaction('assets','readonly');var store=tx.objectStore('assets');var getAll=store.getAll();getAll.onsuccess=function(){var assets=getAll.result;var blob=new Blob([JSON.stringify(assets,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='assets_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)};getAll.onerror=function(e){alert('素材库读取失败：'+e.message)};};dbReq.onerror=function(e){alert('素材库访问失败：'+e.message)}});
+document.getElementById('backup-stories')?.addEventListener('click',function(){var stories=JSON.parse(localStorage.getItem('dsh-game-art-studio:stories')||'{}');var blob=new Blob([JSON.stringify({stories:stories,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='stories_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)});document.getElementById('restore-file')?.addEventListener('change',function(e){var file=e.target.files[0];if(!file)return;var reader=new FileReader();reader.onload=function(ev){try{var data=JSON.parse(ev.target.result);if(data.stories){localStorage.setItem('dsh-game-art-studio:stories',JSON.stringify(data.stories));alert('剧情数据恢复成功！')}if(data.audioLibrary){localStorage.setItem('dsh-game-art-studio:audioLibrary',JSON.stringify(data.audioLibrary));alert('音效库恢复成功！')}if(data.projects){var ps=loadProjects();Object.assign(ps,data.projects);saveProjects(ps);renderProjectList();alert('项目恢复成功！')}}catch(err){alert('恢复失败：'+err.message)}};reader.readAsText(file)});document.getElementById('clear-all-data')?.addEventListener('click',function(){if(confirm('⚠️ 确定要清除所有数据吗？此操作不可恢复！')){if(confirm('再次确认：所有素材、剧情、项目都将被删除！')){var keys=['dsh-game-art-studio:stories','dsh-game-art-studio:audioLibrary','dsh-game-art-studio:projects','dsh-game-art-studio:assets','dsh-game-art-studio:history'];keys.forEach(function(k){localStorage.removeItem(k)});try{var dReq=indexedDB.deleteDatabase('dsh-game-art-studio')}catch(e){}renderProjectList();updateStorageInfo();alert('所有数据已清除！')}}});renderProjectList();updateStorageInfo()},100)})();
+// ===== Audio Module Inline Functions =====
+/**
+ * Audio Module for Godot-Arter v2.0
+ * 音效制作模块 - Web Audio合成、音乐生成、音频编辑、Godot导出
+ */
+
+// 音效预设类型
+const SFX_CATEGORIES = {
+    combat: { label: '⚔️ 战斗', presets: ['sword_hit', 'arrow_fire', 'explosion', 'fire', 'hit'] },
+    pickup: { label: '💰 拾取', presets: ['coin_pickup', 'powerup', 'level_up'] },
+    movement: { label: '👣 移动', presets: ['footstep', 'jump', 'wind'] },
+    ui: { label: '🖱️ 界面', presets: ['button_click', 'select', 'cancel', 'open', 'close'] },
+    magic: { label: '✨ 魔法', presets: ['magic_cast', 'powerup'] },
+    ambient: { label: '🌧️ 环境', presets: ['rain', 'wind'] },
+    other: { label: '📦 其他', presets: ['death', 'hit', 'select', 'cancel'] }
+};
+
+// 音乐类型
+const MUSIC_TYPES = {
+    menu: { label: '🏠 主菜单', icon: '🏠' },
+    battle: { label: '⚔️ 战斗', icon: '⚔️' },
+    exploration: { label: '🗺️ 探索', icon: '🧭' },
+    shop: { label: '💎 商店', icon: '💎' },
+    boss: { label: '👹 BOSS', icon: '👹' },
+    victory: { label: '🏆 胜利', icon: '🏆' },
+    defeat: { label: '💔 失败', icon: '💔' }
+};
+
+const AudioModule = {
+    audioContext: null,
+    currentAudioBuffer: null,
+    currentSource: null,
+    gainNode: null,
+    isPlaying: false,
+    isLooping: false,
+    library: [],
+    currentAudioUrl: null,
+    waveformData: null,
+    analyser: null,
+    sfxCategories: SFX_CATEGORIES,
+    musicTypes: MUSIC_TYPES,
+    currentCategory: 'combat',
+    currentMusicType: 'menu',
+    playbackStartTime: 0,
+    playbackOffset: 0
+};
+
+function initAudioContext() {
+    if (!AudioModule.audioContext) {
+        AudioModule.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (AudioModule.audioContext.state === 'suspended') {
+        AudioModule.audioContext.resume();
+    }
+    return AudioModule.audioContext;
+}
+
+// ===== Sound Effect Synthesis =====
+const SFX_PRESETS = {
+    sword_hit: { type: 'impact', baseFreq: 800, decay: 0.15, noise: 0.3 },
+    arrow_fire: { type: 'whoosh', baseFreq: 400, decay: 0.3, noise: 0.7 },
+    coin_pickup: { type: 'chime', baseFreq: 1200, decay: 0.4, noise: 0.1 },
+    button_click: { type: 'click', baseFreq: 600, decay: 0.05, noise: 0.2 },
+    magic_cast: { type: 'magic', baseFreq: 400, decay: 0.6, noise: 0.4 },
+    footstep: { type: 'impact', baseFreq: 100, decay: 0.1, noise: 0.5 },
+    explosion: { type: 'explosion', baseFreq: 80, decay: 0.8, noise: 0.9 },
+    level_up: { type: 'fanfare', baseFreq: 523, decay: 0.8, noise: 0.1 },
+    death: { type: 'descend', baseFreq: 400, decay: 1.0, noise: 0.3 },
+    rain: { type: 'noise', baseFreq: 0, decay: 2.0, noise: 1.0 },
+    wind: { type: 'noise', baseFreq: 0, decay: 2.0, noise: 1.0 },
+    jump: { type: 'whoosh', baseFreq: 300, decay: 0.2, noise: 0.3 },
+    hit: { type: 'impact', baseFreq: 150, decay: 0.1, noise: 0.6 },
+    powerup: { type: 'fanfare', baseFreq: 440, decay: 0.5, noise: 0.1 },
+    select: { type: 'click', baseFreq: 800, decay: 0.03, noise: 0.1 },
+    cancel: { type: 'descend', baseFreq: 600, decay: 0.2, noise: 0.2 },
+    fire: { type: 'explosion', baseFreq: 100, decay: 0.3, noise: 0.8 },
+    open: { type: 'creak', baseFreq: 200, decay: 0.3, noise: 0.2 },
+    close: { type: 'creak', baseFreq: 300, decay: 0.2, noise: 0.2 }
+};
+
+async function synthesizeSFX(preset, duration = 1.0, intensity = 70) {
+    const ctx = initAudioContext();
+    await ctx.resume();
+    
+    const presetData = SFX_PRESETS[preset] || SFX_PRESETS.sword_hit;
+    const volume = intensity / 100;
+    
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    const noiseGain = ctx.createGain();
+    
+    oscillator.type = presetData.type === 'noise' ? 'sine' : (presetData.type === 'explosion' ? 'sawtooth' : 'square');
+    oscillator.frequency.setValueAtTime(presetData.baseFreq, ctx.currentTime);
+    
+    if (presetData.type === 'descend') {
+        oscillator.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + presetData.decay);
+    } else if (presetData.type === 'fanfare') {
+        oscillator.frequency.setValueAtTime(523, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(659, ctx.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(784, ctx.currentTime + 0.2);
+        oscillator.frequency.setValueAtTime(1047, ctx.currentTime + 0.3);
+    } else {
+        oscillator.frequency.exponentialRampToValueAtTime(presetData.baseFreq * 0.5, ctx.currentTime + presetData.decay);
+    }
+    
+    gainNode.gain.setValueAtTime(volume * 0.5, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + presetData.decay);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    if (presetData.noise > 0.1) {
+        const bufferSize = ctx.sampleRate * presetData.decay;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            output[i] = Math.random() * 2 - 1;
+        }
+        
+        const noiseSource = ctx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        
+        const noiseFilter = ctx.createBiquadFilter();
+        noiseFilter.type = 'lowpass';
+        noiseFilter.frequency.value = presetData.type === 'explosion' ? 2000 : 500;
+        
+        noiseSource.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
+        
+        noiseGain.gain.setValueAtTime(volume * presetData.noise * 0.3, ctx.currentTime);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + presetData.decay);
+        
+        noiseSource.start(ctx.currentTime);
+        noiseSource.stop(ctx.currentTime + presetData.decay);
+    }
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + presetData.decay);
+    
+    return new Promise((resolve) => {
+        setTimeout(() => resolve(), presetData.decay * 1000);
+    });
+}
+
+// ===== Music Demo Synthesis =====
+const MUSIC_PRESETS = {
+    menu: { bpm: 90, notes: [262, 330, 392, 523], pattern: [0,0,1,1,2,2,3,3] },
+    battle: { bpm: 140, notes: [196, 247, 294, 392], pattern: [0,0,1,1,2,2,3,3,2,2,1,1,0,0,3,3] },
+    exploration: { bpm: 110, notes: [330, 392, 440, 523], pattern: [0,1,2,3,2,1,0,1] },
+    shop: { bpm: 100, notes: [392, 440, 494, 523, 587], pattern: [0,1,2,3,4,4,3,2,1,0] },
+    boss: { bpm: 160, notes: [165, 196, 220, 262], pattern: [0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3] },
+    victory: { bpm: 120, notes: [523, 659, 784, 1047], pattern: [0,1,2,3,3,2,1,0,0,2,3,3] },
+    defeat: { bpm: 60, notes: [392, 349, 330, 262], pattern: [0,1,2,3,3,2,1,0] }
+};
+
+async function synthesizeMusicDemo(type = 'menu', duration = 8) {
+    const ctx = initAudioContext();
+    await ctx.resume();
+    
+    const preset = MUSIC_PRESETS[type] || MUSIC_PRESETS.menu;
+    const interval = 60 / preset.bpm;
+    const noteDuration = interval * 0.8;
+    
+    const oscillators = [];
+    const gains = [];
+    
+    for (let i = 0; i < preset.pattern.length; i++) {
+        const noteIndex = preset.pattern[i];
+        const freq = preset.notes[noteIndex];
+        const startTime = ctx.currentTime + i * interval;
+        
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+        gain.gain.setValueAtTime(0.3, startTime + noteDuration);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration + 0.1);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        
+        osc.start(startTime);
+        osc.stop(startTime + noteDuration + 0.2);
+        
+        oscillators.push(osc);
+        gains.push(gain);
+    }
+    
+    return new Promise((resolve) => {
+        setTimeout(() => resolve(), duration * 1000);
+    });
+}
+
+// ===== Waveform Visualization =====
+function drawWaveform(canvasId, color = '#e8a33d') {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width = canvas.offsetWidth || 400;
+    const height = canvas.height = canvas.offsetHeight || 100;
+    
+    if (AudioModule.audioContext && AudioModule.currentAudioBuffer) {
+        const data = AudioModule.currentAudioBuffer.getChannelData(0);
+        const step = Math.ceil(data.length / width);
+        const amp = height / 2;
+        
+        ctx.fillStyle = '#1a1e20';
+        ctx.fillRect(0, 0, width, height);
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        
+        for (let i = 0; i < width; i++) {
+            let min = 1.0, max = -1.0;
+            for (let j = 0; j < step; j++) {
+                const idx = i * step + j;
+                if (idx < data.length) {
+                    const datum = data[idx];
+                    if (datum < min) min = datum;
+                    if (datum > max) max = datum;
+                }
+            }
+            ctx.moveTo(i, (1 + min) * amp);
+            ctx.lineTo(i, (1 + max) * amp);
+        }
+        ctx.stroke();
+    }
+}
+
+// ===== Audio Playback Control =====
+function playAudio(buffer, loop = false) {
+    if (AudioModule.currentSource) {
+        stopAudio();
+    }
+    
+    const ctx = initAudioContext();
+    AudioModule.currentSource = ctx.createBufferSource();
+    AudioModule.currentSource.buffer = buffer;
+    AudioModule.currentSource.loop = loop;
+    
+    AudioModule.gainNode = ctx.createGain();
+    AudioModule.currentSource.connect(AudioModule.gainNode);
+    AudioModule.gainNode.connect(ctx.destination);
+    
+    AudioModule.currentSource.start(0);
+    AudioModule.playbackStartTime = ctx.currentTime;
+    AudioModule.playbackOffset = 0;
+    AudioModule.isPlaying = true;
+    AudioModule.isLooping = loop;
+    AudioModule.currentAudioBuffer = buffer;
+    
+    AudioModule.currentSource.onended = () => {
+        if (!loop) {
+            AudioModule.isPlaying = false;
+        }
+    };
+}
+
+function stopAudio() {
+    if (AudioModule.currentSource) {
+        try {
+            AudioModule.currentSource.stop();
+        } catch (e) {}
+        AudioModule.currentSource = null;
+    }
+    AudioModule.isPlaying = false;
+    AudioModule.isLooping = false;
+}
+
+function pauseAudio() {
+    if (AudioModule.currentSource && AudioModule.isPlaying) {
+        AudioModule.playbackOffset = AudioModule.audioContext.currentTime - AudioModule.playbackStartTime;
+        stopAudio();
+    }
+}
+
+function setVolume(volume) {
+    if (AudioModule.gainNode) {
+        AudioModule.gainNode.gain.value = Math.max(0, Math.min(1, volume / 100));
+    }
+}
+
+// ===== Audio Export Functions =====
+async function exportToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length;
+    
+    const wavBuffer = new ArrayBuffer(44 + length * numChannels * 2);
+    const view = new DataView(wavBuffer);
+    
+    const writeString = (offset, string) => {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    };
+    
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + length * numChannels * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * 2, true);
+    view.setUint16(32, numChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, length * numChannels * 2, true);
+    
+    const channels = [];
+    for (let i = 0; i < numChannels; i++) {
+        channels.push(buffer.getChannelData(i));
+    }
+    
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+        for (let ch = 0; ch < numChannels; ch++) {
+            const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+            offset += 2;
+        }
+    }
+    
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+}
+
+function downloadAudio(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ===== Audio Library Management =====
+function getAudioLibrary() {
+    try {
+        const stored = localStorage.getItem('dsh-game-art-studio:audioLibrary');
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveToAudioLibrary(item) {
+    const library = getAudioLibrary();
+    item.id = item.id || 'audio_' + Date.now().toString(36);
+    item.createdAt = Date.now();
+    library.push(item);
+    localStorage.setItem('dsh-game-art-studio:audioLibrary', JSON.stringify(library));
+    return item;
+}
+
+function removeFromAudioLibrary(id) {
+    const library = getAudioLibrary().filter(item => item.id !== id);
+    localStorage.setItem('dsh-game-art-studio:audioLibrary', JSON.stringify(library));
+}
+
+function clearAudioLibrary() {
+    localStorage.removeItem('dsh-game-art-studio:audioLibrary');
+}
+
+// ===== Generate Godot Audio Registry =====
+function generateGodotAudioRegistry(library) {
+    const sfxMap = {};
+    const bgmMap = {};
+    
+    library.forEach(item => {
+        const key = item.category + '/' + item.name;
+        if (item.type === 'sfx') {
+            sfxMap[key] = item.godotPath || 'res://audio/sfx/' + item.category + '/' + item.name + '.wav';
+        } else {
+            bgmMap[item.name] = item.godotPath || 'res://audio/bgm/' + item.name + '.wav';
+        }
+    });
+    
+    return {
+        sfx: sfxMap,
+        bgm: bgmMap
+    };
+}
+
+// ===== Audio Editing Functions =====
+function applyFadeIn(buffer, fadeTime = 0.5) {
+    const ctx = initAudioContext();
+    const newBuffer = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        const oldData = buffer.getChannelData(ch);
+        const newData = newBuffer.getChannelData(ch);
+        const fadeSamples = Math.floor(fadeTime * buffer.sampleRate);
+        
+        for (let i = 0; i < buffer.length; i++) {
+            if (i < fadeSamples) {
+                newData[i] = oldData[i] * (i / fadeSamples);
+            } else {
+                newData[i] = oldData[i];
+            }
+        }
+    }
+    
+    return newBuffer;
+}
+
+function applyFadeOut(buffer, fadeTime = 0.5) {
+    const ctx = initAudioContext();
+    const newBuffer = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        const oldData = buffer.getChannelData(ch);
+        const newData = newBuffer.getChannelData(ch);
+        const fadeSamples = Math.floor(fadeTime * buffer.sampleRate);
+        const fadeStart = buffer.length - fadeSamples;
+        
+        for (let i = 0; i < buffer.length; i++) {
+            if (i >= fadeStart) {
+                const progress = (i - fadeStart) / fadeSamples;
+                newData[i] = oldData[i] * (1 - progress);
+            } else {
+                newData[i] = oldData[i];
+            }
+        }
+    }
+    
+    return newBuffer;
+}
+
+function trimAudio(buffer, startTime, endTime) {
+    const ctx = initAudioContext();
+    const startSample = Math.floor(startTime * buffer.sampleRate);
+    const endSample = Math.floor(endTime * buffer.sampleRate);
+    const newLength = endSample - startSample;
+    
+    const newBuffer = ctx.createBuffer(buffer.numberOfChannels, newLength, buffer.sampleRate);
+    
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        const oldData = buffer.getChannelData(ch);
+        const newData = newBuffer.getChannelData(ch);
+        
+        for (let i = 0; i < newLength; i++) {
+            newData[i] = oldData[startSample + i];
+        }
+    }
+    
+    return newBuffer;
+}
+
+// ===== Load Audio File =====
+async function loadAudioFile(file) {
+    const ctx = initAudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+}
+
+// ===== Record Microphone Input =====
+async function startRecording() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = initAudioContext();
+    const source = ctx.createMediaStreamSource(stream);
+    const dest = ctx.createMediaStreamDestination();
+    source.connect(dest);
+    
+    const mediaRecorder = new MediaRecorder(dest.stream);
+    const chunks = [];
+    
+    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+    
+    return new Promise((resolve) => {
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+            stream.getTracks().forEach(track => track.stop());
+            resolve(audioBuffer);
+        };
+        mediaRecorder.start();
+    });
+}
+
+// Export for global use
+if (typeof window !== 'undefined') {
+    window.AudioModule = AudioModule;
+    window.initAudioContext = initAudioContext;
+    window.synthesizeSFX = synthesizeSFX;
+    window.synthesizeMusicDemo = synthesizeMusicDemo;
+    window.drawWaveform = drawWaveform;
+    window.playAudio = playAudio;
+    window.stopAudio = stopAudio;
+    window.pauseAudio = pauseAudio;
+    window.setVolume = setVolume;
+    window.exportToWav = exportToWav;
+    window.downloadAudio = downloadAudio;
+    window.getAudioLibrary = getAudioLibrary;
+    window.saveToAudioLibrary = saveToAudioLibrary;
+    window.removeFromAudioLibrary = removeFromAudioLibrary;
+    window.clearAudioLibrary = clearAudioLibrary;
+    window.generateGodotAudioRegistry = generateGodotAudioRegistry;
+    window.applyFadeIn = applyFadeIn;
+    window.applyFadeOut = applyFadeOut;
+    window.trimAudio = trimAudio;
+    window.loadAudioFile = loadAudioFile;
+    window.startRecording = startRecording;
+    window.SFX_PRESETS = SFX_PRESETS;
+    window.MUSIC_PRESETS = MUSIC_PRESETS;
+    window.SFX_CATEGORIES = SFX_CATEGORIES;
+    window.MUSIC_TYPES = MUSIC_TYPES;
+}
+// ===== End Audio Module =====
+
+// ===== Story Enhancement Module =====
+(function(){
+if(typeof MultiCharacterModule === 'undefined'){
+const esc=function(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')};const MultiCharacterModule_={getCharacterPositions:function(){return[{id:'left',label:'左侧',x:'10%'},{id:'center-left',label:'中左',x:'30%'},{id:'center',label:'中央',x:'50%'},{id:'center-right',label:'中右',x:'70%'},{id:'right',label:'右侧',x:'90%'}]},getCharacterEmotions:function(){return[{id:'normal',label:'😶 正常'},{id:'happy',label:'😄 开心'},{id:'sad',label:'😢 悲伤'},{id:'angry',label:'😠 愤怒'},{id:'surprised',label:'😲 惊讶'},{id:'fearful',label:'😨 恐惧'}]},renderCharacterEditor:function(characters,containerId){const container=document.getElementById(containerId);if(!container)return;container.innerHTML='';const addBtn=document.createElement('button');addBtn.className='gas-btn ghost';addBtn.style.cssText='margin-bottom:8px';addBtn.textContent='➕ 添加角色';addBtn.onclick=function(){characters.push({id:'char_'+Date.now().toString(36),name:'新角色',position:'center',emotion:'normal',visible:true});persist();this.renderCharacterEditor(characters,containerId)}.bind(this);container.appendChild(addBtn);characters.forEach(function(char,index){const charCard=document.createElement('div');charCard.style.cssText='background:#252a2e;border:1px solid var(--border);border-radius:6px;padding:8px;margin-bottom:6px';charCard.innerHTML='<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><input class="gas-input" data-char="name" value="'+esc(char.name||'')+'" placeholder="角色名" style="flex:1"><button class="gas-btn ghost" style="padding:4px 8px;background:#3a1a1a" data-del-char="'+index+'">✕</button></div><div class="gas-row" style="flex-wrap:wrap;gap:6px"><div style="flex:1"><label style="font-size:10px;color:#9aa0a6">位置</label><select class="gas-select" data-char="position" style="width:100%"><option value="left" '+(char.position==='left'?'selected':'')+'>左侧</option><option value="center-left" '+(char.position==='center-left'?'selected':'')+'>中左</option><option value="center" '+(char.position==='center'?'selected':'')+'>中央</option><option value="center-right" '+(char.position==='center-right'?'selected':'')+'>中右</option><option value="right" '+(char.position==='right'?'selected':'')+'>右侧</option></select></div><div style="flex:1"><label style="font-size:10px;color:#9aa0a6">表情</label><select class="gas-select" data-char="emotion" style="width:100%"><option value="normal" '+(char.emotion==='normal'?'selected':'')+'>😶 正常</option><option value="happy" '+(char.emotion==='happy'?'selected':'')+'>😄 开心</option><option value="sad" '+(char.emotion==='sad'?'selected':'')+'>😢 悲伤</option><option value="angry" '+(char.emotion==='angry'?'selected':'')+'>😠 愤怒</option><option value="surprised" '+(char.emotion==='surprised'?'selected':'')+'>😲 惊讶</option><option value="fearful" '+(char.emotion==='fearful'?'selected':'')+'>😨 恐惧</option></select></div></div>';charCard.querySelectorAll('[data-char]').forEach(function(el){el.addEventListener('change',function(){const key=el.dataset.char;let value=el.type==='checkbox'?el.checked:el.value;if(key==='visible'){char.visible=value}else{char[key]=value}persist()})});charCard.querySelector('[data-del-char]').onclick=function(){characters.splice(index,1);persist();this.renderCharacterEditor(characters,containerId)}.bind(this);container.appendChild(charCard)}.bind(this))},addCharacter:function(characters,containerId){characters.push({id:'char_'+Date.now().toString(36),name:'新角色',position:'center',emotion:'normal',visible:true});persist();this.renderCharacterEditor(characters,containerId)}};const AudioBindingModule_={audioTypes:{bgm:{label:'🎵 背景音乐',icon:'🎵'},ambient:{label:'🌿 环境音',icon:'🌿'},sfx:{label:'🔊 音效',icon:'🔊'},voice:{label:'🗣️ 语音',icon:'🗣️'}},fadePresets:[{label:'无',value:0},{label:'快速 0.5s',value:0.5},{label:'标准 1s',value:1},{label:'缓慢 2s',value:2},{label:'渐变 3s',value:3}],initShotAudio:function(shot){if(!shot.audio){shot.audio={bgm:{id:'',volume:80,fadeIn:0,fadeOut:0,loop:true},ambient:{id:'',volume:60,fadeIn:0},sfx:[],voice:{id:'',volume:100}}};return shot.audio},initSceneAudio:function(scene){if(!scene.audio){scene.audio={bgm:{id:'',volume:80,fadeIn:1,fadeOut:1,loop:true},ambient:{id:'',volume:60,fadeIn:0},onEnter:null,onExit:null};return scene.audio}},renderAudioEditor:function(audio,type,containerId,library){const container=document.getElementById(containerId);if(!container)return;container.innerHTML='';if(type==='bgm'){const sfxItems=library.filter(function(i){return i.type==='sfx'});const bgmItems=library.filter(function(i){return i.type==='bgm'});container.innerHTML='<div class="gas-row" style="flex-wrap:wrap;gap:8px;align-items:flex-end"><div style="flex:2"><label style="font-size:10px;color:#9aa0a6">BGM</label><select class="gas-select" id="audio-bgm-select" style="width:100%"><option value="">（无）</option>'+bgmItems.map(function(i){return'<option value="'+i.id+'">'+i.name+'</option>'}).join('')+'</select></div><div style="flex:1"><label style="font-size:10px;color:#9aa0a6">音量</label><input type="range" id="audio-bgm-vol" min="0" max="100" value="'+(audio.bgm?.volume||80)+'" style="width:100%"></div><div style="flex:0 0 auto"><label style="font-size:10px;color:#9aa0a6">淡入</label><select class="gas-select" id="audio-bgm-fadein" style="width:80px"><option value="0" '+(audio.bgm?.fadeIn===0?'selected':'')+'>无</option><option value="0.5" '+(audio.bgm?.fadeIn===0.5?'selected':'')+'>快速</option><option value="1" '+(audio.bgm?.fadeIn===1?'selected':'')+'>标准</option><option value="2" '+(audio.bgm?.fadeIn===2?'selected':'')+'>缓慢</option></select></div><div style="flex:0 0 auto"><label style="font-size:10px;color:#9aa0a6">淡出</label><select class="gas-select" id="audio-bgm-fadeout" style="width:80px"><option value="0" '+(audio.bgm?.fadeOut===0?'selected':'')+'>无</option><option value="0.5" '+(audio.bgm?.fadeOut===0.5?'selected':'')+'>快速</option><option value="1" '+(audio.bgm?.fadeOut===1?'selected':'')+'>标准</option><option value="2" '+(audio.bgm?.fadeOut===2?'selected':'')+'>缓慢</option></select></div><div style="flex:0 0 auto"><label style="font-size:10px;color:#9aa0a6;display:flex;align-items:center;gap:4px"><input type="checkbox" id="audio-bgm-loop" '+(audio.bgm?.loop!==false?'checked':'')+'>循环</label></div></div>';if(audio.bgm?.id){container.querySelector('#audio-bgm-select').value=audio.bgm.id}container.querySelector('#audio-bgm-select')?.addEventListener('change',function(e){audio.bgm=audio.bgm||{};audio.bgm.id=e.target.value;persist()});container.querySelector('#audio-bgm-vol')?.addEventListener('input',function(e){audio.bgm=audio.bgm||{};audio.bgm.volume=parseInt(e.target.value);persist()});container.querySelector('#audio-bgm-fadein')?.addEventListener('change',function(e){audio.bgm=audio.bgm||{};audio.bgm.fadeIn=parseFloat(e.target.value);persist()});container.querySelector('#audio-bgm-fadeout')?.addEventListener('change',function(e){audio.bgm=audio.bgm||{};audio.bgm.fadeOut=parseFloat(e.target.value);persist()});container.querySelector('#audio-bgm-loop')?.addEventListener('change',function(e){audio.bgm=audio.bgm||{};audio.bgm.loop=e.target.checked;persist()})}}};const ProgressEnhancer_={estimateRemaining:function(completed,total,elapsedMs){if(completed===0)return null;const avgTimePerItem=elapsedMs/completed;const remaining=total-completed;return Math.round(avgTimePerItem*remaining/1000)},formatTime:function(seconds){if(seconds<60){return seconds+' 秒'}else if(seconds<3600){var mins=Math.floor(seconds/60);var secs=Math.round(seconds%60);return mins+' 分 '+secs+' 秒'}else{var hours=Math.floor(seconds/3600);var mins=Math.floor((seconds%3600)/60);return hours+' 小时 '+mins+' 分'}},createProgressBar:function(containerId,options){const container=document.getElementById(containerId);if(!container)return null;const progressBar=document.createElement('div');progressBar.style.cssText='background:var(--panel2,#38302a);border:2px solid var(--border,#594c39);border-radius:6px;padding:12px;margin:8px 0';const title=document.createElement('div');title.style.cssText='font-size:12px;color:var(--text,#efe6d0);margin-bottom:8px';title.textContent=options.title||'处理中...';const progressContainer=document.createElement('div');progressContainer.style.cssText='background:var(--inputb,#201812);border-radius:4px;height:12px;overflow:hidden;margin-bottom:6px';const progressFill=document.createElement('div');progressFill.style.cssText='height:100%;background:linear-gradient(90deg,var(--accent,#e8a33d),var(--accent2,#f5cf6b));transition:width 0.3s ease;width:0%';const stats=document.createElement('div');stats.style.cssText='font-size:11px;color:var(--muted,#9aa0a6);display:flex;justify-content:space-between';const progressText=document.createElement('span');progressText.textContent='0/0';const percentText=document.createElement('span');percentText.textContent='0%';const timeText=document.createElement('span');timeText.textContent='预计剩余: --';stats.appendChild(progressText);stats.appendChild(percentText);stats.appendChild(timeText);progressContainer.appendChild(progressFill);progressBar.appendChild(title);progressBar.appendChild(progressContainer);progressBar.appendChild(stats);container.appendChild(progressBar);return{element:progressBar,title:title,progressFill:progressFill,progressText:progressText,percentText:percentText,timeText:timeText,startTime:Date.now(),completed:0,total:options.total||100,update:function(completed,message){this.completed=completed;const percent=Math.round((completed/this.total)*100);const elapsed=Date.now()-this.startTime;const remaining=ProgressEnhancer_.estimateRemaining(completed,this.total,elapsed);this.progressFill.style.width=percent+'%';this.progressText.textContent=completed+'/'+this.total;this.percentText.textContent=percent+'%';if(remaining!==null){this.timeText.textContent='预计剩余: '+ProgressEnhancer_.formatTime(remaining)}if(message){this.title.textContent=message}},complete:function(message){this.update(this.total,message||'完成！');var self=this;setTimeout(function(){progressBar.style.opacity='0';setTimeout(function(){progressBar.remove()},300)},1500)}}}};const ProjectManager_={LS_KEY:'dsh-game-art-studio:projects',getProjects:function(){try{return JSON.parse(localStorage.getItem(this.LS_KEY)||'{}')}catch{return{}}},saveProjects:function(projects){localStorage.setItem(this.LS_KEY,JSON.stringify(projects))},createProject:function(name){var projects=this.getProjects();var id='proj_'+Date.now().toString(36);projects[id]={id:id,name:name,createdAt:Date.now(),updatedAt:Date.now(),assets:[],stories:[],settings:{}};this.saveProjects(projects);return projects[id]},deleteProject:function(id){var projects=this.getProjects();delete projects[id];this.saveProjects(projects)},exportProject:function(id){var projects=this.getProjects();var project=projects[id];if(!project)return null;return new Blob([JSON.stringify(project,null,2)],{type:'application/json'})}};window.MultiCharacterModule=MultiCharacterModule_;window.AudioBindingModule=AudioBindingModule_;window.ProgressEnhancer=ProgressEnhancer_;window.ProjectManager=ProjectManager_}
+}
+
+// 闭合 Story Enhancement IIFE（原文件缺失,导致后续模块括号失衡）
+)();
+// ===== Character Outfit System =====
+(function(){
+setTimeout(function(){
+var outfitList=document.getElementById('c-outfit-list');
+var outfitConfig=document.getElementById('c-outfit-config');
+var LS_OUTFIT='dsh-game-art-studio:outfits';
+function loadOutfits(){try{return JSON.parse(localStorage.getItem(LS_OUTFIT)||'[]')}catch{return[]}}
+function saveOutfits(o){localStorage.setItem(LS_OUTFIT,JSON.stringify(o))}
+function renderOutfitList(){if(!outfitList)return;var outfits=loadOutfits();if(outfits.length===0){outfitList.innerHTML='<div class="gas-note">暂无换装预设，点击「新建换装」开始</div>';return}outfitList.innerHTML='';outfits.forEach(function(o,idx){var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:6px;padding:6px;border-bottom:1px solid var(--border)';row.innerHTML='<span style="flex:1;font-size:12px">'+o.name+'</span><span style="font-size:10px;color:var(--muted)">'+Object.keys(o.slots||{}).length+' 部位</span><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px" data-edit="'+idx+'">✏️</button><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px;background:#3a1a1a" data-del="'+idx+'">🗑</button>';row.querySelector('[data-edit]').onclick=function(){showOutfitConfig(o)};row.querySelector('[data-del]').onclick=function(){if(confirm('确定删除换装「'+o.name+'」？')){outfits.splice(idx,1);saveOutfits(outfits);renderOutfitList()}};outfitList.appendChild(row)})}function showOutfitConfig(outfit){if(!outfitConfig)return;var slots=['武器','头盔','上衣','下装','鞋子','披风','饰品'];outfitConfig.innerHTML='<h4 style="margin:0 0 12px;color:var(--accent2)">'+outfit.name+'</h4>';slots.forEach(function(slot){var slotData=outfit.slots?.[slot]||{};var div=document.createElement('div');div.style.cssText='margin-bottom:8px';div.innerHTML='<div style="font-size:11px;color:var(--muted);margin-bottom:4px">'+slot+'</div><input class="gas-input" data-slot="'+slot+'" value="'+esc(slotData.prompt||'')+'" placeholder="装备描述" style="width:100%">';outfitConfig.appendChild(div)});outfitConfig.querySelectorAll('[data-slot]').forEach(function(inp){inp.addEventListener('change',function(){var slotName=inp.dataset.slot;if(!outfit.slots)outfit.slots={};if(!outfit.slots[slotName])outfit.slots[slotName]={};outfit.slots[slotName].prompt=inp.value;saveOutfits(loadOutfits());})})}
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+document.getElementById('c-outfit-new')?.addEventListener('click',function(){var name=prompt('输入换装名称：','默认换装');if(name&&name.trim()){var outfits=loadOutfits();outfits.push({id:'outfit_'+Date.now().toString(36),name:name.trim(),slots:{},createdAt:Date.now()});saveOutfits(outfits);renderOutfitList()}});document.getElementById('c-outfit-export')?.addEventListener('click',function(){var outfits=loadOutfits();var blob=new Blob([JSON.stringify(outfits,null,2)],{type:'application/json'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='outfits_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url)});renderOutfitList()},200)})();
+// ===== TileSet Editor Module =====
+(function(){
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+var tsEditor=null;
+var tsCanvas=null,tsCtx=null;
+var tsTilesize=16,tsGridCols=0,tsGridRows=0;
+var tsTiles=[];
+var tsCurrentTool='select';
+var tsZoom=1,tsOffset={x:0,y:0};
+var tsDrawing=false,tsDragging=false;
+var tsSelected=[];
+var tsUndo=[],tsRedo=[];
+var tsTerrainType='grass';
+var tsImage=null;
+var tsLayers={terrain:true,collision:true,decoration:true,events:true};
+var tsTerrainColors={grass:'#4a7c4e',water:'#3a6c9e',path:'#8c7c5e',wall:'#5c5c5c',floor:'#7c6c5c'};
+function initTileSetEditor(){
+tsCanvas=document.getElementById('ts-canvas');
+if(!tsCanvas)return;
+tsCtx=tsCanvas.getContext('2d');
+resizeTsCanvas();
+tsCanvas.addEventListener('mousedown',tsOnMouseDown);
+tsCanvas.addEventListener('mousemove',tsOnMouseMove);
+tsCanvas.addEventListener('mouseup',tsOnMouseUp);
+tsCanvas.addEventListener('wheel',tsOnWheel);
+tsCanvas.addEventListener('contextmenu',function(e){e.preventDefault()});
+window.addEventListener('resize',resizeTsCanvas);
+tsDraw();
+}
+function resizeTsCanvas(){
+if(!tsCanvas)return;
+var container=document.getElementById('ts-canvas-container');
+if(container){tsCanvas.width=container.clientWidth||900;tsCanvas.height=Math.min(450,container.clientHeight||450)}
+tsDraw();
+}
+function tsDraw(){
+if(!tsCtx)return;
+var ctx=tsCtx,w=tsCanvas.width,h=tsCanvas.height;
+ctx.fillStyle='#1a1e20';
+ctx.fillRect(0,0,w,h);
+ctx.save();
+ctx.translate(tsOffset.x,tsOffset.y);
+ctx.scale(tsZoom,tsZoom);
+if(tsImage){
+ctx.drawImage(tsImage,0,0);
+}
+ctx.strokeStyle='rgba(255,255,255,0.15)';
+ctx.lineWidth=1/tsZoom;
+for(var x=0;x<=tsGridCols;x++){ctx.beginPath();ctx.moveTo(x*tsTilesize,0);ctx.lineTo(x*tsTilesize,tsGridRows*tsTilesize);ctx.stroke()}
+for(var y=0;y<=tsGridRows;y++){ctx.beginPath();ctx.moveTo(0,y*tsTilesize);ctx.lineTo(tsGridCols*tsTilesize,y*tsTilesize);ctx.stroke()}
+if(tsLayers.terrain){tsDrawTerrain(ctx)}
+if(tsLayers.collision){tsDrawCollision(ctx)}
+if(tsLayers.decoration){tsDrawDecoration(ctx)}
+if(tsLayers.events){tsDrawEvents(ctx)}
+if(tsSelected.length>0){
+ctx.strokeStyle='#e8a33d';ctx.lineWidth=2/tsZoom;
+tsSelected.forEach(function(t){
+ctx.strokeRect(t.x*tsTilesize,t.y*tsTilesize,tsTilesize,tsTilesize)
+})}
+ctx.restore();
+tsDrawInfo();
+}
+function tsDrawTerrain(ctx){
+tsTiles.forEach(function(t){
+if(t.terrain){
+ctx.fillStyle=tsTerrainColors[t.terrain]+'50';
+ctx.fillRect(t.x*tsTilesize,t.y*tsTilesize,tsTilesize,tsTilesize);
+}
+})}
+function tsDrawCollision(ctx){
+tsTiles.forEach(function(t){
+if(t.collision){
+ctx.fillStyle='#e8a33d40';
+ctx.strokeStyle='#e8a33d';
+ctx.lineWidth=2/tsZoom;
+var x=t.x*tsTilesize,y=t.y*tsTilesize,s=tsTilesize;
+ctx.fillRect(x+2,y+2,s-4,s-4);
+ctx.strokeRect(x+2,y+2,s-4,s-4);
+ctx.fillStyle='#e8a33d';
+ctx.beginPath();
+ctx.arc(x+s/2,y+s/2,3/tsZoom,0,Math.PI*2);
+ctx.fill();
+}
+})}
+function tsDrawDecoration(ctx){
+tsTiles.forEach(function(t){
+if(t.decoration){
+ctx.fillStyle='#2d5a2d';
+ctx.font=12/tsZoom+'px sans-serif';
+ctx.textAlign='center';
+ctx.textBaseline='middle';
+ctx.fillText('🌲',t.x*tsTilesize+tsTilesize/2,t.y*tsTilesize+tsTilesize/2);
+}
+})}
+function tsDrawEvents(ctx){
+tsTiles.forEach(function(t){
+if(t.event){
+ctx.fillStyle='#40c040';
+ctx.strokeStyle='#fff';
+ctx.lineWidth=1/tsZoom;
+var cx=t.x*tsTilesize+tsTilesize/2,cy=t.y*tsTilesize+tsTilesize/2,r=tsTilesize/3;
+ctx.beginPath();
+ctx.moveTo(cx,cy-r);
+ctx.lineTo(cx+r*0.866,cy+r*0.5);
+ctx.lineTo(cx-r*0.866,cy+r*0.5);
+ctx.closePath();
+ctx.fill();
+ctx.stroke();
+}
+})}
+function tsDrawInfo(){
+if(!tsCtx)return;
+var ctx=tsCtx;
+ctx.fillStyle='rgba(0,0,0,0.7)';
+ctx.fillRect(5,5,220,70);
+ctx.fillStyle='#efe6d0';
+ctx.font='12px JetBrains Mono,Consolas,monospace';
+ctx.textAlign='left';
+ctx.fillText('瓦片: '+tsGridCols+'×'+tsGridRows,10,22);
+ctx.fillText('尺寸: '+tsTilesize+'px',10,38);
+ctx.fillText('缩放: '+(tsZoom*100).toFixed(0)+'%',10,54);
+}
+function tsGetTile(canvasX,canvasY){
+var worldX=(canvasX-tsOffset.x)/tsZoom;
+var worldY=(canvasY-tsOffset.y)/tsZoom;
+var tx=Math.floor(worldX/tsTilesize),ty=Math.floor(worldY/tsTilesize);
+if(tx>=0&&tx<tsGridCols&&ty>=0&&ty<tsGridRows){
+return tsTiles[ty*tsGridCols+tx];
+}
+return null;
+}
+function tsOnMouseDown(e){
+var rect=tsCanvas.getBoundingClientRect();
+var pos={x:e.clientX-rect.left,y:e.clientY-rect.top};
+var tile=tsGetTile(pos.x,pos.y);
+if(e.button===0){
+if(tsCurrentTool==='select'){if(tile){tsSelected=[tile];tsDragging=true}}
+else if(tsCurrentTool==='terrain'&&tile){tsDrawing=true;tsSetTerrain(tile)}
+else if(tsCurrentTool==='collision'&&tile){tsDrawing=true;tsSetCollision(tile)}
+else if(tsCurrentTool==='decoration'&&tile){tsSetDecoration(tile)}
+else if(tsCurrentTool==='event'&&tile){tsSetEvent(tile)}
+else if(tsCurrentTool==='erase'&&tile){tsDrawing=true;tsErase(tile)}
+}
+else if(e.button===2){tsDragging=true}
+}
+function tsOnMouseMove(e){
+var rect=tsCanvas.getBoundingClientRect();
+var pos={x:e.clientX-rect.left,y:e.clientY-rect.top};
+if(tsDragging&&e.buttons===2){
+tsOffset.x+=e.movementX;tsOffset.y+=e.movementY;
+tsDraw();
+}
+else if(tsDrawing){
+var tile=tsGetTile(pos.x,pos.y);
+if(tile){
+if(tsCurrentTool==='terrain')tsSetTerrain(tile);
+else if(tsCurrentTool==='collision')tsSetCollision(tile);
+else if(tsCurrentTool==='erase')tsErase(tile);
+}
+}
+}
+function tsOnMouseUp(){
+tsDrawing=false;tsDragging=false
+}
+function tsOnWheel(e){
+e.preventDefault();
+var rect=tsCanvas.getBoundingClientRect();
+var pos={x:e.clientX-rect.left,y:e.clientY-rect.top};
+var delta=e.deltaY>0?0.9:1.1;
+var newZoom=Math.max(0.25,Math.min(4,tsZoom*delta));
+var worldX=(pos.x-tsOffset.x)/tsZoom;
+var worldY=(pos.y-tsOffset.y)/tsZoom;
+tsZoom=newZoom;
+tsOffset.x=pos.x-worldX*tsZoom;
+tsOffset.y=pos.y-worldY*tsZoom;
+tsDraw();
+}
+function tsSaveUndo(){
+tsUndo.push(JSON.stringify(tsTiles));
+if(tsUndo.length>50)tsUndo.shift();
+tsRedo=[];
+}
+function tsSetTerrain(tile){
+tsSaveUndo();
+tile.terrain=tsTerrainType;
+tsDraw();
+}
+function tsSetCollision(tile){
+tsSaveUndo();
+tile.collision='rect';
+tsDraw();
+}
+function tsSetDecoration(tile){
+tsSaveUndo();
+tile.decoration='tree';
+tsDraw();
+}
+function tsSetEvent(tile){
+tsSaveUndo();
+tile.event='spawn';
+tsDraw();
+}
+function tsErase(tile){
+tsSaveUndo();
+if(tsCurrentTool==='terrain')tile.terrain=null;
+else if(tsCurrentTool==='collision')tile.collision=null;
+else if(tsCurrentTool==='decoration')tile.decoration=null;
+else if(tsCurrentTool==='event')tile.event=null;
+tsDraw();
+}
+function tsLoadImage(file){
+var reader=new FileReader();
+reader.onload=function(e){
+var img=new Image();
+img.onload=function(){
+tsImage=img;
+tsTilesize=parseInt(document.getElementById('ts-tilesize')?.value)||16;
+tsGridCols=Math.floor(img.width/tsTilesize);
+tsGridRows=Math.floor(img.height/tsTilesize);
+tsTiles=[];
+for(var y=0;y<tsGridRows;y++){
+for(var x=0;x<tsGridCols;x++){
+tsTiles.push({x:x,y:y,terrain:null,collision:null,decoration:null,event:null})
+}
+}
+tsOffset={x:0,y:0};tsZoom=1;
+tsDraw();
+tsUpdateStats();
+};
+img.src=e.target.result;
+};
+reader.readAsDataURL(file);
+}
+function tsUpdateStats(){
+var stats=document.getElementById('ts-stats');
+if(!stats)return;
+var terrain={},collision=0,decoration=0,event=0;
+tsTiles.forEach(function(t){
+if(t.terrain){terrain[t.terrain]=(terrain[t.terrain]||0)+1}
+if(t.collision)collision++;
+if(t.decoration)decoration++;
+if(t.event)event++;
+});
+stats.innerHTML='<b>瓦片统计：</b>总计 '+tsTiles.length+' 个 | 网格 '+tsGridCols+'×'+tsGridRows+'<br>'+
+'<b>地形：</b>'+Object.keys(terrain).map(function(k){return k+': '+terrain[k]}).join(' | ')+'<br>'+
+'<b>碰撞：</b>'+collision+' 个 | <b>装饰：</b>'+decoration+' 个 | <b>事件：</b>'+event+' 个';
+}
+function tsExportJSON(){
+var data={tileSize:tsTilesize,gridCols:tsGridCols,gridRows:tsGridRows,tiles:tsTiles};
+var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+var url=URL.createObjectURL(blob);
+var a=document.createElement('a');a.href=url;a.download='tileset_data.json';a.click();
+URL.revokeObjectURL(url);
+}
+function tsExportGodot(){
+var code='[gd_resource type="TileSet" load_steps=2 format=3]\n\n';
+code+='[ext_resource type="Texture2D" path="res://tiles.png" id="1"]\n\n';
+code+='[resource]\n';
+code+='tile_size = Vector2i('+tsTilesize+', '+tsTilesize+')\n';
+var idx=0;
+tsTiles.forEach(function(t){
+if(t.collision){
+code+='\n# Tile '+t.x+','+t.y+' collision\n';
+code+='[sub_resource type="RectangleShape2D" id="Rect_'+idx+'"]\n';
+code+='size = Vector2('+(tsTilesize-4)+', '+(tsTilesize-4)+')\n';
+idx++;
+}
+});
+var blob=new Blob([code],{type:'text/plain'});
+var url=URL.createObjectURL(blob);
+var a=document.createElement('a');a.href=url;a.download='tileset.gd';a.click();
+URL.revokeObjectURL(url);
+}
+setTimeout(function(){
+initTileSetEditor();
+document.querySelectorAll('.tileset-tool').forEach(function(btn){
+btn.addEventListener('click',function(){
+document.querySelectorAll('.tileset-tool').forEach(function(b){b.classList.remove('active')});
+btn.classList.add('active');
+tsCurrentTool=btn.dataset.tool;
+})
+});
+document.getElementById('ts-terrain')?.addEventListener('change',function(e){tsTerrainType=e.target.value});
+document.getElementById('ts-tilesize')?.addEventListener('change',function(){
+if(tsImage){tsLoadImage(document.getElementById('ts-file').files[0])}
+});
+document.getElementById('ts-file')?.addEventListener('change',function(e){
+if(e.target.files[0])tsLoadImage(e.target.files[0])
+});
+document.getElementById('ts-import')?.addEventListener('click',function(){
+document.getElementById('ts-file')?.click()
+});
+document.getElementById('ts-undo')?.addEventListener('click',function(){
+if(tsUndo.length>0){tsRedo.push(JSON.stringify(tsTiles));tsTiles=JSON.parse(tsUndo.pop());tsDraw()}
+});
+document.getElementById('ts-redo')?.addEventListener('click',function(){
+if(tsRedo.length>0){tsUndo.push(JSON.stringify(tsTiles));tsTiles=JSON.parse(tsRedo.pop());tsDraw()}
+});
+document.getElementById('ts-clear')?.addEventListener('click',function(){
+if(confirm('确定清空所有编辑数据？')){tsSaveUndo();tsTiles.forEach(function(t){t.terrain=null;t.collision=null;t.decoration=null;t.event=null});tsSelected=[];tsDraw()}
+});
+document.getElementById('ts-export-json')?.addEventListener('click',function(){tsExportJSON()});
+document.getElementById('ts-export-godot')?.addEventListener('click',function(){tsExportGodot()});
+document.getElementById('ts-layer-terrain')?.addEventListener('change',function(e){tsLayers.terrain=e.target.checked;tsDraw()});
+document.getElementById('ts-layer-collision')?.addEventListener('change',function(e){tsLayers.collision=e.target.checked;tsDraw()});
+document.getElementById('ts-layer-decoration')?.addEventListener('change',function(e){tsLayers.decoration=e.target.checked;tsDraw()});
+document.getElementById('ts-layer-events')?.addEventListener('change',function(e){tsLayers.events=e.target.checked;tsDraw()});
+// 暴露全局访问器:供批量工具箱的路径规划模块读取碰撞数据
+window.__tsGetGridData=function(){return{tilesize:tsTilesize,cols:tsGridCols,rows:tsGridRows,tiles:tsTiles}};
+},100)})();
+// ===== TTS Module =====
+(function(){
+var ttsVoices=[];
+var ttsInitialized=false;
+var ttsSpeaking=false;
+function initTTS(){
+if(!('speechSynthesis' in window)){console.warn('TTS not supported');return}
+var loadVoices=function(){
+ttsVoices=speechSynthesis.getVoices();
+ttsInitialized=true;
+};
+if(speechSynthesis.onvoiceschanged!==undefined){
+speechSynthesis.onvoiceschanged=loadVoices;
+}
+setTimeout(function(){if(!ttsInitialized)loadVoices()},1000);
+}
+function speakTTS(text,options){
+if(!('speechSynthesis' in window))return Promise.reject('TTS not supported');
+speechSynthesis.cancel();
+var utterance=new SpeechSynthesisUtterance(text);
+if(options.voice){
+var v=ttsVoices.find(function(x){return x.name===options.voice});
+if(v)utterance.voice=v;
+}
+utterance.rate=options.rate||1;
+utterance.pitch=options.pitch||1;
+utterance.volume=options.volume||1;
+utterance.lang=options.lang||'zh-CN';
+ttsSpeaking=true;
+utterance.onend=function(){ttsSpeaking=false;options.onEnd&&options.onEnd()};
+utterance.onerror=function(){ttsSpeaking=false;options.onError&&options.onError()};
+speechSynthesis.speak(utterance);
+return new Promise(function(resolve,reject){
+utterance.onend=function(){ttsSpeaking=false;resolve()};
+utterance.onerror=function(e){ttsSpeaking=false;reject(e)}
+});
+}
+function stopTTS(){
+if('speechSynthesis' in window){speechSynthesis.cancel();ttsSpeaking=false}
+}
+function previewTTS(preset){
+var texts={
+narrator:'夜幕降临，烛火在风中摇曳...',
+hero:'我来守护这片土地！',
+villain:'哈哈哈，终于等到这一天了...',
+npc:'欢迎来到我们的村庄，旅行者。',
+warrior:'冲锋！为了荣耀！',
+mage:'魔法即是力量！',
+child:'妈妈，那边有什么？',
+elder:'年轻人，听我说...'
+};
+var text=texts[preset]||'语音预览测试';
+speakTTS(text,{rate:preset==='child'?1.1:preset==='elder'?0.8:preset==='villain'?0.8:1});
+}
+setTimeout(function(){
+initTTS();
+var ttsPanel=document.getElementById('tts-settings');
+if(ttsPanel){
+ttsPanel.innerHTML='<div class="gas-row" style="flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:120px"><label class="gas-label">语音预设</label><select class="gas-select" id="tts-preset" style="width:100%"><option value="narrator">📖 旁白</option><option value="hero">⚔️ 英雄</option><option value="villain">👹 坏人</option><option value="npc">👤 NPC</option><option value="warrior">🛡️ 战士</option><option value="mage">🔮 法师</option><option value="child">👶 小孩</option><option value="elder">👴 老人</option></select></div><div style="flex:1;min-width:150px"><label class="gas-label">语速</label><input type="range" id="tts-rate" min="0.5" max="2" step="0.1" value="1" style="width:100%"><span class="gas-pill" id="tts-rate-val">1.0x</span></div></div><div class="gas-row" style="margin-top:8px;gap:6px"><button class="gas-btn" id="tts-preview-btn">▶ 预览</button><button class="gas-btn ghost" id="tts-stop-btn">⏹ 停止</button><label style="display:flex;align-items:center;gap:4px;font-size:11px"><input type="checkbox" id="tts-auto-play"> 自动朗读对话</label></div>';
+ttsPanel.querySelector('#tts-rate')?.addEventListener('input',function(e){
+ttsPanel.querySelector('#tts-rate-val').textContent=parseFloat(e.target.value).toFixed(1)+'x'
+});
+ttsPanel.querySelector('#tts-preview-btn')?.addEventListener('click',function(){
+var preset=ttsPanel.querySelector('#tts-preset')?.value||'narrator';
+previewTTS(preset)
+});
+ttsPanel.querySelector('#tts-stop-btn')?.addEventListener('click',function(){stopTTS()});
+}
+},500)})();
+// ===== Global Keyboard Shortcuts =====
+(function(){
+var shortcuts={};
+function registerShortcut(key,ctrl,callback){
+shortcuts[key.toLowerCase()]={ctrl:ctrl||false,callback:callback}
+}
+function handleShortcut(e){
+var key=e.key.toLowerCase();
+var s=shortcuts[key];
+if(s&&(s.ctrl===e.ctrlKey||s.ctrl===e.metaKey)){
+e.preventDefault();
+s.callback(e);
+}
+}
+document.addEventListener('keydown',handleShortcut);
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+setTimeout(function(){
+registerShortcut('z',true,function(){
+if(e => window.prompt){}
+});
+registerShortcut('s',true,function(){persist&&persist()});
+registerShortcut('g',true,function(){
+if(confirm('确认导出 Godot 项目？')){
+document.getElementById('e-zip')?.click()
+}});
+registerShortcut(' ',false,function(){
+var storyBtn=document.querySelector('[data-tab="story"]');
+if(storyBtn)storyBtn.click()
+});
+registerShortcut('1',false,function(){
+var charBtn=document.querySelector('[data-tab="character"]');
+if(charBtn)charBtn.click()
+});
+registerShortcut('2',false,function(){
+var forgeBtn=document.querySelector('[data-tab="forge"]');
+if(forgeBtn)forgeBtn.click()
+});
+registerShortcut('3',false,function(){
+var mapBtn=document.querySelector('[data-tab="map"]');
+if(mapBtn)mapBtn.click()
+});
+registerShortcut('4',false,function(){
+var tsBtn=document.querySelector('[data-tab="tileset"]');
+if(tsBtn)tsBtn.click()
+});
+registerShortcut('5',false,function(){
+var audioBtn=document.querySelector('[data-tab="audio"]');
+if(audioBtn)audioBtn.click()
+});
+registerShortcut('f',true,function(){
+var search=document.getElementById('al-search')||document.querySelector('input[placeholder*="搜索"]');
+if(search){search.focus();search.select()}
+});
+registerShortcut('n',true,function(){
+if(e=>!e.target.matches('input,textarea')){}
+});
+var hint=document.createElement('div');
+hint.style.cssText='position:fixed;bottom:10px;right:10px;background:rgba(0,0,0,0.85);border:1px solid #594c39;border-radius:8px;padding:10px 14px;font-size:11px;color:#9aa0a6;z-index:9999;max-width:200px';
+hint.innerHTML='<b style="color:#e8a33d">快捷键</b><br>Ctrl+S 保存 | Ctrl+G 导出<br>1-5 切换面板 | 空格 剧情<br>Ctrl+F 搜索';
+document.body.appendChild(hint);
+setTimeout(function(){hint.style.opacity='0';setTimeout(function(){hint.remove()},500)},4000);
+},500)})();
+// ===== Style Transfer Module =====
+(function(){
+var styleCanvas=null,styleCtx=null,styleOriginal=null,styleCurrent=null;
+var styleImage=null;
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function pixelate(data,size){
+var out=new Uint8ClampedArray(data.data);
+var w=data.width,h=data.height;
+for(var y=0;y<h;y+=size){
+for(var x=0;x<w;x+=size){
+var r=0,g=0,b=0,a=0,c=0;
+for(var dy=0;dy<size&&y+dy<h;dy++){
+for(var dx=0;dx<size&&x+dx<w;dx++){
+var i=((y+dy)*w+(x+dx))*4;
+r+=data.data[i];g+=data.data[i+1];b+=data.data[i+2];a+=data.data[i+3];c++;
+}}
+r=Math.round(r/c);g=Math.round(g/c);b=Math.round(b/c);a=Math.round(a/c);
+for(var dy=0;dy<size&&y+dy<h;dy++){
+for(var dx=0;dx<size&&x+dx<w;dx++){
+var i=((y+dy)*w+(x+dx))*4;
+out[i]=r;out[i+1]=g;out[i+2]=b;out[i+3]=a;
+}}}}
+return new ImageData(out,w,h)}
+function sketchEffect(data,threshold){
+var w=data.width,h=data.height;
+var gray=new Uint8Array(w*h);
+for(var i=0;i<w*h;i++){var idx=i*4;gray[i]=(data.data[idx]*0.299+data.data[idx+1]*0.587+data.data[idx+2]*0.114)}
+var out=new Uint8ClampedArray(data.data.length);
+for(var y=1;y<h-1;y++){
+for(var x=1;x<w-1;x++){
+var gx=-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]+-2*gray[y*w+(x-1)]+2*gray[y*w+(x+1)]+-gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)];
+var gy=-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]+gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)];
+var val=Math.sqrt(gx*gx+gy*gy)>threshold?255:0;
+var idx=(y*w+x)*4;
+out[idx]=val;out[idx+1]=val;out[idx+2]=val;out[idx+3]=255;
+}}
+return new ImageData(out,w,h)}
+function neonEffect(data,glow,threshold){
+var w=data.width,h=data.height;
+var gray=new Uint8Array(w*h);
+for(var i=0;i<w*h;i++){var idx=i*4;gray[i]=(data.data[idx]*0.299+data.data[idx+1]*0.587+data.data[idx+2]*0.114)}
+var out=new Uint8ClampedArray(data.data.length);
+for(var y=1;y<h-1;y++){
+for(var x=1;x<w-1;x++){
+var i=y*w+x;
+var gx=-gray[(y-1)*w+(x-1)]+gray[(y-1)*w+(x+1)]+-2*gray[y*w+(x-1)]+2*gray[y*w+(x+1)]+-gray[(y+1)*w+(x-1)]+gray[(y+1)*w+(x+1)];
+var gy=-gray[(y-1)*w+(x-1)]-2*gray[(y-1)*w+x]-gray[(y-1)*w+(x+1)]+gray[(y+1)*w+(x-1)]+2*gray[(y+1)*w+x]+gray[(y+1)*w+(x+1)];
+var edge=Math.sqrt(gx*gx+gy*gy);
+var idx=(y*w+x)*4;
+if(edge>threshold){
+for(var dy=-glow;dy<=glow;dy++){
+for(var dx=-glow;dx<=glow;dx++){
+var nx=x+dx,ny=y+dy;
+if(nx>=0&&nx<w&&ny>=0&&ny<h){
+var nIdx=(ny*w+nx)*4;
+var dist=Math.sqrt(dx*dx+dy*dy);
+var alpha=Math.max(0,1-dist/(glow+1))*0.3;
+out[nIdx]=Math.min(255,out[nIdx]+100*alpha);
+out[nIdx+1]=Math.min(255,out[nIdx+1]+50*alpha);
+out[nIdx+2]=Math.min(255,out[nIdx+2]+200*alpha);
+out[nIdx+3]=255;
+}}}}
+else{out[idx]=data.data[idx]*0.1;out[idx+1]=data.data[idx+1]*0.1;out[idx+2]=data.data[idx+2]*0.1;out[idx+3]=255}
+}}
+return new ImageData(out,w,h)}
+function glitchEffect(data,intensity){
+var out=new Uint8ClampedArray(data.data);
+var w=data.width,h=data.height;
+var numGlitches=Math.floor(intensity*10);
+for(var i=0;i<numGlitches;i++){
+var y=Math.floor(Math.random()*h);
+var offset=Math.floor((Math.random()-0.5)*w*intensity*2);
+for(var x=0;x<w;x++){
+var sx=Math.max(0,Math.min(w-1,x+offset));
+var sIdx=(y*w+sx)*4;
+var dIdx=(y*w+x)*4;
+out[dIdx]=data.data[sIdx];out[dIdx+1]=data.data[sIdx+1];out[dIdx+2]=data.data[sIdx+2];
+}}
+var shift=Math.floor(intensity*10);
+for(var y=0;y<h;y++){
+for(var x=0;x<w;x++){
+var idx=(y*w+x)*4;
+var rIdx=(y*w+Math.min(w-1,x+shift))*4;
+var bIdx=(y*w+Math.max(0,x-shift))*4;
+out[idx]=data.data[rIdx];out[idx+2]=data.data[bIdx+2];
+}}
+return new ImageData(out,w,h)}
+function vaporwaveEffect(data,hueShift){
+var out=new Uint8ClampedArray(data.data);
+var w=data.width,h=data.height;
+for(var i=0;i<w*h;i++){
+var idx=i*4;
+var r=data.data[idx]/255,g=data.data[idx+1]/255,b=data.data[idx+2]/255;
+var max=Math.max(r,g,b),min=Math.min(r,g,b);
+var h=0,s=0,v=max;
+if(max!==min){
+var d=max-min;
+s=max===0?0:d/max;
+if(max===r)h=(g-b)/d+(g<b?6:0);
+else if(max===g)h=(b-r)/d+2;
+else h=(r-g)/d+4;
+h/=6;
+}
+h=(h+hueShift)%1;s=Math.min(1,s*1.3);v=v*0.9+0.1;
+var i=Math.floor(h*6);
+var f=h*6-i;
+var p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);
+var nr,ng,nb;
+if(i%6===0){nr=v;ng=t;nb=p}else if(i%6===1){nr=q;ng=v;nb=p}else if(i%6===2){nr=p;ng=v;nb=t}else if(i%6===3){nr=p;ng=q;nb=v}else if(i%6===4){nr=t;ng=p;nb=v}else{nr=v;ng=p;nb=q}
+out[idx]=Math.round(nr*255);out[idx+1]=Math.round(ng*255);out[idx+2]=Math.round(nb*255);out[idx+3]=data.data[idx+3];
+}
+return new ImageData(out,w,h)}
+function applyStyle(style,intensity){
+if(!styleCanvas||!styleCurrent)return;
+var ctx=styleCtx;
+var size=Math.max(2,Math.round(intensity/2));
+var result;
+if(style==='pixel')result=pixelate(styleCurrent,size);
+else if(style==='sketch')result=sketchEffect(styleCurrent,30-intensity*2);
+else if(style==='neon')result=neonEffect(styleCurrent,Math.floor(intensity/3),50-intensity*3);
+else if(style==='glitch')result=glitchEffect(styleCurrent,intensity/10);
+else if(style==='vaporwave')result=vaporwaveEffect(styleCurrent,0.5);
+else result=styleCurrent;
+ctx.putImageData(result,0,0);
+styleCurrent=result;
+}
+function loadStyleImage(file){
+var reader=new FileReader();
+reader.onload=function(e){
+var img=new Image();
+img.onload=function(){
+styleCanvas=document.createElement('canvas');
+styleCanvas.width=img.width;styleCanvas.height=img.height;
+styleCtx=styleCanvas.getContext('2d');
+styleCtx.drawImage(img,0,0);
+styleOriginal=styleCtx.getImageData(0,0,img.width,img.height);
+styleCurrent=styleCtx.getImageData(0,0,img.width,img.height);
+styleImage=img;
+var orig=document.getElementById('style-original');
+if(orig){orig.innerHTML='';var c=document.createElement('canvas');c.width=img.width;c.height=img.height;c.getContext('2d').drawImage(img,0,0);c.style.maxWidth='100%';orig.appendChild(c)}
+var result=document.getElementById('style-result');
+if(result){result.innerHTML='';var c2=document.createElement('canvas');c2.width=img.width;c2.height=img.height;c2.getContext('2d').drawImage(img,0,0);c2.style.maxWidth='100%';result.appendChild(c2)}
+};
+img.src=e.target.result;
+};
+reader.readAsDataURL(file);
+}
+setTimeout(function(){
+document.getElementById('style-drop')?.addEventListener('click',function(){document.getElementById('style-file')?.click()});
+document.getElementById('style-file')?.addEventListener('change',function(e){if(e.target.files[0])loadStyleImage(e.target.files[0])});
+document.querySelectorAll('.style-btn').forEach(function(btn){
+btn.addEventListener('click',function(){
+document.querySelectorAll('.style-btn').forEach(function(b){b.classList.remove('active')});
+btn.classList.add('active');
+})});
+document.getElementById('style-intensity')?.addEventListener('input',function(e){
+document.getElementById('style-intensity-val').textContent=e.target.value
+});
+document.getElementById('style-apply')?.addEventListener('click',function(){
+var style=document.querySelector('.style-btn.active')?.dataset.style||'pixel';
+var intensity=parseInt(document.getElementById('style-intensity')?.value||5);
+applyStyle(style,intensity);
+var resultDiv=document.getElementById('style-result');
+if(resultDiv&&styleCanvas){
+resultDiv.innerHTML='';
+var c=document.createElement('canvas');
+c.width=styleCanvas.width;c.height=styleCanvas.height;
+c.getContext('2d').drawImage(styleCanvas,0,0);
+c.style.maxWidth='100%';
+resultDiv.appendChild(c);
+}});
+document.getElementById('style-reset')?.addEventListener('click',function(){
+if(styleOriginal&&styleCtx){
+styleCtx.putImageData(styleOriginal,0,0);
+styleCurrent=styleOriginal;
+var result=document.getElementById('style-result');
+if(result&&styleCanvas){
+result.innerHTML='';
+var c=document.createElement('canvas');
+c.width=styleCanvas.width;c.height=styleCanvas.height;
+c.getContext('2d').drawImage(styleCanvas,0,0);
+c.style.maxWidth='100%';
+result.appendChild(c);
+}}});
+document.getElementById('style-save')?.addEventListener('click',function(){
+if(styleCanvas){var id=addToLibrary('style','风格化 '+new Date().toLocaleTimeString(),styleCanvas.toDataURL());refreshAssets();alert('已保存: '+id)}
+});
+document.getElementById('style-dl')?.addEventListener('click',function(){
+if(styleCanvas){var a=document.createElement('a');a.href=styleCanvas.toDataURL();a.download='styled.png';a.click()}
+});
+},300)})();
+// ===== Batch Tools Module =====
+(function(){
+var batchFiles=[];
+var batchRenameMode='rename';
+function esc(s){if(s==null)return'';return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+function toTitleCase(s){return s.replace(/\w\S*/g,function(t){return t.charAt(0).toUpperCase()+t.substr(1).toLowerCase()})}
+function getExt(f){var i=f.lastIndexOf('.');return i>=0?f.slice(i):''}
+function getBase(f){var i=f.lastIndexOf('.');return i>=0?f.slice(0,i):f}
+function batchRename(files,opts){
+var results=[];
+files.forEach(function(file,idx){
+var name=file.name||file;
+var ext=getExt(name);
+var base=getBase(name);
+var newName=base+ext;
+switch(opts.pattern){
+case'prefix':newName=(opts.prefix||'')+base+ext;break;
+case'suffix':newName=base+(opts.suffix||'')+ext;break;
+case'replace':newName=base.replace(new RegExp(opts.find||'','g'),opts.replace||'')+ext;break;
+case'sequence':newName=base+'_'+String((opts.start||1)+idx).padStart(opts.padding||3,'0')+ext;break;
+case'case_upper':newName=base.toUpperCase()+ext;break;
+case'case_lower':newName=base.toLowerCase()+ext;break;
+case'date_prefix':newName=new Date().toISOString().slice(0,10)+'_'+base+ext;break;
+}
+results.push({original:name,renamed:newName,file:file});
+});
+return results;
+}
+function analyzeAsset(name){
+var s=[],n=(name||'').toLowerCase();
+if(n.includes('walk')||n.includes('run'))s.push({type:'animation',label:'🏃 移动',conf:0.9});
+if(n.includes('idle'))s.push({type:'animation',label:'😶 待机',conf:0.9});
+if(n.includes('attack')||n.includes('hit'))s.push({type:'animation',label:'⚔️ 攻击',conf:0.9});
+if(n.includes('bg')||n.includes('background'))s.push({type:'background',label:'🖼️ 背景',conf:0.9});
+if(n.includes('icon')||n.includes('ui'))s.push({type:'ui',label:'🎯 UI',conf:0.85});
+if(n.includes('tile'))s.push({type:'tile',label:'🏠 瓦片',conf:0.8});
+if(n.includes('enemy')||n.includes('monster'))s.push({type:'enemy',label:'👹 敌人',conf:0.85});
+if(n.includes('npc')||n.includes('character'))s.push({type:'character',label:'🧍 角色',conf:0.8});
+if(s.length===0)s.push({type:'unknown',label:'❓ 未识别',conf:0.3});
+return s.sort(function(a,b){return b.conf-a.conf});
+}
+function renderBatchList(){
+var list=document.getElementById('batch-rename-list');
+if(!list)return;
+if(batchFiles.length===0){list.innerHTML='<div class="gas-note">未选择文件</div>';return}
+list.innerHTML='';
+batchFiles.forEach(function(f,i){
+var div=document.createElement('div');
+div.style.cssText='display:flex;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px';
+div.innerHTML='<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span><span style="color:var(--muted)">'+(f.size?(f.size/1024).toFixed(1)+'KB':'local')+'</span><button class="gas-btn ghost" style="padding:2px 6px;font-size:10px;background:#3a1a1a" data-rm="'+i+'">✕</button>';
+div.querySelector('[data-rm]').onclick=function(){batchFiles.splice(i,1);renderBatchList()};
+list.appendChild(div);
+});
+}
+function renderPreview(renamed){
+var preview=document.getElementById('batch-preview');
+if(!preview)return;
+if(renamed&&renamed.length>0){
+preview.innerHTML='<div style="font-size:12px;color:var(--accent2);margin-bottom:6px">预览结果：</div>';
+renamed.slice(0,20).forEach(function(r){
+var div=document.createElement('div');
+div.style.cssText='font-size:11px;padding:2px 0';
+div.innerHTML='<span style="color:var(--muted);margin-right:6px">→</span>'+esc(r.original)+'<br><span style="color:#40c040">✓</span> '+esc(r.renamed);
+preview.appendChild(div);
+});
+if(renamed.length>20)preview.innerHTML+='<div style="color:var(--muted);font-size:11px">...还有 '+(renamed.length-20)+' 项</div>';
+}else{preview.innerHTML='<div class="gas-note">选择文件后预览</div>'}
+}
+function switchBatchTab(tab){
+batchRenameMode=tab;
+document.getElementById('batch-tab-rename').className='gas-btn'+(tab==='rename'?'':' ghost');
+document.getElementById('batch-tab-smart').className='gas-btn'+(tab==='smart'?'':' ghost');
+document.getElementById('batch-tab-path').className='gas-btn'+(tab==='path'?'':' ghost');
+document.getElementById('batch-content-rename').style.display=tab==='rename'?'block':'none';
+document.getElementById('batch-content-smart').style.display=tab==='smart'?'block':'none';
+document.getElementById('batch-content-path').style.display=tab==='path'?'block':'none';
+}
+setTimeout(function(){
+document.getElementById('batch-tab-rename')?.addEventListener('click',function(){switchBatchTab('rename')});
+document.getElementById('batch-tab-smart')?.addEventListener('click',function(){switchBatchTab('smart')});
+document.getElementById('batch-tab-path')?.addEventListener('click',function(){switchBatchTab('path')});
+document.getElementById('batch-rename-drop')?.addEventListener('click',function(){document.getElementById('batch-rename-files')?.click()});
+document.getElementById('batch-rename-files')?.addEventListener('change',function(e){
+if(e.target.files){
+batchFiles=Array.from(e.target.files);
+renderBatchList();
+}});
+document.getElementById('batch-rename-pattern')?.addEventListener('change',function(e){
+var p=e.target.value;
+document.getElementById('batch-rename-options').style.display=(p==='prefix'||p==='suffix')?'flex':'none';
+document.getElementById('batch-replace-options').style.display=p==='replace'?'flex':'none';
+document.getElementById('batch-seq-options').style.display=p==='sequence'?'flex':'none';
+});
+document.getElementById('batch-rename-preview')?.addEventListener('click',function(){
+var opts={
+pattern:document.getElementById('batch-rename-pattern')?.value||'prefix',
+prefix:document.getElementById('batch-prefix')?.value||'',
+suffix:document.getElementById('batch-suffix')?.value||'',
+find:document.getElementById('batch-find')?.value||'',
+replace:document.getElementById('batch-replace')?.value||'',
+start:parseInt(document.getElementById('batch-seq-start')?.value||'1'),
+padding:parseInt(document.getElementById('batch-seq-padding')?.value||'3')
+};
+var result=batchRename(batchFiles,opts);
+renderPreview(result);
+});
+document.getElementById('batch-rename-apply')?.addEventListener('click',function(){
+var opts={
+pattern:document.getElementById('batch-rename-pattern')?.value||'prefix',
+prefix:document.getElementById('batch-prefix')?.value||'',
+suffix:document.getElementById('batch-suffix')?.value||'',
+find:document.getElementById('batch-find')?.value||'',
+replace:document.getElementById('batch-replace')?.value||'',
+start:parseInt(document.getElementById('batch-seq-start')?.value||'1'),
+padding:parseInt(document.getElementById('batch-seq-padding')?.value||'3')
+};
+var result=batchRename(batchFiles,opts);
+alert('将重命名 '+result.length+' 个文件\n'+result.map(function(r){return r.original+' -> '+r.renamed}).join('\n'));
+});
+document.getElementById('batch-rename-export')?.addEventListener('click',function(){
+var opts={
+pattern:document.getElementById('batch-rename-pattern')?.value||'prefix',
+prefix:document.getElementById('batch-prefix')?.value||'',
+suffix:document.getElementById('batch-suffix')?.value||'',
+find:document.getElementById('batch-find')?.value||'',
+replace:document.getElementById('batch-replace')?.value||'',
+start:parseInt(document.getElementById('batch-seq-start')?.value||'1'),
+padding:parseInt(document.getElementById('batch-seq-padding')?.value||'3')
+};
+var result=batchRename(batchFiles,opts);
+var csv='Original,Rename\n'+result.map(function(r){return'"'+r.original+'","'+r.renamed+'"'}).join('\n');
+var blob=new Blob([csv],{type:'text/csv'});
+var url=URL.createObjectURL(blob);
+var a=document.createElement('a');a.href=url;a.download='batch_rename.csv';a.click();
+URL.revokeObjectURL(url);
+});
+document.getElementById('batch-smart-analyze')?.addEventListener('click',function(){
+var results=document.getElementById('batch-smart-results');
+if(!results||batchFiles.length===0){results.innerHTML='<div class="gas-note">请先选择素材</div>';return}
+var categories={};
+batchFiles.forEach(function(f){
+var analysis=analyzeAsset(f.name);
+var primary=analysis[0];
+if(primary&&primary.type!=='unknown'){
+if(!categories[primary.type])categories[primary.type]={label:primary.label,items:[]};
+categories[primary.type].items.push(f);
+}});
+var html='<div style="font-size:12px">';
+Object.entries(categories).forEach(function(entry){
+html+='<div style="margin-bottom:8px;padding:6px;background:#252a2e;border-radius:6px">';
+html+='<b style="color:var(--accent2)">'+entry[1].label+'</b> ('+entry[1].items.length+' 个)<br>';
+entry[1].items.forEach(function(item){
+html+='<span style="font-size:11px;color:var(--muted)">• '+esc(item.name)+'</span><br>';
+});
+html+='</div>';
+});
+if(Object.keys(categories).length===0)html+='<div class="gas-note">未能识别分类</div>';
+html+='</div>';
+results.innerHTML=html;
+});
+document.getElementById('batch-smart-organize')?.addEventListener('click',async function(){
+var results=document.getElementById('batch-smart-results');
+var btn=this;
+if(!results||batchFiles.length===0){if(results)results.innerHTML='<div class="gas-note">请先选择素材</div>';return}
+btn.disabled=true;btn.textContent='⏳ 整理中...';
+try{
+var catMap={animation:'spritesheet',background:'scene',ui:'asset',tile:'tile',enemy:'character',npc:'character',character:'character'};
+var categories={};
+batchFiles.forEach(function(f){
+var analysis=analyzeAsset(f.name);
+var primary=analysis[0];
+if(primary&&primary.type!=='unknown'){
+if(!categories[primary.type])categories[primary.type]={label:primary.label,items:[],kind:catMap[primary.type]||'asset'};
+categories[primary.type].items.push(f);
+}});
+var total=0,html='<div style="font-size:12px"><b style="color:var(--ok)">✓ 整理完成</b><br>';
+for(const[type,cat]of Object.entries(categories)){
+var libKind=cat.kind;
+var count=0;
+for(const item of cat.items){
+try{
+var url=await new Promise(function(resolve,reject){
+var reader=new FileReader();
+reader.onload=function(){resolve(reader.result)};
+reader.onerror=reject;
+reader.readAsDataURL(item);
+});
+await addToLibrary(libKind,item.name,url,{from:'batch-organize',category:type});
+count++;total++;
+}catch(e){console.warn('入库失败:',item.name,e)}
+}
+html+='<div style="margin-bottom:6px;padding:4px 6px;background:#252a2e;border-radius:4px"><b style="color:var(--accent2)">'+cat.label+'</b> → '+libKind+' 库 ('+count+' 张)</div>';
+}
+html+='<div style="color:var(--ok);margin-top:4px">共入库 '+total+' 张,可在「素材总管」查看</div></div>';
+results.innerHTML=html;
+if(typeof refreshAssets==='function')refreshAssets();
+}catch(e){
+results.innerHTML='<div class="gas-note" style="color:#e74c3c">整理失败: '+esc(String(e.message||e))+'</div>';
+}finally{
+btn.disabled=false;btn.textContent='📁 按分类整理';
+}
+});
+// ===== 路径规划工具(基于 TileSet 编辑器碰撞数据) =====
+function getPathGrid(){
+var data=window.__tsGetGridData?window.__tsGetGridData():null;
+if(!data||!data.cols||!data.rows||!data.tiles||!data.tiles.length){
+return{grid:[],cols:0,rows:0,empty:true};
+}
+var cols=data.cols,rows=data.rows;
+var grid=[];
+for(var y=0;y<rows;y++){grid.push(new Array(cols).fill(0))}
+data.tiles.forEach(function(t){
+if(t&&t.collision&&t.y>=0&&t.y<rows&&t.x>=0&&t.x<cols)grid[t.y][t.x]=1;
+});
+return{grid:grid,cols:cols,rows:rows,empty:false};
+}
+function bfsPath(start,end,grid){
+var cols=grid[0].length,rows=grid.length;
+var queue=[start];
+var visited=new Set([start[1]+','+start[0]]);
+var prev={};
+var dirs=[[0,1],[0,-1],[1,0],[-1,0]];
+while(queue.length>0){
+var cur=queue.shift();
+if(cur[0]===end[0]&&cur[1]===end[1]){
+var path=[end];
+var key=end[1]+','+end[0];
+while(prev[key]!==undefined){
+path.unshift(prev[key].split(',').map(Number));
+key=prev[key];
+}
+return path;
+}
+for(var d=0;d<4;d++){
+var nx=cur[0]+dirs[d][0],ny=cur[1]+dirs[d][1];
+if(nx<0||ny<0||nx>=cols||ny>=rows)continue;
+if(grid[ny][nx]===1)continue;
+var k=ny+','+nx;
+if(visited.has(k))continue;
+visited.add(k);
+prev[k]=cur[1]+','+cur[0];
+queue.push([nx,ny]);
+}
+}
+return null;
+}
+function floodReachable(start,grid){
+var cols=grid[0].length,rows=grid.length;
+var visited=new Set([start[1]+','+start[0]]);
+var queue=[start];
+var dirs=[[0,1],[0,-1],[1,0],[-1,0]];
+while(queue.length>0){
+var cur=queue.shift();
+for(var d=0;d<4;d++){
+var nx=cur[0]+dirs[d][0],ny=cur[1]+dirs[d][1];
+if(nx<0||ny<0||nx>=cols||ny>=rows)continue;
+if(grid[ny][nx]===1)continue;
+var k=ny+','+nx;
+if(visited.has(k))continue;
+visited.add(k);
+queue.push([nx,ny]);
+}
+}
+return visited;
+}
+document.getElementById('path-find')?.addEventListener('click',function(){
+var out=document.getElementById('path-results');
+if(!out)return;
+var info=getPathGrid();
+if(info.empty){out.innerHTML='<div class="gas-note">未加载 TileSet 数据 — 请先在「TileSet 编辑」面板导入图片并标记碰撞块</div>';return}
+var sx=parseInt(document.getElementById('path-start-x')?.value||'0');
+var sy=parseInt(document.getElementById('path-start-y')?.value||'0');
+var ex=parseInt(document.getElementById('path-end-x')?.value||'0');
+var ey=parseInt(document.getElementById('path-end-y')?.value||'0');
+if(sx<0||sy<0||ex<0||ey<0||sx>=info.cols||sy>=info.rows||ex>=info.cols||ey>=info.rows){
+out.innerHTML='<div class="gas-note" style="color:#e74c3c">坐标超出范围 ('+info.cols+'×'+info.rows+')</div>';return}
+if(info.grid[sy][sx]===1){out.innerHTML='<div class="gas-note" style="color:#e74c3c">起点 ('+sx+','+sy+') 是碰撞块</div>';return}
+if(info.grid[ey][ex]===1){out.innerHTML='<div class="gas-note" style="color:#e74c3c">终点 ('+ex+','+ey+') 是碰撞块</div>';return}
+var path=bfsPath([sx,sy],[ex,ey],info.grid);
+if(!path){out.innerHTML='<div class="gas-note" style="color:#e74c3c">❌ 不可达：起点到终点之间没有通路</div>';return}
+var html='<div style="font-size:12px;color:var(--ok)">✓ 找到路径('+path.length+' 步):</div>';
+html+='<div style="font-size:11px;color:var(--muted);margin-top:4px;max-height:120px;overflow:auto">';
+html+=path.map(function(p){return'('+p[0]+','+p[1]+')'}).join(' → ');
+html+='</div>';
+out.innerHTML=html;
+});
+document.getElementById('path-reachable')?.addEventListener('click',function(){
+var out=document.getElementById('path-results');
+if(!out)return;
+var info=getPathGrid();
+if(info.empty){out.innerHTML='<div class="gas-note">未加载 TileSet 数据 — 请先在「TileSet 编辑」面板导入图片并标记碰撞块</div>';return}
+var sx=parseInt(document.getElementById('path-start-x')?.value||'0');
+var sy=parseInt(document.getElementById('path-start-y')?.value||'0');
+if(sx<0||sy<0||sx>=info.cols||sy>=info.rows){out.innerHTML='<div class="gas-note" style="color:#e74c3c">起点超出范围</div>';return}
+if(info.grid[sy][sx]===1){out.innerHTML='<div class="gas-note" style="color:#e74c3c">起点 ('+sx+','+sy+') 是碰撞块</div>';return}
+var visited=floodReachable([sx,sy],info.grid);
+var total=info.cols*info.rows;
+var blocked=0;
+info.grid.forEach(function(row){row.forEach(function(c){if(c===1)blocked++})});
+var free=total-blocked;
+var html='<div style="font-size:12px;color:var(--ok)">✓ 从('+sx+','+sy+')可达 '+visited.size+' 格</div>';
+html+='<div style="font-size:11px;color:var(--muted);margin-top:4px">总格数: '+total+' | 碰撞: '+blocked+' | 可走: '+free+' | 可达: '+visited.size+(visited.size<free?'<br>⚠️ 有 '+(free-visited.size)+' 格不可达(被碰撞隔离)':'')+'</div>';
+out.innerHTML=html;
+});
+document.getElementById('path-isolated')?.addEventListener('click',function(){
+var out=document.getElementById('path-results');
+if(!out)return;
+var info=getPathGrid();
+if(info.empty){out.innerHTML='<div class="gas-note">未加载 TileSet 数据 — 请先在「TileSet 编辑」面板导入图片并标记碰撞块</div>';return}
+var visited=new Set();
+var regions=[];
+for(var y=0;y<info.rows;y++)for(var x=0;x<info.cols;x++){
+if(info.grid[y][x]===1)continue;
+var k=y+','+x;
+if(visited.has(k))continue;
+var region=floodReachable([x,y],info.grid);
+region.forEach(function(rk){visited.add(rk)});
+regions.push({size:region.size,cells:Array.from(region)});
+}
+regions.sort(function(a,b){return b.size-a.size});
+if(regions.length<=1){
+out.innerHTML='<div style="font-size:12px;color:var(--ok)">✓ 无孤立区域(所有可走格子连通)</div>';
+return;
+}
+var html='<div style="font-size:12px;color:var(--warn)">⚠️ 发现 '+regions.length+' 个隔离区域:</div>';
+html+='<div style="font-size:11px;color:var(--muted);margin-top:4px;max-height:140px;overflow:auto">';
+regions.forEach(function(r,i){
+html+='<div style="margin-bottom:4px"><b style="color:'+(i===0?'var(--ok)':'var(--warn)')+'">'+(i===0?'主区域':'区域'+(i+1))+'</b> ('+r.size+' 格)';
+if(i>0&&r.size<=8)html+='<br>↳ '+r.cells.slice(0,8).map(function(c){var p=c.split(',');return'('+p[0]+','+p[1]+')'}).join(' ');
+html+='</div>';
+});
+html+='</div>';
+out.innerHTML=html;
+});
+},300)})();
 </script>
 </body>
 </html>

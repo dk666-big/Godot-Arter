@@ -24,3 +24,17 @@ Thumbs.db
 
 # Local tooling
 .commandcode/
+
+# Debug / test temporary files
+char_debug.cjs
+debug*.cjs
+test_exact.cjs
+test_js.cjs
+test_snippet.cjs
+test.js
+test2.js
+test3.js
+test_snippet.js
+game-art-studio.html.bak
+public/test*.html
+public/index_test.html
