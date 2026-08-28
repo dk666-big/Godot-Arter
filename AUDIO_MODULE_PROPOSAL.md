@@ -179,20 +179,57 @@ export/
 
 ### 3.1 音频生成 API
 
-#### 3.1.1 第三方 API
-| API | 优点 | 缺点 |
-|-----|------|------|
-| Suno API | 音乐质量高 | 需申请 |
-| Udio | 音乐质量高 | 需申请 |
-| 自建音频模型 | 完全可控 | 需部署 |
-| ElevenLabs | 音效+语音 | 费用较高 |
+#### 3.1.1 统一 API 预设体系
+所有音频 API 统一在「API 预设」模块中配置，支持以下类型：
 
-#### 3.1.2 替代方案（无 API 时）
+**图片生成供应商（已有）：**
+| ID | 名称 | 说明 |
+|----|------|------|
+| mock | 本地演示 | Canvas 占位图 |
+| openai | OpenAI DALL-E | 需要 API Key |
+| siliconflow | SiliconFlow | 中转站 |
+| custom:xxx | 自定义第三方 | 用户配置 |
+
+**音频生成供应商（新增）：**
+| ID | 名称 | 说明 |
+|----|------|------|
+| mock | 本地演示 | Web Audio 合成音效 |
+| suno | Suno AI | 音乐生成 |
+| udio | Udio AI | 音乐生成 |
+| elevenlabs | ElevenLabs | 音效+语音 |
+| tts | TTS 语音 | 文字转语音 |
+| custom-audio:xxx | 自定义音频 API | 用户配置 |
+
+#### 3.1.2 自定义音频 API 配置
+在「API 预设」中新增「音频 API」配置项：
+
+```typescript
+interface AudioProviderPreset {
+  id: string
+  name: string           // 显示名称，如 "我的音频中转"
+  type: 'suno' | 'udio' | 'elevenlabs' | 'tts' | 'custom'
+  baseUrl: string        // API 基础地址
+  apiKey: string        // API Key
+  model?: string        // 可选模型
+  enabled: boolean
+}
+```
+
+#### 3.1.3 支持的 API 类型
+| API 类型 | 用途 | 示例供应商 |
+|----------|------|----------|
+| 音乐生成 | BGM/主题曲 | Suno, Udio, 自建音乐模型 |
+| 音效生成 | 游戏音效 | ElevenLabs, 自建音效模型 |
+| 语音合成 | 角色对话 | ElevenLabs, Azure TTS, 自建 TTS |
+| 音频编辑 | 变调/特效 | 自建音频处理 API |
+| 哼唱转谱 |哼唱转MIDI | 自建哼唱识别 API |
+
+#### 3.1.4 替代方案（无 API 时）
 | 方案 | 说明 |
 |------|------|
-| Web Audio API | 生成简单合成音效 |
+| Web Audio API | 生成简单合成音效（beep/嗡鸣/节奏） |
+| 预设音效库 | 内置常用音效（攻击/拾取/点击等） |
 | MIDI 生成 | 生成 MIDI 再转音频 |
-| 预设音效库 | 内置常用音效 |
 
 ### 3.2 前端实现
 
@@ -274,36 +311,137 @@ interface MusicProject {
 
 ## 四、API 设计
 
-### 4.1 音频生成接口
+### 4.1 统一 API 预设配置
 
-```typescript
-// 音效生成
-async function callAudioGen(
-  prompt: string,
-  type: 'sfx' | 'music',
-  options: {
-    duration?: number
-    bpm?: number
-    instruments?: string[]
-    provider?: string
-  }
-): Promise<{
-  url: string
-  duration: number
-  format: string
-}>
+所有 API（图片、音频、TTS）统一在「API 预设」面板管理：
+
+```
+🔌 API 预设
+├── 📷 图片生成
+│   ├── OpenAI (DALL-E)
+│   ├── SiliconFlow
+│   └── 🔌 自定义第三方 API
+│       └── Base URL / API Key / 模型
+│
+├── 🎵 音频生成
+│   ├── Suno AI
+│   ├── Udio AI
+│   ├── ElevenLabs (音效/语音)
+│   └── 🔌 自定义音频 API
+│       └── Base URL / API Key / 模型
+│
+└── 🗣️ 语音合成 (TTS)
+    ├── ElevenLabs
+    ├── Azure TTS
+    └── 🔌 自定义 TTS API
+        └── Base URL / API Key / 声音模型
 ```
 
-### 4.2 供应商扩展
+### 4.2 音频生成接口
 
 ```typescript
-// 预设供应商
-const AUDIO_PROVIDERS = {
-  'mock': '本地演示',
-  'suno': 'Suno AI',
-  'udio': 'Udio AI',
-  'elevenlabs': 'ElevenLabs',
-  'custom': '自定义 API'
+// 统一调用入口
+async function callAudioGen(
+  prompt: string,
+  type: 'sfx' | 'music' | 'tts',
+  options: {
+    provider?: string      // 'suno' | 'udio' | 'mock' | 'custom:xxx'
+    duration?: number      // 时长（秒）
+    bpm?: number          // 音乐 BPM
+    instruments?: string[] // 乐器
+    voice?: string        // TTS 声音
+    model?: string        // 指定模型
+  }
+): Promise<{
+  url: string            // 音频 Blob URL
+  duration: number       // 时长（秒）
+  format: 'wav' | 'mp3' | 'ogg'
+}>
+
+// 内部实现
+async function callAudioGen(prompt, type, opts = {}) {
+  const { provider = 'mock' } = opts
+  
+  // 本地演示模式
+  if (provider === 'mock') {
+    return synthesizeLocalAudio(prompt, type, opts)
+  }
+  
+  // 自定义第三方
+  if (provider.startsWith('custom-audio:')) {
+    const id = provider.slice('custom-audio:'.length)
+    const preset = getAudioPresets().find(p => p.id === id)
+    if (!preset) throw new Error('音频预设不存在')
+    return callCustomAudioAPI(prompt, type, preset, opts)
+  }
+  
+  // 内置供应商
+  switch (provider) {
+    case 'suno': return callSunoAPI(prompt, opts)
+    case 'udio': return callUdioAPI(prompt, opts)
+    case 'elevenlabs': return callElevenLabsAPI(prompt, type, opts)
+    case 'tts': return callTTSAPI(prompt, opts)
+    default: throw new Error('不支持的音频供应商')
+  }
+}
+```
+
+### 4.3 自定义音频 API 配置
+
+```typescript
+// 获取音频预设
+function getAudioPresets(): AudioProviderPreset[] {
+  const stored = localStorage.getItem('dsh-game-art-studio:audioProviders')
+  return stored ? JSON.parse(stored) : []
+}
+
+// 保存音频预设
+function saveAudioPresets(presets: AudioProviderPreset[]) {
+  localStorage.setItem('dsh-game-art-studio:audioProviders', JSON.stringify(presets))
+}
+
+// 调用自定义音频 API
+async function callCustomAudioAPI(
+  prompt: string,
+  type: string,
+  preset: AudioProviderPreset,
+  opts: any
+): Promise<AudioResult> {
+  const endpoint = preset.baseUrl.replace(/\/+$/, '') + '/v1/audio/generate'
+  
+  const body: any = {
+    prompt,
+    model: opts.model || preset.model || 'default'
+  }
+  
+  if (type === 'sfx') {
+    body.duration = opts.duration || 1
+  } else if (type === 'music') {
+    body.duration = opts.duration || 60
+    if (opts.bpm) body.bpm = opts.bpm
+    if (opts.instruments) body.instruments = opts.instruments
+  }
+  
+  // 优先要二进制音频
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + preset.apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  })
+  
+  if (!response.ok) throw new Error(`API 错误: ${response.status}`)
+  
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  
+  return {
+    url,
+    duration: await getAudioDuration(url),
+    format: 'mp3'
+  }
 }
 ```
 
@@ -401,7 +539,22 @@ func play_bgm(bgm_name: String, volume: float = 0.0, fade: bool = true) -> void:
 - 中间：主工作区（波形编辑器/生成器）
 - 右侧：属性面板
 
-### 7.3 暗色主题
+### 7.3 供应商选择器
+与图片生成共用同一套供应商选择 UI：
+
+```html
+<select id="audio-provider">
+  <option value="mock">🎭 本地演示(无Key)</option>
+  <option value="suno">🎵 Suno AI</option>
+  <option value="udio">🎵 Udio AI</option>
+  <option value="elevenlabs">🎵 ElevenLabs</option>
+  <option value="tts">🗣️ 文字转语音</option>
+  <option value="custom-audio:xxx">🔌 我的音频中转</option>
+  <option value="custom-audio:yyy">🔌 另一个中转站</option>
+</select>
+```
+
+### 7.4 暗色主题
 与整个工坊一致的暗黑童话风格：
 - 主色：`#241c14`（深棕）
 - 强调色：`#e8a33d`（烛金）
@@ -443,6 +596,97 @@ func play_bgm(bgm_name: String, volume: float = 0.0, fade: bool = true) -> void:
 
 ---
 
-**文档版本：** 1.0  
+## 十、API 预设面板扩展
+
+### 10.1 统一配置界面
+在现有的「API 预设」面板中新增音频和 TTS 配置区域：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  🔌 API 预设                                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  📷 图片生成                                                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ OpenAI API Key:  [sk-xxxx]  💾 保存                  │  │
+│  │ SiliconFlow API Key:  [sk-xxxx]  💾 保存            │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                              │
+│  🎵 音频生成                                                  │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ 供应商    │ Base URL              │ API Key          │  │
+│  │ Suno AI   │ api.suno.ai/v1       │ [sk-xxxx]        │  │
+│  │ Udio      │ api.udio.ai/v1        │ [sk-xxxx]        │  │
+│  │ ElevenLabs│ api.elevenlabs.ai/v1  │ [sk-xxxx]        │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                              │
+│  🗣️ 语音合成 (TTS)                                          │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ 供应商    │ Base URL              │ 声音模型          │  │
+│  │ ElevenLabs│ api.elevenlabs.ai/v1  │ [下沉/活泼/...]   │  │
+│  │ Azure TTS │ [自定义]              │ [sk-xxxx]        │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                              │
+│  🔌 自定义第三方音频 API                                     │
+│  ┌───────────────────────────────────────────────────────┐  │
+│  │ + 新增预设                                             │  │
+│  │                                                        │  │
+│  │ 名称: [我的音频中转站____]                            │  │
+│  │ Base URL: [https://audio-api.example.com/v1___]       │  │
+│  │ API Key:  [sk-xxxx________________________________]   │  │
+│  │ 类型:    [🎵 音乐生成 ▼]                              │  │
+│  │ 模型:    [florence-audio-v2___________________]       │  │
+│  │            [💾 保存] [🗑 删除]                        │  │
+│  └───────────────────────────────────────────────────────┘  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 供应商配置字段
+
+```typescript
+// 音频/TTS 预设配置
+interface AudioProviderConfig {
+  id: string              // 唯一标识
+  name: string            // 显示名称
+  type: 'suno' | 'udio' | 'elevenlabs' | 'tts' | 'azure' | 'custom'
+  baseUrl?: string        // API 基础地址（custom 需要）
+  apiKey?: string         // API Key
+  model?: string          // 可选模型
+  voice?: string          // TTS 声音选项
+  enabled: boolean        // 是否启用
+}
+```
+
+### 10.3 统一的供应商选择逻辑
+
+```typescript
+// 获取所有音频供应商选项（与图片供应商共用样式）
+function getAudioProviderOptions(): string {
+  const built = [
+    { value: 'mock', label: '🎭 本地演示(无Key)' },
+    { value: 'suno', label: '🎵 Suno AI' },
+    { value: 'udio', label: '🎵 Udio AI' },
+    { value: 'elevenlabs', label: '🎵 ElevenLabs' },
+    { value: 'tts', label: '🗣️ 文字转语音' },
+  ]
+  
+  // 从预设中加载自定义供应商
+  const customs = getAudioPresets()
+    .filter(p => p.enabled)
+    .map(p => ({
+      value: `custom-audio:${p.id}`,
+      label: `🔌 ${p.name}`
+    }))
+  
+  return [...built, ...customs].map(o => 
+    `<option value="${o.value}">${o.label}</option>`
+  ).join('')
+}
+```
+
+---
+
+**文档版本：** 1.1  
 **最后更新：** 2025年  
 **状态：** 待开发
