@@ -3738,9 +3738,14 @@ const pPost=mkPanel('post', `
     if(provider==='siliconflow'){
       const key=keys.siliconflow
       if(ref){ return await callImageEdits(prompt, 'https://api.siliconflow.cn/v1/images/edits', key, { ...opts, model:'black-forest-labs/FLUX.1-schnell' }) }
-      const r=await fetch('https://api.siliconflow.cn/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify({ model:'black-forest-labs/FLUX.1-schnell', prompt, image_size:opts.size||'1024x1024' }) })
+      // 优先用 base64 避免下载延迟
+      const r=await fetch('https://api.siliconflow.cn/v1/images/generations',{ method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key }, body:JSON.stringify({ model:'black-forest-labs/FLUX.1-schnell', prompt, image_size:opts.size||'1024x1024', response_format:'base64' }) })
       if(!r.ok) throw new Error('SiliconFlow '+r.status+': '+await r.text().then(t=>t.slice(0,200)))
-      const j=await r.json(); const url=j.data?.[0]?.url || j.images?.[0]?.url
+      const j=await r.json()
+      const b64=j.data?.[0]?.b64_json || j.images?.[0]?.b64_json
+      if(b64) return 'data:image/png;base64,'+b64
+      // 回退到 URL 下载
+      const url=j.data?.[0]?.url || j.images?.[0]?.url
       if(!url) throw new Error('SiliconFlow 未返回图片')
       return await toLocalBlobUrl(url)
     }
